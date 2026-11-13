@@ -22,3 +22,7 @@ Batch-4 PR3: `umi-style-collection/teleop_rtt_budget_toy.py` (stdlib CPU); `chec
 ## power-battery-emc/ — Inrush current and an NTC limiter / 浪涌电流与 NTC 限流
 
 `power-battery-emc/ntc_inrush_limiter_toy.py`: standard-library synthetic capacitor-charging circuit with a one-node NTC thermal model (no limiter vs NTC vs fixed resistor vs relay bypass; cold start, hot restart, heavy load) on shared capacitor, source, tolerance and ambient draws; no hardware; expected output in `expected/ntc_inrush_limiter_toy.txt`, included in `check.sh`. Real PSU / NTC disc / fuse 本页未运行. / 标准库合成的电容充电电路与单节点 NTC 热模型（无限流、NTC、固定电阻、旁路继电器；冷启动、热重启、重载），不是实测，输出由 `check.sh` 核对。
+
+## umi-style-collection/ — EgoVLA: human-video prior, retargeting and robot post-training / EgoVLA：人类视频先验、重定向与机器人后训练
+
+`umi-style-collection/egovla_human_pretrain_retarget_toy.py`: standard-library synthetic linear action model with a prior-mean ridge fit (robot-only vs human prior plus post-training vs zero-shot retargeting; full data, half data, far-off prior) on shared skill, prior, demonstration and rollout draws; no GPU, no weights; expected output in `expected/egovla_human_pretrain_retarget_toy.txt`, included in `check.sh`. EgoVLA numbers 以论文为准; MANO / Isaac Lab / humanoid 本页未运行. / 标准库合成线性动作模型与带先验均值的岭回归（只用机器人数据、人类先验加后训练、零样本重定向；全量数据、数据减半、先验偏差大），不是 GPU 训练或真机结果，输出由 `check.sh` 核对。

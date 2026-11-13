@@ -22,3 +22,7 @@ Batch-4 PR3: `rl-foundations/residual_action_mismatch_toy.py` (stdlib CPU); `che
 ## Batch-20 PR3 / 第20批 PR3
 
 `perception-to-grasp/graspvla_syngrasp_pretrain_toy.py`: standard-library synthetic appearance vectors with a nearest-sample grounding step (geometry only vs grounding first with DR vs no DR vs shuffled labels), no GPU, no weights; expected output in `expected/graspvla_syngrasp_pretrain_toy.txt`, included in `check.sh`. GraspVLA numbers 以论文为准; real grasp cell 本页未运行. / 标准库合成外观向量与最近样本定位（只看几何、先定位加 DR、不做 DR、标签错乱），不是 GPU 训练或真机结果，输出由 `check.sh` 核对。
+
+## depth-pointcloud/ — PointVLA: a point cloud added to a frozen 2D policy / PointVLA：给冻结的二维策略加上点云
+
+`depth-pointcloud/pointvla_frozen_injector_toy.py`: standard-library synthetic grasp-height scenes with an additive point-cloud correction injected into a frozen policy (2D only vs late-block injection vs early-block injection; training height, raised table, photos on a screen, corrupted cloud) on shared scene, noise and grip draws; no GPU, no weights; expected output in `expected/pointvla_frozen_injector_toy.txt`, included in `check.sh`. PointVLA numbers 以论文为准; DexVLA / real camera / robot 本页未运行. / 标准库合成的抓取高度场景，把加法点云修正注入冻结策略（只用二维、注入靠后的块、注入靠前的块；训练高度、升高桌面、屏幕照片、损坏点云），不是 GPU 训练或真机结果，输出由 `check.sh` 核对。

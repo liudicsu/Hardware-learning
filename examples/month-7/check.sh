@@ -65,4 +65,6 @@ check tobin_visual_domain_randomization_toy.txt "$PY" "$M7/sim-to-real/tobin_vis
 
 check graspvla_syngrasp_pretrain_toy.txt "$PY" "$M7/perception-to-grasp/graspvla_syngrasp_pretrain_toy.py"
 
+check pointvla_frozen_injector_toy.txt "$PY" "$M7/depth-pointcloud/pointvla_frozen_injector_toy.py"
+
 exit $fail

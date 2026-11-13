@@ -42,4 +42,6 @@ check ground_loop_return_ir_toy.txt "$PY" "$M11/power-battery-emc/ground_loop_re
 check xvla_soft_prompt_toy.txt "$PY" "$M11/cross-embodiment-datasets/xvla_soft_prompt_toy.py"
 
 check ntc_inrush_limiter_toy.txt "$PY" "$M11/power-battery-emc/ntc_inrush_limiter_toy.py"
+check egovla_human_pretrain_retarget_toy.txt "$PY" "$M11/umi-style-collection/egovla_human_pretrain_retarget_toy.py"
+
 exit $fail

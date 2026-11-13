@@ -1,0 +1,75 @@
+PointVLA frozen-injector toy: frozen 2D VLA head plus a lightweight additive point-cloud injection at one declared block
+synthetic stand-in, scalar grasp-height model, not DexVLA; not a GPU / RealSense / UR5e run (本页未运行); not OctoMap / TSDF / 3DGS / SpatialVLA; PointVLA paper scores are not reproduced; paper statements 以论文为准
+seeds=5 n_blocks=8 eta=0.5000 sig_grip=0.0400 grip_thr=0.9000 tol=0.0100 n_pts=32 n_scenes=40 (declared)
+arm ordering follows from the declared block-importance profile and noise levels
+Regimes and parameters were written before the first run
+rule: real scene grasp needs |z_cmd - z_true| < TOL and a closed gripper; photo scene success = no grasp; presence check z3d - table_est > PRES_THR
+hand_calc A systematic height error under the shift: (1-rgb_cue)*(H_SHIFT-H_TRAIN) = 0.0441 m vs TOL 0.0100
+hand_calc sd of cloud mean = SIG_PC/sqrt(N_PTS) = 0.0007 m
+hand_calc q (no injection) = 1.0000, closing probability Phi((q-0.9000)/0.0400) = 0.9938
+hand_calc q (LATE_BLOCK) = 0.9700, closing probability Phi((q-0.9000)/0.0400) = 0.9599
+hand_calc q (EARLY_BLOCK) = 0.8500, closing probability Phi((q-0.9000)/0.0400) = 0.1056
+hand_calc skip-block proxy 1-W_BLOCK[j]: 0.7000 0.7800 0.8400 0.9200 0.9400 0.9400 0.9400 0.9400
+train_height:
+  declared: A vs B may near-tie - keep; C consistently below B on success - keep
+  A_2d success 0.9900+-0.0137 height_err_mm 2.4331+-0.3670 false_grasp 0.0000+-0.0000
+  B_late success 0.9600+-0.0379 height_err_mm 0.6309+-0.0492 false_grasp 0.0000+-0.0000
+  C_early success 0.1700+-0.0597 height_err_mm 0.6309+-0.0492 false_grasp 0.0000+-0.0000
+  paired B-A success: -0.0300+-0.0326: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+  paired B-A height_err_mm: -1.8022+-0.4029: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A false_grasp: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B success: -0.7900+-0.0783: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B height_err_mm: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B false_grasp: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A success: -0.8200+-0.0694: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A height_err_mm: -1.8022+-0.4029: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A false_grasp: 0.0000+-0.0000: tie: identical on every seed
+height_shift:
+  declared: B consistently above A on success; C below B - keep
+  A_2d success 0.0000+-0.0000 height_err_mm 44.5741+-0.5399 false_grasp 0.0000+-0.0000
+  B_late success 0.9750+-0.0177 height_err_mm 0.6238+-0.0636 false_grasp 0.0000+-0.0000
+  C_early success 0.1100+-0.0548 height_err_mm 0.6238+-0.0636 false_grasp 0.0000+-0.0000
+  paired B-A success: 0.9750+-0.0177: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A height_err_mm: -43.9503+-0.5670: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A false_grasp: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B success: -0.8650+-0.0548: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B height_err_mm: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B false_grasp: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A success: 0.1100+-0.0548: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A height_err_mm: -43.9503+-0.5670: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A false_grasp: 0.0000+-0.0000: tie: identical on every seed
+real_vs_photo:
+  declared: B consistently above A on success (A grasps at photos); C below B - keep
+  A_2d success 0.5750+-0.1000 height_err_mm 2.9037+-0.3294 false_grasp 1.0000+-0.0000
+  B_late success 0.9750+-0.0000 height_err_mm 0.5021+-0.0997 false_grasp 0.0000+-0.0000
+  C_early success 0.4950+-0.0694 height_err_mm 0.5021+-0.0997 false_grasp 0.0000+-0.0000
+  paired B-A success: 0.4000+-0.1000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A height_err_mm: -2.4015+-0.3658: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A false_grasp: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: -0.4800+-0.0694: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B height_err_mm: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B false_grasp: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A success: -0.0800+-0.1605: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired C-A height_err_mm: -2.4015+-0.3658: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A false_grasp: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+corrupted_cloud:
+  declared: B may lose to A - keep as it comes
+  A_2d success 0.9900+-0.0137 height_err_mm 2.5405+-0.1604 false_grasp 0.0000+-0.0000
+  B_late success 0.6850+-0.0978 height_err_mm 7.3992+-0.7443 false_grasp 0.0000+-0.0000
+  C_early success 0.1100+-0.0762 height_err_mm 7.3992+-0.7443 false_grasp 0.0000+-0.0000
+  paired B-A success: -0.3050+-0.0925: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A height_err_mm: 4.8587+-0.6799: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A false_grasp: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B success: -0.5750+-0.1571: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B height_err_mm: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B false_grasp: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A success: -0.8800+-0.0818: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A height_err_mm: 4.8587+-0.6799: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A false_grasp: 0.0000+-0.0000: tie: identical on every seed
+alternative parameters (declared before the run, same seeds, not adopted):
+  height_shift injection at block 3 (q=0.9600): paired X-B success: -0.0250+-0.0177: small but consistent gap, not a tie (|m| > sd); no seed has the opposite sign, 1 of 5 equal
+  corrupted_cloud z3d as median in B: paired B_median-A success: -0.0300+-0.0326: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+  train_height TOL=0.02: paired B-A success: -0.0300+-0.0326: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+  height_shift RGB_CUE=0.3: paired B-A success: 0.9750+-0.0177: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner beyond the declared block profile: late injection keeps the frozen 2D grip and adds height and presence from the cloud; early injection or a corrupted cloud can hurt
+DexVLA / GPU / RealSense / UR5e: 本页未运行; PointVLA paper results 以论文为准

@@ -6769,6 +6769,40 @@ export const resources: Record<string, Resource> = {
     license: { zh: "预印本，© 原作者；仅提供外链", en: "Preprint, © authors; external link only" },
     extra: true,
   },
+  "pointvla-paper": {
+    id: "pointvla-paper",
+    url: "https://arxiv.org/abs/2503.07511",
+    title: {
+      zh: "PointVLA：把三维世界注入视觉-语言-动作模型",
+      en: "PointVLA: Injecting the 3D World into Vision-Language-Action Models",
+    },
+    author: "Chengmeng Li, Junjie Wen, Yan Peng, Yaxin Peng, Feifei Feng, Yichen Zhu",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已读摘要页（6 位作者按 arXiv 顺序）、HTML 与 PDF 正文（v1，HTTP 200，2026-11-13）。在 DexVLA（2B Qwen2-VL 主干 + 1B ScaleDP 动作专家，32 个 DiT 块）上冻结原动作专家，用轻量模块把点云特征经每块一个 MLP 适配器以加法注入少数块，而不是把三维 token 混进大模型。跳块分析（叠衣服任务）：前 11 块关键，跳过任一块性能显著下降、夹爪合不紧；第 11 块以后单块可跳，最多可连续跳 5 块，因此只训练 5 个注入块。高度泛化：训练泡沫 3 mm、测试 52 mm 时 OpenVLA、DP、ScaleDP-1B、DexVLA 都按训练高度去抓而失败；真假照片：屏幕上的洗衣液照片让 OpenVLA、DexVLA 反复去抓。RoboTwin 每格 3 个种子各测 100 次。全部以论文为准；GPU / UR5e / AgileX / RealSense 本页未运行。",
+      en: "Abstract page (6 authors in arXiv order), HTML and PDF body read (v1, HTTP 200, 2026-11-13). On DexVLA (a 2B Qwen2-VL backbone plus a 1B ScaleDP action expert with 32 DiT blocks) the vanilla action expert is frozen and point-cloud features are injected additively into a few blocks through a lightweight module with one MLP adapter per block, instead of blending 3D tokens into the language model. Skip-block analysis (shirt folding): the first 11 blocks are crucial, skipping any of them drops performance and the gripper fails to close tightly; from block 11 on a single block can be skipped and up to five consecutive blocks can be skipped, so only five injection blocks are trained. Height adaptability: with 3 mm foam in training and 52 mm at test, OpenVLA, DP, ScaleDP-1B and DexVLA all grasp at the trained height and fail; real-vs-photo: a photo of the detergent on a screen makes OpenVLA and DexVLA keep trying to grasp. RoboTwin cells use 3 seeds with 100 tests each. All 以论文为准; GPU / UR5e / AgileX / RealSense 本页未运行.",
+    },
+    license: { zh: "预印本，CC BY 4.0（以 arXiv 页面为准）；仅提供外链", en: "Preprint, CC BY 4.0 (per the arXiv page); external link only" },
+    extra: true,
+  },
+  "egovla-paper": {
+    id: "egovla-paper",
+    url: "https://arxiv.org/abs/2507.12440",
+    title: {
+      zh: "EgoVLA：从第一人称人类视频学习视觉-语言-动作模型",
+      en: "EgoVLA: Learning Vision-Language-Action Models from Egocentric Human Videos",
+    },
+    author: "Ruihan Yang, Qinxi Yu, Yecheng Wu, Rui Yan, Borui Li, An-Chieh Cheng, Xueyan Zou, Yunhao Fang, Xuxin Cheng, Ri-Zhao Qiu, Hongxu Yin, Sifei Liu, Song Han, Yao Lu, Xiaolong Wang",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "已读摘要页（15 位作者按 arXiv 顺序）、HTML 与 PDF 正文（v3，HTTP 200，2026-11-13）。在 NVILA-2B 上用第一人称人类视频（HOI4D、HOT3D、HoloAssist、TACO，约 50 万图像-动作对）训练，预测相机系下的腕部位姿与 MANO 手部参数（前 15 个 PCA 分量）；部署时腕部位姿经三维变换和逆运动学变成机械臂关节角，手部关键点经小 MLP 重定向到机器人手；再用少量机器人遥操作演示后训练。Ego Humanoid Manipulation Benchmark（Isaac Lab，Unitree H1 + Inspire 手，12 个任务，每任务 100 条演示）。不做机器人后训练的零样本部署在所有任务上成功率 0 %；长时任务比 EgoVLA-NoPretrain 高约 20 %；未见背景短时任务 NoPretrain 下降 23 %；只用 50 % 机器人演示时长时成功率 45.93 % → 7.41 %。全部以论文为准；GPU / Isaac Lab / Quest 采集本页未运行。",
+      en: "Abstract page (15 authors in arXiv order), HTML and PDF body read (v3, HTTP 200, 2026-11-13). Trained on NVILA-2B with egocentric human video (HOI4D, HOT3D, HoloAssist, TACO; about 500,000 image-action pairs) to predict the wrist pose in the camera frame and MANO hand parameters (top 15 PCA components); at deployment the wrist pose goes through 3D transforms and inverse kinematics to arm joint angles, and hand keypoints are retargeted to the robot hand by a small MLP; then post-trained on a small set of robot teleoperation demonstrations. Ego Humanoid Manipulation Benchmark (Isaac Lab, Unitree H1 with Inspire hands, 12 tasks, 100 demonstrations per task). Zero-shot deployment without robot post-training gives 0 % success on all tasks; about 20 % higher long-horizon success than EgoVLA-NoPretrain; NoPretrain drops 23 % on unseen short-horizon backgrounds; with 50 % of the robot demonstrations, long-horizon success falls from 45.93 % to 7.41 %. All 以论文为准; GPU / Isaac Lab / Quest capture 本页未运行.",
+    },
+    license: { zh: "预印本，CC BY 4.0（以 arXiv 页面为准）；仅提供外链", en: "Preprint, CC BY 4.0 (per the arXiv page); external link only" },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

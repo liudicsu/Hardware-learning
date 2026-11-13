@@ -377,6 +377,540 @@ control_RTT_is_not_video_RTT; no_force_feedback; network_real_robot_not_run
 4. **40 min — 记账消融。** 保持高物理链路不变，比较完整与省略 display age 的预测。解释跟踪相同但预测错过不同为何不表示物理控制器更快或更安全。在临时副本只改视频回程，继续共用出站抖动与反应抽样。
 5. **25 min — 双向边界。** 阅读综述的无源性讨论，列出力反馈设计必须重查的恒定延迟、采样与丢包假设。不能从单向玩具推断双向稳定，也不能用视频反馈代替硬件停止。
 
+## EgoVLA：先用人类第一人称视频预训练，再做逆运动学、重定向和机器人后训练
+
+<Resource id="egovla-paper" />
+
+上面的 UMI 在采集时去掉了机器人本体，但人手里还拿着夹爪。EgoVLA 连夹爪也去掉了。*EgoVLA: Learning Vision-Language-Action Models from Egocentric Human Videos*（Ruihan Yang、Qinxi Yu、Yecheng Wu、Rui Yan、Borui Li、An-Chieh Cheng、Xueyan Zou、Yunhao Fang、Xuxin Cheng、Ri-Zhao Qiu、Hongxu Yin、Sifei Liu、Song Han、Yao Lu、Xiaolong Wang；arXiv 2507.12440；已读摘要页、HTML 与 PDF 正文；以论文为准）在**第一人称人类视频**上训练 VLA，预测人的**腕部位姿**和 **MANO 手部参数**。部署时，腕部位姿先变成末端位姿，再经**逆运动学**变成机械臂关节角；手部关键点由一个小 MLP **重定向**到机器人手。随后再用少量机器人遥操作演示做**后训练**。
+
+论文明确说最后一步必不可少。**不做**机器人后训练的零样本部署，**在所有任务上成功率都是 0 %**，原因是外观、感知和运动学不匹配，连预训练里见过的倒球任务也失败。做了后训练，EgoVLA 胜过只用机器人数据的 EgoVLA-NoPretrain，长时任务成功率高约 20 %。NoPretrain 在未见背景的短时任务上下降 23 %。只用 50 % 的机器人演示时，长时成功率从 45.93 % 降到 7.41 %。这些都是论文的数字，以论文为准；下面没有一个是玩具输出。
+
+这**不是**本页的相对 / 绝对 / 增量玩具或遥操作延迟一节。它**不是** FLARE 的无动作未来隐变量对齐（那里没有逆运动学或重定向），也**不是** GraspVLA 的合成机器人预训练。模型、GPU、Isaac Lab 和 Quest 采集，**本页未运行**。
+
+<Formula label="带先验均值的岭回归与子任务判定（声明的玩具模型）">(θ̂, b̂) = argmin Σᵢ (yᵢ − xᵢ·θ − b)² + LAM ‖θ − μ‖² + 10⁻⁶ b²;   e = x·(θ̂ − θ) + (b̂ − B_ROBOT);   |e| < TOL 时子任务成功</Formula>
+
+**算例（手算，玩具也会打印）。** 32 条演示、17 个参数、演示噪声 0.5 时，普通最小二乘的测试误差 sd 约为 √(0.25 × 17 / 14) = 0.5510，所以单个子任务通过 0.5 容差的概率是 erf(0.6417) = 0.6358，连续四个是 0.6358⁴ = 0.1635。每维偏差 0.1、共 16 维的人类先验，在完全不用机器人数据时误差 sd 为 √(16 × 0.01) = 0.4000，单个子任务 0.7887，四个 0.3869。零样本重定向再加上 1.5000 的偏置，是容差的 3.0000 倍，单靠偏置就会失败。这些近似忽略了截距拟合和岭收缩，玩具实测的成功率与它们不同。
+
+**积分步长。** 无：每次拟合是一次 17 × 17 正规方程的精确求解。
+
+### 公平设置
+
+`egovla_human_pretrain_retarget_toy.py` 是**合成**的，只用标准库。**模型假设:** 16 个特征的线性动作模型 y = x·θ + B_ROBOT。人类视频先验等于真实技能加上每维 sd 为 DELTA_SD 的高斯误差，是第一人称预训练所学内容的**声明替身**。逆运动学与重定向是一个**固定偏置**。没有机器人数据时，该臂的截距是 B_ROBOT − 1.5。机器人后训练是向先验均值收缩的岭回归。这些都是**声明的玩具参数**，不是 MANO、Isaac Lab 或论文的模型，各臂的排序由它们决定。
+
+| 臂 | 先验均值 | LAM | 机器人演示 |
+|---|---|---|---|
+| A_robot_only | 0 | 0.25 | 有 |
+| B_human_pretrain | 人类先验 | 25（相信先验每维准到 0.1） | 有 |
+| C_zero_shot | 人类先验，直接使用 | 无 | 无；截距来自固定的重定向偏置 |
+
+**共用随机数:** 每个（种子，任务）用一个随机流依次抽出真实技能、先验误差、32 条演示及其噪声、25 个短时测试和 25 个四步长时测试。所有臂和所有工况都复用它们，数据减半工况用的是同样 32 条演示中的前 16 条。五个种子，每个种子 4 个任务。指标：short_sr（单个子任务成功率）、long_sr（四个子任务全部成功）和 long_psr（第一次失败前完成的子任务比例），均为跨种子的 mean±sd。
+
+| 工况 | 演示数 | 先验误差 | 事先声明 |
+|---|---|---|---|
+| in_domain_full | 32 | 0.1 | C **一致**失败；B 的 long_sr **一致**高于 A；B 对 A 的 short_sr 是一致的 B 胜或近似平局 |
+| half_data | 16 | 0.1 | B 的 long_sr **一致**低于 in_domain_full，**保留**；B 对 A 如实报告 |
+| large_mismatch | 32 | 0.5 | B **可能**输给 A 或近似平局，**保留** |
+
+### 运行标准库玩具
+
+```bash
+cd ~/Hardware-learning/examples/month-11/umi-style-collection
+python3 egovla_human_pretrain_retarget_toy.py
+```
+
+<CodeSource path="examples/month-11/umi-style-collection/egovla_human_pretrain_retarget_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""EgoVLA human-video pretraining plus IK retargeting toy: ridge regression with
+a prior mean on a synthetic linear stand-in.
+
+Topic.  EgoVLA (arXiv 2507.12440) pretrains a VLA on egocentric human video to
+predict wrist pose and MANO hand actions, converts them to a humanoid with
+inverse kinematics and retargeting, then post-trains on a small set of robot
+demonstrations.  Paper statements (以论文为准, not reproduced here): zero-shot
+deployment without robot post-training gives 0 % success on all tasks,
+pretraining helps most on long-horizon tasks, and halving robot data drops
+long-horizon success sharply.  Those are the paper's numbers, not outputs of
+this toy.
+
+Scope.  This is a synthetic linear stand-in, not MANO / Isaac Lab / Quest data, not a GPU run (本页未运行).
+It is not the UMI relative/absolute/delta toy, not FLARE, not GraspVLA;
+the toy prints its own success numbers and does not replicate the paper.
+
+Model (declared).  D = 16 action features plus an intercept (P = 17
+parameters).  For each (seed, task) the task skill is theta_true ~ N(0, 1) per
+dimension; the human-video prior is theta_h = theta_true + DELTA_SD * z with z
+standard normal per dimension and DELTA_SD set by the regime.  The robot action
+for an observation x ~ N(0, I_D) is y = x . theta_true + B_ROBOT with
+B_ROBOT = 1.0 (robot offset).  The calibrated IK / retarget offset used
+without post-training is B_RETARGET = B_ROBOT - OFFSET_MISMATCH with
+OFFSET_MISMATCH = 1.5.  Robot demonstrations: N_FULL = 32 pairs
+(x_i, y_i + SIG_DEMO * e_i) with SIG_DEMO = 0.5.  Fit (theta, b) by ridge
+regression with a prior mean: minimise sum (y_i - x_i . theta - b)^2 +
+LAM * |theta - mu|^2 + 1e-6 * b^2, solved exactly with Gaussian elimination on
+the 17x17 normal equations.  Test: each subtask draws a fresh x; the action
+error is e = x . (theta_hat - theta_true) + (b_hat - B_ROBOT) and the subtask
+succeeds if |e| < TOL = 0.5.  A short-horizon rollout is 1 subtask; a
+long-horizon rollout is 4 sequential subtasks and succeeds only if all 4
+succeed; progress PSR = (number of subtasks completed before the first
+failure) / 4.  N_TASKS = 4, N_ROLL = 25 short and 25 long rollouts per task
+per seed.
+
+Arms.  A_robot_only: mu = 0, LAM = SIG_DEMO^2 / 1.0 = 0.25, robot demos only
+(the EgoVLA-NoPretrain stand-in).  B_human_pretrain: mu = theta_h,
+LAM = SIG_DEMO^2 / 0.1^2 = 25.0, that is it believes the human prior is good to
+0.1 per dimension, plus the same robot demos.  C_zero_shot: theta_hat =
+theta_h, b_hat = B_RETARGET, no robot demos.
+
+Common random numbers: every draw comes from random.Random(f"{seed}/{task}") in
+this fixed order, independent of the regime and of the arm: theta_true (D),
+z (D), N_FULL demo x vectors and N_FULL demo noises e, then N_ROLL short test x
+vectors, then N_ROLL * 4 long test x vectors.  All arms and all regimes reuse
+these draws; a regime with fewer demos uses the first n of them.
+
+Regimes and parameters were written before the first run.  Declared
+expectations (not tuned; print whatever comes):
+  in_domain_full : C consistently fails (short and long success near zero);
+                   B consistently above A on long_sr; B vs A on short_sr a
+                   consistent B win or a near-tie.
+  half_data      : B long_sr consistently lower than in in_domain_full - keep;
+                   B vs A as it comes.
+  large_mismatch : B may lose to A or near-tie - keep.
+
+Alternatives (same seeds, declared before the run, not adopted): large_mismatch
+with LAM = 5.0 for B (paired B-A long_sr); in_domain_full with TOL = 0.7
+(paired B-A long_sr); zero-shot with OFFSET_MISMATCH = 0.5 (C short_sr and
+long_sr m+-sd, and paired C-A long_sr).
+"""
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+
+# Declared parameters, written before the first run.
+D = 16
+P = 17
+N_TASKS = 4
+N_ROLL = 25
+N_FULL = 32
+N_HALF = 16
+SIG_DEMO = 0.5
+B_ROBOT = 1.0
+OFFSET_MISMATCH = 1.5
+B_RETARGET = B_ROBOT - OFFSET_MISMATCH
+TOL = 0.5
+PRIOR_SD_B = 0.1
+LAM_A = SIG_DEMO ** 2 / 1.0
+LAM_B = SIG_DEMO ** 2 / PRIOR_SD_B ** 2
+B_PRIOR_WEIGHT = 1e-6
+
+REGIMES = {"in_domain_full": (N_FULL, 0.1),
+            "half_data": (N_HALF, 0.1),
+            "large_mismatch": (N_FULL, 0.5)}
+REGIME_ORDER = ("in_domain_full", "half_data", "large_mismatch")
+ARMS = ("A_robot_only", "B_human_pretrain", "C_zero_shot")
+METRICS = ("short_sr", "long_sr", "long_psr")
+PAIRS = (("B_human_pretrain", "A_robot_only"),
+         ("C_zero_shot", "A_robot_only"),
+         ("C_zero_shot", "B_human_pretrain"))
+DECLARED = {
+    "in_domain_full": "C consistently fails (short and long success near zero); "
+                      "B consistently above A on long_sr; B vs A on short_sr a "
+                      "consistent B win or a near-tie",
+    "half_data": "B long_sr consistently lower than in in_domain_full - keep; "
+                 "B vs A as it comes",
+    "large_mismatch": "B may lose to A or near-tie - keep",
+}
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0  # identical values: no floating residue in mean or sd
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    """Half-up rounding on the shortest decimal repr; tiny non-zero values in scientific form."""
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def gauss_solve(A, rhs):
+    """Exact solve of A x = rhs by Gaussian elimination with partial pivoting."""
+    n = len(A)
+    M = [A[i][:] + [rhs[i]] for i in range(n)]
+    for col in range(n):
+        piv = max(range(col, n), key=lambda r: abs(M[r][col]))
+        if abs(M[piv][col]) < 1e-14:
+            raise ValueError("singular normal equations")
+        M[col], M[piv] = M[piv], M[col]
+        pv = M[col][col]
+        for r in range(col + 1, n):
+            f = M[r][col] / pv
+            if f != 0.0:
+                for c in range(col, n + 1):
+                    M[r][c] -= f * M[col][c]
+    x = [0.0] * n
+    for r in range(n - 1, -1, -1):
+        s = M[r][n] - sum(M[r][c] * x[c] for c in range(r + 1, n))
+        x[r] = s / M[r][r]
+    return x
+
+
+def ridge_fit(X, Y, mu, lam):
+    """Ridge with prior mean mu: min sum (y - x.theta - b)^2 + lam|theta-mu|^2 + 1e-6 b^2."""
+    n = len(X)
+    d = len(mu)
+    A = [[0.0] * (d + 1) for _ in range(d + 1)]
+    rhs = [0.0] * (d + 1)
+    for i in range(n):
+        xi = X[i]
+        yi = Y[i]
+        for a in range(d):
+            xa = xi[a]
+            row_a = A[a]
+            for b in range(d):
+                row_a[b] += xa * xi[b]
+            row_a[d] += xa
+            A[d][a] += xa
+            rhs[a] += xa * yi
+        A[d][d] += 1.0
+        rhs[d] += yi
+    for a in range(d):
+        A[a][a] += lam
+        rhs[a] += lam * mu[a]
+    A[d][d] += B_PRIOR_WEIGHT
+    sol = gauss_solve(A, rhs)
+    return sol[:d], sol[d]
+
+
+DRAWS = {}
+
+
+def draws_for(seed, task):
+    """Common random numbers: one fixed stream per (seed, task), shared by all arms and regimes."""
+    key = (seed, task)
+    if key not in DRAWS:
+        rng = random.Random(f"{seed}/{task}")
+        theta_true = [rng.gauss(0.0, 1.0) for _ in range(D)]
+        z = [rng.gauss(0.0, 1.0) for _ in range(D)]
+        demo_x = [[rng.gauss(0.0, 1.0) for _ in range(D)] for _ in range(N_FULL)]
+        demo_e = [rng.gauss(0.0, 1.0) for _ in range(N_FULL)]
+        short_x = [[rng.gauss(0.0, 1.0) for _ in range(D)] for _ in range(N_ROLL)]
+        long_x = [[rng.gauss(0.0, 1.0) for _ in range(D)] for _ in range(N_ROLL * 4)]
+        DRAWS[key] = (theta_true, z, demo_x, demo_e, short_x, long_x)
+    return DRAWS[key]
+
+
+def demo_targets(theta_true, demo_x, demo_e):
+    return [sum(demo_x[i][j] * theta_true[j] for j in range(D)) + B_ROBOT
+            + SIG_DEMO * demo_e[i] for i in range(N_FULL)]
+
+
+def arm_params(arm, theta_true, theta_h, demo_x, y_demo, n, lam_b, offset):
+    if arm == "C_zero_shot":
+        return theta_h[:], B_ROBOT - offset
+    if arm == "A_robot_only":
+        mu, lam = [0.0] * D, LAM_A
+    else:
+        mu, lam = theta_h, lam_b
+    return ridge_fit(demo_x[:n], y_demo[:n], mu, lam)
+
+
+def evaluate(theta_hat, b_hat, theta_true, short_x, long_x, tol):
+    """Short-horizon success rate, long-horizon success rate and long-horizon PSR for one task."""
+    dth = [theta_hat[j] - theta_true[j] for j in range(D)]
+    doff = b_hat - B_ROBOT
+    short_hits = 0
+    for xv in short_x:
+        err = doff
+        for j in range(D):
+            err += xv[j] * dth[j]
+        if abs(err) < tol:
+            short_hits += 1
+    long_hits = 0
+    psr_sum = 0.0
+    for r in range(N_ROLL):
+        completed = 0
+        all_ok = True
+        for k in range(4):
+            xv = long_x[4 * r + k]
+            err = doff
+            for j in range(D):
+                err += xv[j] * dth[j]
+            if abs(err) < tol:
+                completed += 1
+            else:
+                all_ok = False
+                break
+        psr_sum += completed / 4.0
+        if all_ok:
+            long_hits += 1
+    return short_hits, long_hits, psr_sum
+
+
+def regime_results(regime, lam_b=None, tol=TOL, offset=OFFSET_MISMATCH):
+    """Per-seed metric lists for every arm in one regime."""
+    n, delta_sd = REGIMES[regime]
+    lb = LAM_B if lam_b is None else lam_b
+    out = {arm: {metric: [] for metric in METRICS} for arm in ARMS}
+    for seed in SEEDS:
+        acc = {arm: [0, 0, 0.0] for arm in ARMS}
+        for task in range(N_TASKS):
+            theta_true, z, demo_x, demo_e, short_x, long_x = draws_for(seed, task)
+            y_demo = demo_targets(theta_true, demo_x, demo_e)
+            theta_h = [theta_true[j] + delta_sd * z[j] for j in range(D)]
+            for arm in ARMS:
+                th, bh = arm_params(arm, theta_true, theta_h, demo_x, y_demo, n, lb, offset)
+                sh, lh, ps = evaluate(th, bh, theta_true, short_x, long_x, tol)
+                acc[arm][0] += sh
+                acc[arm][1] += lh
+                acc[arm][2] += ps
+        denom = float(N_TASKS * N_ROLL)
+        for arm in ARMS:
+            out[arm]["short_sr"].append(acc[arm][0] / denom)
+            out[arm]["long_sr"].append(acc[arm][1] / denom)
+            out[arm]["long_psr"].append(acc[arm][2] / denom)
+    return out
+
+
+def col(res, arm, metric):
+    return res[arm][metric]
+
+
+def report(regime, res, lam_b=None):
+    n, delta_sd = REGIMES[regime]
+    lb = LAM_B if lam_b is None else lam_b
+    print(f"{regime} (n={n} delta_sd={num(delta_sd)} lam_a={num(LAM_A)} "
+          f"lam_b={num(lb)}):")
+    print(f"  declared: {DECLARED[regime]}")
+    for arm in ARMS:
+        print(f"  {arm} " + " ".join(
+            f"{metric} {fmt_pair(*mean_sd(col(res, arm, metric)))}" for metric in METRICS))
+    for a, b in PAIRS:
+        for metric in METRICS:
+            print(f"  paired {a[0]}-{b[0]} {metric}: "
+                  f"{verdict(col(res, a, metric), col(res, b, metric))}")
+    return res
+
+
+def main():
+    print("Synthetic EgoVLA human-pretrain + retarget toy: ridge regression with a "
+          "prior mean on a synthetic linear stand-in; common random numbers; not "
+          "MANO / Isaac Lab / Quest data, not a GPU run")
+    print(f"seeds={len(SEEDS)} d={D} p={P} sig_demo={num(SIG_DEMO)} "
+          f"b_robot={num(B_ROBOT)} b_retarget={num(B_RETARGET)} "
+          f"offset_mismatch={num(OFFSET_MISMATCH)} tol={num(TOL)} n_full={N_FULL} "
+          f"n_half={N_HALF} tasks={N_TASKS} roll={N_ROLL} (declared)")
+    print("paper statements (以论文为准, not reproduced here): zero-shot deployment "
+          "without robot post-training is 0 % success on all tasks; pretraining "
+          "helps most on long-horizon tasks; halving robot data drops long-horizon "
+          "success sharply")
+    print("the toy prints its own success numbers and does not replicate the paper")
+    print("Regimes and parameters were written before the first run")
+    print("rule: y = x.theta_true + b_robot; prior theta_h = theta_true + delta_sd*z; "
+          "ridge min sum (y_i - x_i.theta - b)^2 + lam*|theta-mu|^2 + 1e-6*b^2; "
+          "success if |x.(theta_hat-theta_true) + (b_hat-b_robot)| < tol")
+
+    s_ols = math.sqrt(SIG_DEMO ** 2 * P / (N_FULL - P - 1))
+    s_prior = math.sqrt(D * 0.1 ** 2)
+    p_ols = math.erf(TOL / (s_ols * math.sqrt(2.0)))
+    p_prior = math.erf(TOL / (s_prior * math.sqrt(2.0)))
+    print(f"hand_calc OLS test-error sd for A at n={N_FULL}: "
+          f"sqrt(sig_demo^2 * P / (n - P - 1)) = sqrt({num(SIG_DEMO ** 2)}*{P}/"
+          f"{N_FULL - P - 1}) = {num(s_ols)}")
+    print(f"hand_calc prior-only error sd for theta_h (delta_sd=0.1): "
+          f"sqrt(D * 0.1^2) = sqrt({D}*0.01) = {num(s_prior)}")
+    print(f"hand_calc per-subtask success for s={num(s_ols)}: "
+          f"erf(tol/(s*sqrt(2))) = erf({num(TOL / (s_ols * math.sqrt(2.0)))}) = "
+          f"{num(p_ols)}; long-horizon p^4 = {num(p_ols ** 4)}")
+    print(f"hand_calc per-subtask success for s={num(s_prior)}: "
+          f"erf(tol/(s*sqrt(2))) = erf({num(TOL / (s_prior * math.sqrt(2.0)))}) = "
+          f"{num(p_prior)}; long-horizon p^4 = {num(p_prior ** 4)}")
+    print(f"hand_calc zero-shot offset error {num(OFFSET_MISMATCH)} vs tol {num(TOL)}: "
+          f"offset alone is {num(OFFSET_MISMATCH / TOL)}x tol, so the retarget offset "
+          f"alone can never pass")
+    print(f"hand_calc ridge posterior sd per dim: A "
+          f"sqrt(sig_demo^2/(n+lam_a)) = {num(math.sqrt(SIG_DEMO ** 2 / (N_FULL + LAM_A)))}"
+          f"; B in_domain_full sqrt(sig_demo^2/(n+lam_b)) = "
+          f"{num(math.sqrt(SIG_DEMO ** 2 / (N_FULL + LAM_B)))}; B half_data = "
+          f"{num(math.sqrt(SIG_DEMO ** 2 / (N_HALF + LAM_B)))}")
+
+    results = {}
+    for regime in REGIME_ORDER:
+        res = regime_results(regime)
+        results[regime] = res
+        report(regime, res)
+
+    print("cross-regime paired B(half_data)-B(in_domain_full):")
+    for metric in ("long_sr", "short_sr"):
+        v_cross = verdict(col(results["half_data"], "B_human_pretrain", metric),
+                          col(results["in_domain_full"], "B_human_pretrain", metric))
+        print(f"  paired B(half_data)-B(in_domain_full) {metric}: {v_cross}")
+
+    print("alternative parameters (declared before the run, same seeds, not adopted):")
+    alt_lm = regime_results("large_mismatch", lam_b=5.0)
+    v_lm = verdict(col(alt_lm, "B_human_pretrain", "long_sr"),
+                   col(alt_lm, "A_robot_only", "long_sr"))
+    print(f"  large_mismatch LAM_B=5.0000: paired B-A long_sr: {v_lm}")
+    alt_tol = regime_results("in_domain_full", tol=0.7)
+    v_tol = verdict(col(alt_tol, "B_human_pretrain", "long_sr"),
+                    col(alt_tol, "A_robot_only", "long_sr"))
+    print(f"  in_domain_full TOL=0.7000: paired B-A long_sr: {v_tol}")
+    alt_off = regime_results("in_domain_full", offset=0.5)
+    c_short = fmt_pair(*mean_sd(col(alt_off, "C_zero_shot", "short_sr")))
+    c_long = fmt_pair(*mean_sd(col(alt_off, "C_zero_shot", "long_sr")))
+    print(f"  in_domain_full zero-shot OFFSET_MISMATCH=0.5000: C_zero_shot "
+          f"short_sr {c_short} long_sr {c_long}")
+    v_off = verdict(col(alt_off, "C_zero_shot", "long_sr"),
+                    col(results["in_domain_full"], "A_robot_only", "long_sr"))
+    print(f"  in_domain_full zero-shot OFFSET_MISMATCH=0.5000: paired C-A long_sr: {v_off}")
+
+    print("No winner beyond the declared prior: human pretraining helps when the "
+          "human prior is close and robot data is scarce, zero-shot retargeting "
+          "fails on the offset, and a wrong prior can hurt")
+    print("MANO / Isaac Lab / Quest / GPU: 本页未运行; EgoVLA paper results 以论文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic EgoVLA human-pretrain + retarget toy: ridge regression with a prior mean on a synthetic linear stand-in; common random numbers; not MANO / Isaac Lab / Quest data, not a GPU run
+seeds=5 d=16 p=17 sig_demo=0.5000 b_robot=1.0000 b_retarget=-0.5000 offset_mismatch=1.5000 tol=0.5000 n_full=32 n_half=16 tasks=4 roll=25 (declared)
+paper statements (以论文为准, not reproduced here): zero-shot deployment without robot post-training is 0 % success on all tasks; pretraining helps most on long-horizon tasks; halving robot data drops long-horizon success sharply
+the toy prints its own success numbers and does not replicate the paper
+Regimes and parameters were written before the first run
+rule: y = x.theta_true + b_robot; prior theta_h = theta_true + delta_sd*z; ridge min sum (y_i - x_i.theta - b)^2 + lam*|theta-mu|^2 + 1e-6*b^2; success if |x.(theta_hat-theta_true) + (b_hat-b_robot)| < tol
+hand_calc OLS test-error sd for A at n=32: sqrt(sig_demo^2 * P / (n - P - 1)) = sqrt(0.2500*17/14) = 0.5510
+hand_calc prior-only error sd for theta_h (delta_sd=0.1): sqrt(D * 0.1^2) = sqrt(16*0.01) = 0.4000
+hand_calc per-subtask success for s=0.5510: erf(tol/(s*sqrt(2))) = erf(0.6417) = 0.6358; long-horizon p^4 = 0.1635
+hand_calc per-subtask success for s=0.4000: erf(tol/(s*sqrt(2))) = erf(0.8839) = 0.7887; long-horizon p^4 = 0.3869
+hand_calc zero-shot offset error 1.5000 vs tol 0.5000: offset alone is 3.0000x tol, so the retarget offset alone can never pass
+hand_calc ridge posterior sd per dim: A sqrt(sig_demo^2/(n+lam_a)) = 0.0880; B in_domain_full sqrt(sig_demo^2/(n+lam_b)) = 0.0662; B half_data = 0.0781
+in_domain_full (n=32 delta_sd=0.1000 lam_a=0.2500 lam_b=25.0000):
+  declared: C consistently fails (short and long success near zero); B consistently above A on long_sr; B vs A on short_sr a consistent B win or a near-tie
+  A_robot_only short_sr 0.6440+-0.0744 long_sr 0.2360+-0.0764 long_psr 0.4275+-0.0944
+  B_human_pretrain short_sr 0.8660+-0.0590 long_sr 0.6660+-0.0773 long_psr 0.7740+-0.0622
+  C_zero_shot short_sr 0.0120+-0.0130 long_sr 0.0000+-0.0000 long_psr 0.0020+-0.0033
+  paired B-A short_sr: 0.2220+-0.0968: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A long_sr: 0.4300+-0.1430: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A long_psr: 0.3465+-0.1260: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A short_sr: -0.6320+-0.0746: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A long_sr: -0.2360+-0.0764: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A long_psr: -0.4255+-0.0923: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B short_sr: -0.8540+-0.0594: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B long_sr: -0.6660+-0.0773: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B long_psr: -0.7720+-0.0625: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+half_data (n=16 delta_sd=0.1000 lam_a=0.2500 lam_b=25.0000):
+  declared: B long_sr consistently lower than in in_domain_full - keep; B vs A as it comes
+  A_robot_only short_sr 0.2420+-0.0776 long_sr 0.0140+-0.0055 long_psr 0.0860+-0.0288
+  B_human_pretrain short_sr 0.8060+-0.0416 long_sr 0.5040+-0.0754 long_psr 0.6595+-0.0532
+  C_zero_shot short_sr 0.0120+-0.0130 long_sr 0.0000+-0.0000 long_psr 0.0020+-0.0033
+  paired B-A short_sr: 0.5640+-0.0590: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A long_sr: 0.4900+-0.0775: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A long_psr: 0.5735+-0.0700: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A short_sr: -0.2300+-0.0869: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A long_sr: -0.0140+-0.0055: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A long_psr: -0.0840+-0.0271: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B short_sr: -0.7940+-0.0532: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B long_sr: -0.5040+-0.0754: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B long_psr: -0.6575+-0.0553: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+large_mismatch (n=32 delta_sd=0.5000 lam_a=0.2500 lam_b=25.0000):
+  declared: B may lose to A or near-tie - keep
+  A_robot_only short_sr 0.6440+-0.0744 long_sr 0.2360+-0.0764 long_psr 0.4275+-0.0944
+  B_human_pretrain short_sr 0.3340+-0.0879 long_sr 0.0180+-0.0192 long_psr 0.1425+-0.0190
+  C_zero_shot short_sr 0.1300+-0.0308 long_sr 0.0020+-0.0045 long_psr 0.0425+-0.0047
+  paired B-A short_sr: -0.3100+-0.1286: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A long_sr: -0.2180+-0.0955: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A long_psr: -0.2850+-0.1110: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A short_sr: -0.5140+-0.0744: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A long_sr: -0.2340+-0.0744: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A long_psr: -0.3850+-0.0986: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B short_sr: -0.2040+-0.0865: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B long_sr: -0.0160+-0.0219: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  paired C-B long_psr: -0.1000+-0.0158: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+cross-regime paired B(half_data)-B(in_domain_full):
+  paired B(half_data)-B(in_domain_full) long_sr: -0.1620+-0.0841: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B(half_data)-B(in_domain_full) short_sr: -0.0600+-0.0742: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+alternative parameters (declared before the run, same seeds, not adopted):
+  large_mismatch LAM_B=5.0000: paired B-A long_sr: -0.1180+-0.1085: clear gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  in_domain_full TOL=0.7000: paired B-A long_sr: 0.4140+-0.1724: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  in_domain_full zero-shot OFFSET_MISMATCH=0.5000: C_zero_shot short_sr 0.4600+-0.0394 long_sr 0.0500+-0.0361
+  in_domain_full zero-shot OFFSET_MISMATCH=0.5000: paired C-A long_sr: -0.1860+-0.0713: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner beyond the declared prior: human pretraining helps when the human prior is close and robot data is scarce, zero-shot retargeting fails on the offset, and a wrong prior can hurt
+MANO / Isaac Lab / Quest / GPU: 本页未运行; EgoVLA paper results 以论文为准
+```
+
+</SimOutput>
+
+### 读三个工况
+
+本页标签按以下顺序使用：只有每个种子的配对差都恰好为零才叫 **tie: identical on every seed**；`|配对均值|` 与其 sd 都小于 1e-9 时叫 **numerically zero (floating-point residue), effectively a tie**；`|配对均值| ≤ sd` 时叫 **near-tie / small gap, within seed noise**；否则是**一致**差距（`|配对均值| > sd`），若 `|m|` 小于较小一臂均值的 20 % 叫 **small**，否则叫 **clear**。每条一致结论都附 5 个种子中的同号计数。
+
+- **in_domain_full。** 零样本重定向的短时成功率为 0.0120±0.0130，长时为 0.0000±0.0000；C−A short_sr 为 -0.6320±0.0746，C−B long_sr 为 -0.6660±0.0773，都是 clear，5 个种子全部同号。只用机器人数据时 short_sr 为 0.6440±0.0744、long_sr 为 0.2360±0.0764；人类预训练加后训练达到 0.8660±0.0590 和 0.6660±0.0773。B−A long_sr 为 0.4300±0.1430，clear；B−A short_sr 为 0.2220±0.0968，也是 clear。三项声明都**成立**；短时结果落在一致胜出这一支，而不是近似平局。
+- **half_data。** 16 条演示对 17 个参数，只用机器人数据的臂跌到 short_sr 0.2420±0.0776、long_sr 0.0140±0.0055，B 保持 0.8060±0.0416 和 0.5040±0.0754：B−A long_sr 为 0.4900±0.0775，B−A short_sr 为 0.5640±0.0590，都是 clear。与同种子下自己的全量数据运行相比，减半的 B 减全量的 B 在 long_sr 上为 -0.1620±0.0841，clear，5 个种子全部同号；在 short_sr 上为 -0.0600±0.0742，近似平局。声明**成立**。机器人数据减半，对长时任务的损失大于短时任务。
+- **large_mismatch。** 先验每维误差 0.5，B 仍按 0.1 去信它，跌到 short_sr 0.3340±0.0879、long_sr 0.0180±0.0192。B−A short_sr 为 -0.3100±0.1286，B−A long_sr 为 -0.2180±0.0955，都是 clear，5 个种子全部同号：被过度信任的错误先验输给只用机器人数据。C−B long_sr 为 -0.0160±0.0219，近似平局，因为两者都接近零。声明（"可能输"）**成立**，这次落败**保留**。
+
+**保留** large_mismatch 这几格。在这个玩具里，人类预训练的帮助取决于人类先验离机器人技能有多近，以及拟合对它的信任是否恰当。
+
+**首次运行后的代码改动。** 上面的输出之前有两次运行。第一次在打印任何内容之前因语法错误中止，于是把 f-string 拆成普通变量。第二次打印了所有工况，之后检查岭回归求解器时发现一个真实的 bug：正规方程的截距列填了，对称的那一行却没填，所以拟合求解的不是声明的目标函数。用无噪声数据时，θ 和 b 的误差超过 0.5。补上这一行后，无噪声数据能恢复到约 1e-7。没有改任何参数、工况、臂或规则。但修正改变了结果：在有 bug 的那次运行里，B 从全量到半量的 long_sr 下降是近似平局，那项声明没有成立，B−A 的差距也更小。保留的是上面修正后代码的输出。另外重排了一段 docstring 的换行，不影响输出。
+
+**看到结果后做的选择。** 除上述求解器修正外，无。参数、工况和打印的备选都在首次运行前写定，并在相同种子上运行。在 large_mismatch 上把信任放宽到 LAM = 5，仍输给只用机器人数据（B−A long_sr -0.1180±0.1085，clear，5 个种子中 1 个反号）。把容差放宽到 0.7，域内增益仍在（B−A long_sr 0.4140±0.1724）。把重定向偏置减小到 0.5，零样本升到 short_sr 0.4600±0.0394、long_sr 0.0500±0.0361，仍低于只用机器人数据（C−A long_sr -0.1860±0.0713）。这些备选都没有替换默认值。
+
+本页**不宣布声明的先验之外的赢家**。先验接近、机器人数据稀少时，人类预训练胜出，长时任务上最明显；没有机器人数据时，固定的重定向偏置导致失败；过度信任离得远的先验时，它输给只用机器人数据。EgoVLA 模型、MANO、Isaac Lab 和人形机器人，**本页未运行**。
+
+**180 分钟安排:** 30 分钟读 EgoVLA 论文的动作空间、重定向和消融部分；25 分钟重算最小二乘、先验误差和偏置；50 分钟运行玩具，读三个工况；40 分钟在固定种子下比较打印的备选；35 分钟做练习。
+
+### 练习
+
+1. 根据打印的手算确认 0.6358 和 0.1635，并解释为什么同样的单步误差下，长时任务比短时任务难这么多。
+2. 从抽样顺序说明数据减半工况用的是同样 32 条演示中的前 16 条，所以 B(half) 减 B(full) 这一行是配对比较。
+3. 运行前先预测：如果 DELTA_SD 是 0.2，LAM = 25 的 B 在 large_mismatch 上能否胜过 A，再在固定种子下运行。
+4. 解释为什么偏置本身是容差的 3.0000 倍，C 在 in_domain_full 上的 short_sr 却不恰好为零。
+5. 在任何真实采集之前（本页未运行），写下你会怎样测量人手数据与机器人逆运动学之间的腕部位姿偏置，以及会为后训练准备多少条机器人演示。
+
 <Summary>
 
 **要点**
@@ -385,6 +919,7 @@ control_RTT_is_not_video_RTT; no_force_feedback; network_real_robot_not_run
 - 论文（以论文为准）：吞吐 111 / 35 / 231 每小时；野外成功 71.7 %；ATE 6.1 mm / 3.5°。
 - 玩具：abs_calib_bias_m=0.025000，delta_accum_err_m=0.008287，relative_err_m=0.001875（固定锚点）；测得末端带世界系偏置时，绝对 0.033248 m、相对 0.000829 m。
 - 不强制购买 GoPro；Hardware Guide / SLAM 步骤本页未运行。
+- EgoVLA 先用第一人称人类视频预训练，再经逆运动学与重定向把腕部和手部动作映射到机器人，仍然需要机器人后训练；在合成玩具里，接近的人类先验加后训练胜过只用机器人数据，长时任务和数据减半时最明显，零样本重定向因偏置失败，过度信任离得远的先验则输给只用机器人数据；论文结果以论文为准，模型与 Isaac Lab 本页未运行。
 
 **常见错误**
 
