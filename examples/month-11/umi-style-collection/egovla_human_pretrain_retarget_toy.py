@@ -199,6 +199,32 @@ def ridge_fit(X, Y, mu, lam):
     return sol[:d], sol[d]
 
 
+def ridge_fit_prefix(X, Y, mu, lam):
+    """Erroneous pre-fix version, kept only for comparison: exact copy of ridge_fit except that the symmetric intercept row of the normal equations is left unfilled (the line `A[d][a] += xa` is omitted)."""
+    n = len(X)
+    d = len(mu)
+    A = [[0.0] * (d + 1) for _ in range(d + 1)]
+    rhs = [0.0] * (d + 1)
+    for i in range(n):
+        xi = X[i]
+        yi = Y[i]
+        for a in range(d):
+            xa = xi[a]
+            row_a = A[a]
+            for b in range(d):
+                row_a[b] += xa * xi[b]
+            row_a[d] += xa
+            rhs[a] += xa * yi
+        A[d][d] += 1.0
+        rhs[d] += yi
+    for a in range(d):
+        A[a][a] += lam
+        rhs[a] += lam * mu[a]
+    A[d][d] += B_PRIOR_WEIGHT
+    sol = gauss_solve(A, rhs)
+    return sol[:d], sol[d]
+
+
 DRAWS = {}
 
 
@@ -222,14 +248,15 @@ def demo_targets(theta_true, demo_x, demo_e):
             + SIG_DEMO * demo_e[i] for i in range(N_FULL)]
 
 
-def arm_params(arm, theta_true, theta_h, demo_x, y_demo, n, lam_b, offset):
+def arm_params(arm, theta_true, theta_h, demo_x, y_demo, n, lam_b, offset, prefix=False):
     if arm == "C_zero_shot":
         return theta_h[:], B_ROBOT - offset
     if arm == "A_robot_only":
         mu, lam = [0.0] * D, LAM_A
     else:
         mu, lam = theta_h, lam_b
-    return ridge_fit(demo_x[:n], y_demo[:n], mu, lam)
+    fit = ridge_fit_prefix if prefix else ridge_fit
+    return fit(demo_x[:n], y_demo[:n], mu, lam)
 
 
 def evaluate(theta_hat, b_hat, theta_true, short_x, long_x, tol):
@@ -264,7 +291,7 @@ def evaluate(theta_hat, b_hat, theta_true, short_x, long_x, tol):
     return short_hits, long_hits, psr_sum
 
 
-def regime_results(regime, lam_b=None, tol=TOL, offset=OFFSET_MISMATCH):
+def regime_results(regime, lam_b=None, tol=TOL, offset=OFFSET_MISMATCH, prefix=False):
     """Per-seed metric lists for every arm in one regime."""
     n, delta_sd = REGIMES[regime]
     lb = LAM_B if lam_b is None else lam_b
@@ -276,7 +303,8 @@ def regime_results(regime, lam_b=None, tol=TOL, offset=OFFSET_MISMATCH):
             y_demo = demo_targets(theta_true, demo_x, demo_e)
             theta_h = [theta_true[j] + delta_sd * z[j] for j in range(D)]
             for arm in ARMS:
-                th, bh = arm_params(arm, theta_true, theta_h, demo_x, y_demo, n, lb, offset)
+                th, bh = arm_params(arm, theta_true, theta_h, demo_x, y_demo, n, lb,
+                                    offset, prefix=prefix)
                 sh, lh, ps = evaluate(th, bh, theta_true, short_x, long_x, tol)
                 acc[arm][0] += sh
                 acc[arm][1] += lh
@@ -380,6 +408,25 @@ def main():
     v_off = verdict(col(alt_off, "C_zero_shot", "long_sr"),
                     col(results["in_domain_full"], "A_robot_only", "long_sr"))
     print(f"  in_domain_full zero-shot OFFSET_MISMATCH=0.5000: paired C-A long_sr: {v_off}")
+
+    print("comparison only, not an official verdict: pre-fix solver with the symmetric intercept row left unfilled (erroneous version, kept only for comparison / 漏填对称截距行的错误版本，仅作对照), same seeds:")
+    pre_half = regime_results("half_data", prefix=True)
+    pre_full = regime_results("in_domain_full", prefix=True)
+    v_pre = verdict(col(pre_half, "B_human_pretrain", "long_sr"),
+                    col(pre_full, "B_human_pretrain", "long_sr"))
+    print(f"  pre-fix paired B(half_data)-B(in_domain_full) long_sr: {v_pre}")
+    theta_true0, _, demo_x0, _, _, _ = draws_for(0, 0)
+    y_clean0 = [sum(demo_x0[i][j] * theta_true0[j] for j in range(D)) + B_ROBOT
+                for i in range(N_FULL)]
+    th_pre, b_pre = ridge_fit_prefix(demo_x0, y_clean0, [0.0] * D, 0.0)
+    th_cor, b_cor = ridge_fit(demo_x0, y_clean0, [0.0] * D, 0.0)
+    th_err_pre = max(abs(th_pre[j] - theta_true0[j]) for j in range(D))
+    b_err_pre = abs(b_pre - B_ROBOT)
+    th_err_cor = max(abs(th_cor[j] - theta_true0[j]) for j in range(D))
+    b_err_cor = abs(b_cor - B_ROBOT)
+    print(f"  solver check (noise-free demos of seed 0 task 0, lam 0): "
+          f"pre-fix max |theta error| {num(th_err_pre)} |b error| {num(b_err_pre)}; "
+          f"corrected max |theta error| {num(th_err_cor)} |b error| {num(b_err_cor)}")
 
     print("No winner beyond the declared prior: human pretraining helps when the "
           "human prior is close and robot data is scarce, zero-shot retargeting "

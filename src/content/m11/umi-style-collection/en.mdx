@@ -622,6 +622,32 @@ def ridge_fit(X, Y, mu, lam):
     return sol[:d], sol[d]
 
 
+def ridge_fit_prefix(X, Y, mu, lam):
+    """Erroneous pre-fix version, kept only for comparison: exact copy of ridge_fit except that the symmetric intercept row of the normal equations is left unfilled (the line `A[d][a] += xa` is omitted)."""
+    n = len(X)
+    d = len(mu)
+    A = [[0.0] * (d + 1) for _ in range(d + 1)]
+    rhs = [0.0] * (d + 1)
+    for i in range(n):
+        xi = X[i]
+        yi = Y[i]
+        for a in range(d):
+            xa = xi[a]
+            row_a = A[a]
+            for b in range(d):
+                row_a[b] += xa * xi[b]
+            row_a[d] += xa
+            rhs[a] += xa * yi
+        A[d][d] += 1.0
+        rhs[d] += yi
+    for a in range(d):
+        A[a][a] += lam
+        rhs[a] += lam * mu[a]
+    A[d][d] += B_PRIOR_WEIGHT
+    sol = gauss_solve(A, rhs)
+    return sol[:d], sol[d]
+
+
 DRAWS = {}
 
 
@@ -645,14 +671,15 @@ def demo_targets(theta_true, demo_x, demo_e):
             + SIG_DEMO * demo_e[i] for i in range(N_FULL)]
 
 
-def arm_params(arm, theta_true, theta_h, demo_x, y_demo, n, lam_b, offset):
+def arm_params(arm, theta_true, theta_h, demo_x, y_demo, n, lam_b, offset, prefix=False):
     if arm == "C_zero_shot":
         return theta_h[:], B_ROBOT - offset
     if arm == "A_robot_only":
         mu, lam = [0.0] * D, LAM_A
     else:
         mu, lam = theta_h, lam_b
-    return ridge_fit(demo_x[:n], y_demo[:n], mu, lam)
+    fit = ridge_fit_prefix if prefix else ridge_fit
+    return fit(demo_x[:n], y_demo[:n], mu, lam)
 
 
 def evaluate(theta_hat, b_hat, theta_true, short_x, long_x, tol):
@@ -687,7 +714,7 @@ def evaluate(theta_hat, b_hat, theta_true, short_x, long_x, tol):
     return short_hits, long_hits, psr_sum
 
 
-def regime_results(regime, lam_b=None, tol=TOL, offset=OFFSET_MISMATCH):
+def regime_results(regime, lam_b=None, tol=TOL, offset=OFFSET_MISMATCH, prefix=False):
     """Per-seed metric lists for every arm in one regime."""
     n, delta_sd = REGIMES[regime]
     lb = LAM_B if lam_b is None else lam_b
@@ -699,7 +726,8 @@ def regime_results(regime, lam_b=None, tol=TOL, offset=OFFSET_MISMATCH):
             y_demo = demo_targets(theta_true, demo_x, demo_e)
             theta_h = [theta_true[j] + delta_sd * z[j] for j in range(D)]
             for arm in ARMS:
-                th, bh = arm_params(arm, theta_true, theta_h, demo_x, y_demo, n, lb, offset)
+                th, bh = arm_params(arm, theta_true, theta_h, demo_x, y_demo, n, lb,
+                                    offset, prefix=prefix)
                 sh, lh, ps = evaluate(th, bh, theta_true, short_x, long_x, tol)
                 acc[arm][0] += sh
                 acc[arm][1] += lh
@@ -804,6 +832,25 @@ def main():
                     col(results["in_domain_full"], "A_robot_only", "long_sr"))
     print(f"  in_domain_full zero-shot OFFSET_MISMATCH=0.5000: paired C-A long_sr: {v_off}")
 
+    print("comparison only, not an official verdict: pre-fix solver with the symmetric intercept row left unfilled (erroneous version, kept only for comparison / 漏填对称截距行的错误版本，仅作对照), same seeds:")
+    pre_half = regime_results("half_data", prefix=True)
+    pre_full = regime_results("in_domain_full", prefix=True)
+    v_pre = verdict(col(pre_half, "B_human_pretrain", "long_sr"),
+                    col(pre_full, "B_human_pretrain", "long_sr"))
+    print(f"  pre-fix paired B(half_data)-B(in_domain_full) long_sr: {v_pre}")
+    theta_true0, _, demo_x0, _, _, _ = draws_for(0, 0)
+    y_clean0 = [sum(demo_x0[i][j] * theta_true0[j] for j in range(D)) + B_ROBOT
+                for i in range(N_FULL)]
+    th_pre, b_pre = ridge_fit_prefix(demo_x0, y_clean0, [0.0] * D, 0.0)
+    th_cor, b_cor = ridge_fit(demo_x0, y_clean0, [0.0] * D, 0.0)
+    th_err_pre = max(abs(th_pre[j] - theta_true0[j]) for j in range(D))
+    b_err_pre = abs(b_pre - B_ROBOT)
+    th_err_cor = max(abs(th_cor[j] - theta_true0[j]) for j in range(D))
+    b_err_cor = abs(b_cor - B_ROBOT)
+    print(f"  solver check (noise-free demos of seed 0 task 0, lam 0): "
+          f"pre-fix max |theta error| {num(th_err_pre)} |b error| {num(b_err_pre)}; "
+          f"corrected max |theta error| {num(th_err_cor)} |b error| {num(b_err_cor)}")
+
     print("No winner beyond the declared prior: human pretraining helps when the "
           "human prior is close and robot data is scarce, zero-shot retargeting "
           "fails on the offset, and a wrong prior can hurt")
@@ -879,6 +926,9 @@ alternative parameters (declared before the run, same seeds, not adopted):
   in_domain_full TOL=0.7000: paired B-A long_sr: 0.4140+-0.1724: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
   in_domain_full zero-shot OFFSET_MISMATCH=0.5000: C_zero_shot short_sr 0.4600+-0.0394 long_sr 0.0500+-0.0361
   in_domain_full zero-shot OFFSET_MISMATCH=0.5000: paired C-A long_sr: -0.1860+-0.0713: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+comparison only, not an official verdict: pre-fix solver with the symmetric intercept row left unfilled (erroneous version, kept only for comparison / 漏填对称截距行的错误版本，仅作对照), same seeds:
+  pre-fix paired B(half_data)-B(in_domain_full) long_sr: 0.0400+-0.1012: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  solver check (noise-free demos of seed 0 task 0, lam 0): pre-fix max |theta error| 0.0736 |b error| 0.1240; corrected max |theta error| 4.253e-8 |b error| 7.161e-8
 No winner beyond the declared prior: human pretraining helps when the human prior is close and robot data is scarce, zero-shot retargeting fails on the offset, and a wrong prior can hurt
 MANO / Isaac Lab / Quest / GPU: 本页未运行; EgoVLA paper results 以论文为准
 ```
@@ -895,7 +945,7 @@ How the labels are used on this page, in this order: **tie: identical on every s
 
 **Keep** the large_mismatch cells in view. In this toy human pretraining helps only as far as the human prior is close to the robot's skill and the fit's trust in it is right.
 
-**Code change after the first run.** Two runs came before the output above. The first stopped at a syntax error before printing anything, and the f-strings were split into plain variables. The second printed every regime, and a check of the ridge solver afterwards found a real bug: the intercept column of the normal equations was filled but its symmetric row was not, so the fit did not solve the declared objective. With noise-free data it missed θ and b by more than 0.5. The missing row was added; with it, noise-free data are recovered to about 1e-7. No parameter, regime, arm or rule changed. The fix did change results: in the buggy run, B's drop from full to half data on long_sr was a near-tie, so that declaration did not hold, and the B−A gaps were smaller. The output above, from the corrected code, is the one kept. One docstring paragraph was also rewrapped, with no effect on the output.
+**Code change after the first run.** Two runs came before the output above. The first stopped at a syntax error before printing anything, and the f-strings were split into plain variables. The second printed every regime, and a check of the ridge solver afterwards found a real bug: the intercept column of the normal equations was filled but its symmetric row was not, so the fit did not solve the declared objective. The missing row was added. No parameter, regime, arm or rule changed. The fix did change results: in the buggy run, B's drop from full to half data on long_sr was a near-tie, so that declaration did not hold, and the B−A gaps were smaller. A newly added comparison in the toy puts numbers on this. It reruns arms A and B with the pre-fix solver on the same seeds, printed under a heading that marks it as the erroneous version kept only for comparison and not an official verdict: its half-data B minus full-data B long_sr is 0.0400±0.1012, a near-tie with 1 of 5 seeds of the opposite sign. On the noise-free demonstrations of seed 0, task 0, the pre-fix solver misses θ by up to 0.0736 and b by 0.1240, while the corrected solver misses them by 4.253e-8 and 7.161e-8, all printed by the toy. Every verdict above uses the corrected solver. The output above, from the corrected code, is the one kept. One docstring paragraph was also rewrapped, with no effect on the output.
 
 **Choices made after seeing results.** None beyond the solver fix above. Parameters, regimes and the printed alternatives were written before the first run and run on the same seeds. A milder trust of LAM = 5 on large_mismatch still loses to robot-only (B−A long_sr -0.1180±0.1085, clear, 1 of 5 seeds opposite). A looser tolerance of 0.7 keeps the in-domain gain (B−A long_sr 0.4140±0.1724). A smaller retarget offset of 0.5 lifts zero-shot to short_sr 0.4600±0.0394 and long_sr 0.0500±0.0361, still below robot-only (C−A long_sr -0.1860±0.0713). None of them replaced the defaults.
 

@@ -60,5 +60,8 @@ alternative parameters (declared before the run, same seeds, not adopted):
   in_domain_full TOL=0.7000: paired B-A long_sr: 0.4140+-0.1724: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
   in_domain_full zero-shot OFFSET_MISMATCH=0.5000: C_zero_shot short_sr 0.4600+-0.0394 long_sr 0.0500+-0.0361
   in_domain_full zero-shot OFFSET_MISMATCH=0.5000: paired C-A long_sr: -0.1860+-0.0713: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+comparison only, not an official verdict: pre-fix solver with the symmetric intercept row left unfilled (erroneous version, kept only for comparison / 漏填对称截距行的错误版本，仅作对照), same seeds:
+  pre-fix paired B(half_data)-B(in_domain_full) long_sr: 0.0400+-0.1012: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+  solver check (noise-free demos of seed 0 task 0, lam 0): pre-fix max |theta error| 0.0736 |b error| 0.1240; corrected max |theta error| 4.253e-8 |b error| 7.161e-8
 No winner beyond the declared prior: human pretraining helps when the human prior is close and robot data is scarce, zero-shot retargeting fails on the offset, and a wrong prior can hurt
 MANO / Isaac Lab / Quest / GPU: 本页未运行; EgoVLA paper results 以论文为准
