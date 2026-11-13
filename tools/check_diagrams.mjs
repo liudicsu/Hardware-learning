@@ -10326,7 +10326,7 @@ print("protocol pass")
   // New toys and their printed output carry no dev-process labels.
   for(const f of ["examples/month-2/arduino-io/optocoupler_ctr_isolation_toy.py","examples/month-2/expected/optocoupler_ctr_isolation_toy.txt","examples/month-3/pid-control/ziegler_nichols_ultimate_gain_toy.py","examples/month-3/expected/ziegler_nichols_ultimate_gain_toy.txt"])ok(!/\bbatch\b|\bPR ?\d+\b|sources? notes?\b|来源说明|来源笔记|this batch|本批|this round|本轮|polish|\b[bB]\d{1,2}p(?:\d|ol)\b|opencode|deepseek|\bGLM\b|\bMiMo\b|LongCat|MiniMax/i.test(read(f)),`b23p1 ${f}: no dev-process label`);
   ok(/"wiki-opto": \{[\s\S]*?url: "https:\/\/en\.wikipedia\.org\/w\/index\.php\?title=Opto-isolator&oldid=1381742785"[\s\S]*?rev 1381742785[\s\S]*?以原文为准[\s\S]*?本页未运行[\s\S]*?extra: true/.test(res),"b23p1 wiki-opto card: oldid URL, rev, 以原文为准, 本页未运行");
-  ok(/"wiki-zn": \{[\s\S]*?url: "https:\/\/en\.wikipedia\.org\/w\/index\.php\?title=Ziegler%E2%80%93Nichols_method&oldid=1340563087"[\s\S]*?rev 1340563087[\s\S]*?以原文为准[\s\S]*?本页未运行[\s\S]*?extra: true/.test(res),"b23p1 wiki-zn card: oldid URL, rev, 以原文为准, 本页未运行");
+  ok(/"wiki-zn": \{[\s\S]*?url: "https:\/\/en\.wikipedia\.org\/w\/index\.php\?oldid=1340563087"[\s\S]*?rev 1340563087[\s\S]*?以原文为准[\s\S]*?本页未运行[\s\S]*?extra: true/.test(res),"b23p1 wiki-zn card: oldid URL, rev, 以原文为准, 本页未运行");
   ok(!/"wiki-opto": \{[\s\S]*?\bbatch\b[\s\S]*?"wiki-zn": \{/.test(res),"b23p1 wiki-opto card: the 4N28 spread is described as a production lot");
   // The new sections sit after the existing host sections and state which declarations did not hold.
   for(const lang of ["en","zh"]){

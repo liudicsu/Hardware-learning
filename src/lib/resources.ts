@@ -6825,7 +6825,7 @@ export const resources: Record<string, Resource> = {
   },
   "wiki-zn": {
     id: "wiki-zn",
-    url: "https://en.wikipedia.org/w/index.php?title=Ziegler%E2%80%93Nichols_method&oldid=1340563087",
+    url: "https://en.wikipedia.org/w/index.php?oldid=1340563087",
     title: {
       zh: "Wikipedia：Ziegler–Nichols 整定法",
       en: "Wikipedia: Ziegler–Nichols method",
