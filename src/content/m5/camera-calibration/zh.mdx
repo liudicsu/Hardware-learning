@@ -807,7 +807,7 @@ def evaluate(arm: str, sc: dict) -> dict:
             "t_deg": angle_deg(t, sc["t"]), "log10_cond": math.log10(cond)}
 
 
-# ---------- reporting (same label rules as the batch-13 lead-lag toy) ----------
+# ---------- reporting (same label rules as the lead-lag toy) ----------
 def mean_sd(xs):
     mu = sum(xs) / len(xs)
     return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))

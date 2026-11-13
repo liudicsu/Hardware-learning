@@ -34,7 +34,7 @@ alternative.
 
 Real lidar / Open3D / octomap_server: 本页未运行.
 OctoMap homepage, Curless & Levoy volrange.pdf, Open3D RGBD integration:
-bodies read; 以原文为准. Hornung AURO PDF returned HTTP 500 this round
+bodies read; 以原文为准. Hornung AURO PDF returned HTTP 500 when fetched
 and is not cited.
 """
 from __future__ import annotations
