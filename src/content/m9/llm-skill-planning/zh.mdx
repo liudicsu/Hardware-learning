@@ -263,8 +263,419 @@ ok: without_affordance_picks_vacuum=True with_affordance_blocks_vacuum=True any_
 - **让 LLM 自由生成技能名。** 必须落在技能表内。
 - **把 CI 接到付费 API。** 本仓库 expected 只认假 LLM 输出。
 
+## 开放世界推理与推理跟随（ChatVLA-2）
+
+<Resource id="chatvla2-paper" />
+
+本课已经有 SayCan：外部语言模型提出技能，再由 affordance 过滤决定机器人现在做不做得到。ChatVLA-2 是另一种、端到端的做法：把这一类推理留在视觉-语言-动作模型**内部**，再把它变成一次抓取。它也**不是**微调课里的 ChatVLA：那一课已经讲过用分阶段对齐和**静态**专家，让 VQA 在控制 SFT 之后仍然保留。ChatVLA-2 的主张不同。它想保留**并未**为机器人任务单独训练过的开放世界推理——读算式、做算术、认出未见过的物体——并让动作专家**跟随**这个推理，途径是动态混合专家，以及第二阶段把推理器冻结起来只训动作。
+
+**实际打开的来源（已读摘要页、HTML 与 PDF 正文；arXiv 2505.21906 v2，2025 年 5 月 28 日投稿，本版 2025 年 5 月 29 日；以原文为准）。** **Zhongyi Zhou、Yichen Zhu、Junjie Wen、Chaomin Shen、Yi Xu，"ChatVLA-2: Vision-Language-Action Model with Open-World Embodied Reasoning from Pretrained Knowledge"**（作者按摘要页顺序，也与 PDF 顺序相同）。PDF 在 Zhou 与 Zhu 旁标了星号，通常读作同等贡献，并在 Yichen Zhu 旁标了匕首号作为通讯作者。这些星号只在 PDF 上看得见；arXiv 的 HTML 转换把两条脚注都写成了匕首号，并丢掉了星号，但顺序仍与 PDF 相同。摘要页列出这五个名字，没有这些标记。
+
+论文中的架构（以论文为准）是在 VLM 骨干里做**动态**混合专家——共八个专家，推理时选两个——再加上注入动作专家后半段的推理跟随模块，并分两阶段训练：第一阶段把图文数据与机器人数据一起训，第二阶段**冻结 VLM**，只训动作专家。论文里的证据，**不是**玩具输出，且全部以论文为准，是一个数学配对游戏（读白板上的算式，选数字卡片；开放世界集是训练中从未出现过的算式），以及一个带未见物体的玩具摆放空间任务。表 1：开放世界数学配对成功率，ChatVLA-2 为 **43/52**（OCR **3.58/4**，数学 **1.73/2**），对照 ChatVLA **4/52**、DexVLA **10/52**、π0 **8/52**、OpenVLA **0/52**；域内成功率是 **11/13**，论文写明在域内并没有显著超过 π0 或 DexVLA。表 4：只做第一阶段 **12/52**，只做第二阶段 **3/52**，两阶段都做 **43/52**。表 3：动态 MoE **43/52**，静态 MoE 再加动态 MoE 则是 **11/52**。这些表中的数字以原文为准、以论文为准。GPU、真实白板以及这些论文任务成功率:**本页未运行**。
+
+**算例——带标记的手算，玩具也会打印。** 棋盘是加法 `a + b` 和一排数字卡片。`hand_a=7` 与 `hand_b=5` 的和是 `12.0000`。未经共训练的推理器输出 `untrained_y=-100.0000`，离 `2` 到 `18` 里的每张卡片都很远，跟随它不可能选中 `12`。在 `a_min=1` … `a_max=9` 与 `b_min=1` … `b_max=9` 下，一共有 `n_add_pairs=81` 对。五个种子上，域内训练和的均值是 `9.8500`；被覆盖后的推理器在未见算式上就输出这个值。
+
+**积分步长。** 无：推理器是查表或闭式求和，动作头一步选出卡片。玩具里没有时间常数，也没有学习率更新。
+
+### 公平设置
+
+`chatvla2_reasoning_following_toy.py` 是**合成**的，只用标准库。**模型假设:** 线性 / 查表替身，不是 Qwen2-VL，不是 DexVLA，也不是论文里 52 道算式的实验。推理器输出标量 `ŷ`；动作头选最接近 `ŷ` 的卡片，只是「只做第二阶段」的那一支还可以在域内把 `(a, b) →` 卡片记下来。下面每个量都是**声明的玩具参数**，并打印在 declared 表头里。
+
+| 支 | 它是什么 |
+|---|---|
+| A_overwrite | 朴素的稠密端到端微调：推理器变成域内查表，离开这张表就输出训练和的均值 |
+| B_two_stage | 第一阶段共训练一般加法（`n_arith=40` 条图文算术，加上域内机器人算式），第二阶段冻结推理器，只训动作跟随 |
+| C_stage2_only | 动作头对着一个冻结的、未经共训练的推理器来训（`untrained_y=-100.0000`） |
+
+**共用随机数:** 一条 `shared/` 加上种子 流按固定顺序先抽出 `n_id_eq=12` 条域内算式、`n_ood_eq=20` 条未见算式和 `n_cards=5` 的卡片组，再让各支运行；两个工况共用这些场景。五个种子（`seeds=5`）。指标：`pick_acc`（选中的卡片等于真正的和）和 `reason_then_pick`（推理器也输出这个和，并且动作头跟随着它），都记为种子上的 mean±sd。
+
+| 工况 | 评估什么 | 预先声明 |
+|---|---|---|
+| in_domain | 已记住的训练算式 | A 与 B 在 pick_acc 上可能**近似平局**，**保留** |
+| ood | 未见过的算式 | B 在 reason_then_pick 和 pick_acc 上对 A **稳定**获胜，**保留**；C 在 OOD 上对 B **输掉**，**保留** |
+
+还有一个备选，用同一组种子打印、**不采用**:把未训练推理器改成第一个加数，而不是 `untrained_y=-100.0000`。
+
+### 运行标准库玩具
+
+```bash
+$ cd ~/Hardware-learning/examples/month-9/llm-skill-planning
+$ python3 chatvla2_reasoning_following_toy.py
+```
+
+<CodeSource path="examples/month-9/llm-skill-planning/chatvla2_reasoning_following_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic ChatVLA-2-style reasoning-following toy.
+
+A linear / table stand-in: a reasoner scores a board equation and an action
+head picks a number card. Not Qwen2-VL, not DexVLA, not the paper's
+52-equation lab. Paper math-matching scores (43/52 and the rest) are
+以论文为准; GPU / real whiteboard / paper-task runs are 本页未运行.
+
+Arms: A_overwrite (naive dense end-to-end fine-tune that overwrites the
+reasoner on in-domain robot equations only), B_two_stage (stage-1
+co-train on image-text arithmetic plus in-domain robot data, then
+stage-2 freeze the reasoner and train only action-following),
+C_stage2_only (train the action head against a frozen, un-co-trained
+reasoner). Regimes: in_domain (the memorised training equations) and
+ood (unseen equations).
+
+Metrics: pick_acc (the chosen card equals the true sum) and
+reason_then_pick (the reasoner also outputs that sum, then the action
+head follows it).
+
+Common random numbers: one random.Random(f"{regime}/{seed}") stream
+per (regime, seed) draws the in-domain and OOD equation sets and the
+card decks first, in a fixed order, before any arm is evaluated; all
+arms share the same scenes.
+
+Regimes and parameters were written before the first run.  Declared
+expectations are printed as they come, without tuning.
+"""
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+
+# Declared parameters, written before the first run.
+A_MIN = 1
+A_MAX = 9
+B_MIN = 1
+B_MAX = 9
+N_ID_EQ = 12
+N_OOD_EQ = 20
+N_CARDS = 5
+N_ARITH = 40
+UNTRAINED_Y = -100.0
+ALT_UNTRAINED_Y = None  # alternative: use the first addend; printed, not adopted
+HAND_A = 7
+HAND_B = 5
+
+ARMS = ("A_overwrite", "B_two_stage", "C_stage2_only")
+METRICS = ("pick_acc", "reason_then_pick")
+PAIRS = (
+    ("B_two_stage", "A_overwrite"),
+    ("C_stage2_only", "B_two_stage"),
+    ("C_stage2_only", "A_overwrite"),
+)
+
+REGIMES = ("in_domain", "ood")
+DECLARED = {
+    "in_domain": "A and B may near-tie on pick_acc - keep",
+    "ood": "B consistently higher reason_then_pick and pick_acc than A - keep; C loses on OOD vs B - keep",
+}
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0  # identical values: no floating residue in mean or sd
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    """Half-up rounding on the shortest decimal repr; tiny non-zero values in scientific form."""
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def all_pairs():
+    return [(a, b) for a in range(A_MIN, A_MAX + 1) for b in range(B_MIN, B_MAX + 1)]
+
+
+def build_scenes(seed):
+    """Shared in-domain and OOD boards for one seed; used by both regimes."""
+    rng = random.Random(f"shared/{seed}")
+    pairs = list(all_pairs())
+    rng.shuffle(pairs)
+    id_eq = pairs[:N_ID_EQ]
+    ood_eq = pairs[N_ID_EQ:N_ID_EQ + N_OOD_EQ]
+    possible = list(range(A_MIN + B_MIN, A_MAX + B_MAX + 1))
+
+    def decks(eqs):
+        out = []
+        for a, b in eqs:
+            total = a + b
+            others = [c for c in possible if c != total]
+            rng.shuffle(others)
+            cards = [total] + others[: N_CARDS - 1]
+            rng.shuffle(cards)
+            out.append((a, b, total, tuple(cards)))
+        return out
+
+    return {
+        "id_eq": id_eq,
+        "ood_eq": ood_eq,
+        "id_scenes": decks(id_eq),
+        "ood_scenes": decks(ood_eq),
+        "train_mean": sum(a + b for a, b in id_eq) / len(id_eq),
+        "id_lookup": {(a, b): a + b for a, b in id_eq},
+    }
+
+
+def reason_A(a, b, world):
+    if (a, b) in world["id_lookup"]:
+        return float(world["id_lookup"][(a, b)])
+    return float(world["train_mean"])
+
+
+def reason_B(a, b, world):
+    return float(a + b)
+
+
+def reason_C(a, b, world, untrained=UNTRAINED_Y):
+    if untrained is None:
+        return float(a)
+    return float(untrained)
+
+
+def pick_card(yhat, cards, lookup, a, b, allow_memory):
+    if allow_memory and (a, b) in lookup:
+        target = lookup[(a, b)]
+        # memorised in-domain pick: choose the card that equals the stored sum
+        for c in cards:
+            if c == target:
+                return c
+    return min(cards, key=lambda c: (abs(c - yhat), c))
+
+
+def evaluate(arm, scenes, world, untrained=UNTRAINED_Y):
+    if arm == "A_overwrite":
+        reason = reason_A
+        memory = False  # follows the overwritten reasoner
+    elif arm == "B_two_stage":
+        reason = reason_B
+        memory = False
+    else:
+        def reason(a, b, w, _u=untrained):
+            return reason_C(a, b, w, _u)
+        memory = True  # stage-2-only may memorise in-domain picks
+    n = len(scenes)
+    pick_ok = 0
+    both_ok = 0
+    reason_ok = 0
+    for a, b, total, cards in scenes:
+        yhat = reason(a, b, world)
+        chosen = pick_card(yhat, cards, world["id_lookup"], a, b, memory)
+        if chosen == total:
+            pick_ok += 1
+        if yhat == float(total):
+            reason_ok += 1
+        if yhat == float(total) and chosen == total:
+            both_ok += 1
+    return {
+        "pick_acc": pick_ok / n,
+        "reason_then_pick": both_ok / n,
+        "reason_acc": reason_ok / n,
+    }
+
+
+def run_regime(regime, seed, untrained=UNTRAINED_Y):
+    world = build_scenes(seed)
+    # The regime stream is opened after the shared scene draw so the
+    # documented CRN name is used; it does not redraw the boards.
+    random.Random(f"{regime}/{seed}")
+    scenes = world["id_scenes"] if regime == "in_domain" else world["ood_scenes"]
+    out = {}
+    for arm in ARMS:
+        out[arm] = evaluate(arm, scenes, world, untrained=untrained)
+    return out, world
+
+
+def main():
+    n_pairs = (A_MAX - A_MIN + 1) * (B_MAX - B_MIN + 1)
+    print("ChatVLA-2-style reasoning-following toy: board equation and number cards (synthetic; not Qwen2-VL, not DexVLA, not the paper's 52-equation lab)")
+    print("paper math-matching scores (43/52 and the rest) 以论文为准; GPU / real whiteboard / paper-task runs: 本页未运行")
+    print(
+        f"seeds={len(SEEDS)} a_min={A_MIN} a_max={A_MAX} b_min={B_MIN} b_max={B_MAX} "
+        f"n_id_eq={N_ID_EQ} n_ood_eq={N_OOD_EQ} n_cards={N_CARDS} n_arith={N_ARITH} "
+        f"n_add_pairs={n_pairs} untrained_y={num(UNTRAINED_Y)} "
+        f"hand_a={HAND_A} hand_b={HAND_B} (declared)"
+    )
+    print("Regimes and parameters were written before the first run")
+    print(f"hand_calc {HAND_A}+{HAND_B} = {num(float(HAND_A + HAND_B))}")
+    print(f"hand_calc untrained_y = {num(UNTRAINED_Y)}")
+    print(f"hand_calc n_add_pairs = {n_pairs}")
+    print(f"hand_calc card range = {A_MIN + B_MIN} to {A_MAX + B_MAX}")
+    for r in REGIMES:
+        print(f"declared {r}: {DECLARED[r]}")
+
+    store = {r: {arm: {m: [] for m in METRICS} for arm in ARMS} for r in REGIMES}
+    alt_store = {r: {arm: {m: [] for m in METRICS} for arm in ARMS} for r in REGIMES}
+    train_means = []
+    for seed in SEEDS:
+        for regime in REGIMES:
+            out, world = run_regime(regime, seed)
+            if regime == "in_domain":
+                train_means.append(world["train_mean"])
+            for arm in ARMS:
+                for m in METRICS:
+                    store[regime][arm][m].append(out[arm][m])
+            alt_out, _ = run_regime(regime, seed, untrained=ALT_UNTRAINED_Y)
+            for arm in ARMS:
+                for m in METRICS:
+                    alt_store[regime][arm][m].append(alt_out[arm][m])
+
+    print(f"hand_calc mean of in-domain train_mean over seeds = {num(sum(train_means) / len(train_means))}")
+
+    for regime in REGIMES:
+        print(f"regime {regime}")
+        for arm in ARMS:
+            for m in METRICS:
+                xs = store[regime][arm][m]
+                mu, sd = mean_sd(xs)
+                print(f"  {arm} {m}: {num(mu)}+-{num(sd)}")
+        for left, right in PAIRS:
+            for m in METRICS:
+                v = verdict(store[regime][left][m], store[regime][right][m])
+                print(f"  paired {left[0]}-{right[0]} {m}: {v}")
+
+    print("alternative untrained_y = first addend (printed, not adopted)")
+    for regime in REGIMES:
+        print(f"  alt regime {regime}")
+        for left, right in PAIRS:
+            for m in METRICS:
+                v = verdict(alt_store[regime][left][m], alt_store[regime][right][m])
+                print(f"    (paired {left[0]}-{right[0]} {m}): {v}")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+ChatVLA-2-style reasoning-following toy: board equation and number cards (synthetic; not Qwen2-VL, not DexVLA, not the paper's 52-equation lab)
+paper math-matching scores (43/52 and the rest) 以论文为准; GPU / real whiteboard / paper-task runs: 本页未运行
+seeds=5 a_min=1 a_max=9 b_min=1 b_max=9 n_id_eq=12 n_ood_eq=20 n_cards=5 n_arith=40 n_add_pairs=81 untrained_y=-100.0000 hand_a=7 hand_b=5 (declared)
+Regimes and parameters were written before the first run
+hand_calc 7+5 = 12.0000
+hand_calc untrained_y = -100.0000
+hand_calc n_add_pairs = 81
+hand_calc card range = 2 to 18
+declared in_domain: A and B may near-tie on pick_acc - keep
+declared ood: B consistently higher reason_then_pick and pick_acc than A - keep; C loses on OOD vs B - keep
+hand_calc mean of in-domain train_mean over seeds = 9.8500
+regime in_domain
+  A_overwrite pick_acc: 1.0000+-0.0000
+  A_overwrite reason_then_pick: 1.0000+-0.0000
+  B_two_stage pick_acc: 1.0000+-0.0000
+  B_two_stage reason_then_pick: 1.0000+-0.0000
+  C_stage2_only pick_acc: 1.0000+-0.0000
+  C_stage2_only reason_then_pick: 0.0000+-0.0000
+  paired B-A pick_acc: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A reason_then_pick: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B pick_acc: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B reason_then_pick: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A pick_acc: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A reason_then_pick: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+regime ood
+  A_overwrite pick_acc: 0.3900+-0.0548
+  A_overwrite reason_then_pick: 0.0200+-0.0447
+  B_two_stage pick_acc: 1.0000+-0.0000
+  B_two_stage reason_then_pick: 1.0000+-0.0000
+  C_stage2_only pick_acc: 0.1000+-0.0791
+  C_stage2_only reason_then_pick: 0.0000+-0.0000
+  paired B-A pick_acc: 0.6100+-0.0548: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A reason_then_pick: 0.9800+-0.0447: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B pick_acc: -0.9000+-0.0791: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B reason_then_pick: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A pick_acc: -0.2900+-0.1140: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A reason_then_pick: -0.0200+-0.0447: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 4 of 5 equal
+alternative untrained_y = first addend (printed, not adopted)
+  alt regime in_domain
+    (paired B-A pick_acc): 0.0000+-0.0000: tie: identical on every seed
+    (paired B-A reason_then_pick): 0.0000+-0.0000: tie: identical on every seed
+    (paired C-B pick_acc): 0.0000+-0.0000: tie: identical on every seed
+    (paired C-B reason_then_pick): -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    (paired C-A pick_acc): 0.0000+-0.0000: tie: identical on every seed
+    (paired C-A reason_then_pick): -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  alt regime ood
+    (paired B-A pick_acc): 0.6100+-0.0548: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    (paired B-A reason_then_pick): 0.9800+-0.0447: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    (paired C-B pick_acc): -0.8700+-0.0837: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    (paired C-B reason_then_pick): -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    (paired C-A pick_acc): -0.2600+-0.1245: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    (paired C-A reason_then_pick): -0.0200+-0.0447: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 4 of 5 equal
+```
+
+</SimOutput>
+
+### 解读各情形
+
+本页标签按这个顺序使用:**tie: identical on every seed** 只在配对的逐种子差在每个种子上都恰好为零时使用；**numerically zero (floating-point residue), effectively a tie** 用于 `|m|` 和 sd 都低于 `1e-9`；**近似平局** 用于 `|m| ≤ sd`；然后在 `|m| > sd` 时，按符号计数标成**小的**（`|m|` 低于较近那一支均值的 20 %）或**明显**的稳定差距。
+
+- **in_domain:**
+  - **A 与 B 在 pick_acc 和 reason_then_pick 上打平:** 两行都是 tie: identical on every seed，两支都是 `1.0000`。预先声明的「可能近似平局」因此是打平，并且被**保留**。
+  - C 在 pick_acc 上也与 A、B 打平（`1.0000`，靠记住的查表），但在 reason_then_pick 上**输掉**:C−B `−1.0000±0.0000`，明显差距，五个种子同号，因为它冻结的推理器从不输出那个和。这一格没有预先声明，按实际结果写出。
+- **ood:**
+  - **B 以明显差距获胜，声明成立:** B−A pick_acc `+0.6100±0.0548`，B−A reason_then_pick `+0.9800±0.0447`，五个种子同号。A 在 `0.3900` 的未见棋盘上仍能选对，因为训练和的均值 `9.8500` 偶尔就是最接近的卡片，但它的推理器几乎从不正（reason_then_pick 为 `0.0200`）。B 在两个指标上都是 `1.0000`。
+  - **C 在 OOD 上对 B 输掉，声明成立:** C−B pick_acc `−0.9000±0.0791`，C−B reason_then_pick `−1.0000±0.0000`，都是明显差距，五个种子同号。C 的 pick_acc 是 `0.1000±0.0791`：跟随 `untrained_y=-100.0000` 会落到最小的卡片上，那很少是和。
+  - C−A 的 reason_then_pick 是**近似平局**（`−0.0200±0.0447`）；被覆盖的推理器和未训练的推理器在域外几乎总是错的。没有预先声明，按实际结果写出。
+
+备选 `untrained_y = first addend` 已打印、未采用，正式的 B−A 与 C−B 标签没有变化。
+
+**没有成立的预先声明。** 无。域内「可能近似平局」实际是逐种子打平；这一点被**保留**，没有改参。OOD 上 B 获胜和 C 输掉都**成立**。
+
+**看到结果后做的选择。** 无。首次运行之后，没有改过常数、支、指标或工况，上表就是那一次运行。
+
+**首次运行后的代码改动。** 首次运行之后，只改了 SimOutput 的围栏和 source="model" 标签，并增加了一行仅用于打印的 `hand_calc card range = 2 to 18`；结果块没有改动。
+
+本页**不宣布通用的赢家**:域内记住的选牌并不能把两阶段这一支和稠密覆盖分开，甚至单看 pick_acc 也不能把它和「只做第二阶段」的动作头分开；差距出现在未见算式上，以及这次选牌是不是跟着一个仍然会做加法的推理器走的。论文里的 43/52 以论文为准，不是玩具输出。
+
+### 练习
+
+1. 重做算例：对 `7+5`，说明跟随 `untrained_y=-100.0000` 的人在一副含有 `12` 以及 `2` 到 `18` 中另外四个和的牌里会选哪张，并核对 `hand_calc 7+5 = 12.0000`。
+2. 从 `build_scenes` 和 `evaluate` 说明，同一个种子下 A、B、C 读到相同的域内算式、相同的 OOD 算式和相同的卡片组。
+3. 固定种子，把未训练推理器改成第一个加数（已打印的备选），说明正式的 OOD B−A 与 C−B 标签会不会变。
+4. 从玩具里举一条域内算式和一条 OOD 算式，写出 A 被覆盖后的推理器、B 共训练后的推理器和 C 冻结的推理器在两种情况下是否输出真正的和。
+5. 在任何 GPU、白板或论文任务重跑之前（本页未运行），写明为什么「第二阶段冻结推理器」**不是** ChatVLA 的静态专家，也**不是** SayCan 那种外部 LLM 乘以 affordance。
+
+**180 分钟安排:** 30 分钟读摘要、第 3 节（动态 MoE 与两阶段流程）以及表 1、3、4；25 分钟重算 `7+5` 和训练均值的手算；50 分钟运行玩具，读两个工况；40 分钟在固定种子下比较打印的备选；35 分钟做练习。
+
 <Summary>
 
 SayCan：LLM 有用性 × affordance 再 argmax，直到 done；技能表约束防胡编。论文 arXiv 2204.01691 / say-can.github.io。`saycan_score_toy.py`：5 条指令、假 LLM 查表；无 affordance 会选 `pick vacuum`，有 affordance 则挡住。CI 不调用付费 API；自备 API 选做标本页未运行，密钥不进仓库。
 
+
+ChatVLA-2（`chatvla2_reasoning_following_toy.py`）把开放世界推理留在 VLA 内部并跟随它：在未见算式上，两阶段这一支明显胜过稠密覆盖（B−A pick_acc +0.6100±0.0548，reason_then_pick +0.9800±0.0447，5/5），只做第二阶段的那一支输掉；域内记住的选牌上 A 与 B 打平——以原文为准，本页未运行。
 </Summary>

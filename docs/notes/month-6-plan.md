@@ -1,6 +1,12 @@
 # Month 6 plan: Robot learning, specialisation & getting hired
 
-Current / 当前：**M6 3840 min**, Batch-21 PR3. Earlier entries below retain their historical totals.
+Current / 当前：**M6 4020 min**, Batch-23 PR3. Earlier entries below retain their historical totals.
+
+## Batch-23 PR3 — Hi Robot hierarchical VLA + situated feedback on policy-evaluation (+180)
+
+Base `b2379b6ef2e03301c3ecd2de44edee4d35e930a1` (batch-23 PR2 #194 merged; site **40860**). PR3 touches M6 and M9: **M6 3840→4020 (+180)**; M9 moves in the same PR on its own plan. Site **40860→41220** (41220=40860+180+180), still 71 lessons.
+
+- **H6 / policy-evaluation: 540→**720** (+180).** Hi Robot (arXiv 2502.19417 v2): hierarchical high-level VLM + low-level VLA, mid-task feedback, and a pre-declared atomic near-tie. Toy `hi_robot_hierarchical_feedback_toy.py`. Five seeds, common random numbers. atomic_no_interrupt: A and B tie on instruction_acc and task_progress (identical on every seed, both 1.0000). mid_task_correction: B−A instruction_acc +1.0000±0.0000 and task_progress +0.3333±0.0000, clear, 5/5; C loses the same way; A and C tie (both ignore the mid-task line). Paper IA/TP 以论文为准; real robots / GPT-4o 本页未运行. ≠ Magma / SayCan / ChatVLA-2. Work plan 30+25+50+40+35=180.
 
 ## Batch-21 PR3 / 本月 H5 (+180)
 

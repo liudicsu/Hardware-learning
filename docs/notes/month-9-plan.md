@@ -1,6 +1,12 @@
 # Month 9 plan: Long-horizon tasks, contact control & mobile manipulation
 
-Current / 当前：**M9 4110 min**, Batch-20 PR3. Earlier entries below retain their historical totals.
+Current / 当前：**M9 4290 min**, Batch-23 PR3. Earlier entries below retain their historical totals.
+
+## Batch-23 PR3 — ChatVLA-2 open-world reasoning-following on llm-skill-planning (+180)
+
+Base `b2379b6ef2e03301c3ecd2de44edee4d35e930a1` (batch-23 PR2 #194 merged; site **40860**). PR3 touches M9 and M6: **M9 4110→4290 (+180)**; M6 moves in the same PR on its own plan. Site **40860→41220** (41220=40860+180+180), still 71 lessons.
+
+- **H5 / llm-skill-planning: 240→**420** (+180).** ChatVLA-2 (arXiv 2505.21906 v2): open-world reasoning and reasoning-following, distinct from SayCan on this page and from ChatVLA static experts. Toy `chatvla2_reasoning_following_toy.py`. Five seeds, common random numbers. in_domain: A and B tie on pick_acc and reason_then_pick (identical on every seed, both 1.0000). ood: B−A pick_acc +0.6100±0.0548 and reason_then_pick +0.9800±0.0447, clear, 5/5; C loses on OOD versus B. Paper 43/52 and the other table scores 以论文为准; GPU / whiteboard 本页未运行. Work plan 30+25+50+40+35=180.
 
 ## Batch-20 PR3 / 本月 H5 (+210)
 

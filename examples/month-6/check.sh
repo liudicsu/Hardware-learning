@@ -59,4 +59,6 @@ check hamster_hierarchical_path_toy.txt python3 "$M6/behaviour-cloning/hamster_h
 
 check internvla_m1_spatial_prompt_toy.txt python3 "$M6/vla-models/internvla_m1_spatial_prompt_toy.py"
 
+check hi_robot_hierarchical_feedback_toy.txt python3 "$M6/policy-evaluation/hi_robot_hierarchical_feedback_toy.py"
+
 exit $fail

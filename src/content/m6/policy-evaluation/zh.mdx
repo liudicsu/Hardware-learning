@@ -839,9 +839,511 @@ Magma benchmark numbers 以论文为准; GPU / UI / robot: 本页未运行
 - **把多个 draw × 共享 IC 拼进一个 Wilson。** 不同的 `synthetic_policy_draw_k` 是不同策略；pooled 计数区间只留给同一固定策略的重复评估。
 - **只报最好的合成种子。** 要报 median（以及全集）。樱桃采摘会把 70 % 写成 85 %。
 
+## 分层 VLA 与情境反馈（Hi Robot）
+
+<Resource id="hirobot-paper" />
+
+本课已经有 Magma 的 Set-of-Mark / Trace-of-Mark，以及嵌套评估种子那一节；这些保持不动。Hi Robot 不是 Magma，不是 SayCan（那一课在技能规划页），也不是 ChatVLA-2 那种端到端的推理跟随。它是一次**分层**:高层 VLM 写出一条短的语言指令，底层 VLA 去执行。两个模型是分开训练的。
+
+**实际打开的来源（已读摘要页、HTML 与 PDF 正文；arXiv 2502.19417 v2，2025 年 2 月 26 日投稿，本版 2025 年 7 月 15 日；以原文为准）。** **Lucy Xiaoyang Shi、Brian Ichter、Michael Equi、Liyiming Ke、Karl Pertsch、Quan Vuong、James Tanner、Anna Walling、Haohuan Wang、Niccolo Fusai、Adrian Li-Bell、Danny Driess、Lachy Groom、Sergey Levine、Chelsea Finn，"Hi Robot: Open-Ended Instruction Following with Hierarchical Vision-Language-Action Models"**（作者按摘要页顺序，也与 PDF、HTML 顺序相同）。PDF 和 HTML 转换上都没有同等贡献标记。PDF 与 HTML 上的通讯方式是写给 Physical Intelligence 的 research@physicalintelligence.company，不是某个名字上的个人通讯作者标记。PDF 上的单位是 Physical Intelligence / Stanford / UC Berkeley，并不改变顺序。
+
+这个系统（以论文为准）是一个高层 VLM `p^(hi)`，它把图像、开放式提示（以及任务中途的用户文本）映射成一条中间语言指令，再由带 flow-matching 动作头的底层 VLA `p^(lo)` 去执行。高层推理会在过了一秒，或有新的用户交互到来时重跑（第 4.1–4.2 节，以论文为准）。对于简单、熟悉的原子指令，论文指出分层**不是**必要的：中间指令可以直接就是原来的提示。评估平台包括单臂、双臂和移动双臂（收拾桌子、做三明治、买菜）。论文报告，它的指令准确率 / 任务进度高于 GPT-4o 高层基线和扁平 VLA，并且能吸收任务中途的反馈，例如 "leave the rest"、"that's not trash"、"I'm allergic to pickles"，而扁平策略不会作出反应；合成的组合数据是必要的（消融 A），分层也优于用同一组数据训练的扁平策略（消融 B）。这些 IA/TP 数字以论文为准，**不是**玩具输出。论文自己写的局限是：高层和底层模型是解耦的，彼此只通过训练例子了解对方的能力。真机、GPT-4o 以及论文任务数字:**本页未运行**。
+
+**算例——带标记的手算，玩具也会打印。** 中途纠正的那张桌子上有 `hand_trash=2` 件真正的垃圾，以及 `hand_forbidden=1` 只不是垃圾的碗。任务进度是（进桶的真垃圾 + 没有进桶的禁拿物体）/（`2 + 1`）。如果策略把所有东西包括碗都丢进桶里，那就是 `0.6667`。如果它把垃圾丢进桶并留下碗，那就是 `1.0000`，这时的指令准确率是 `1.0000`。
+
+**积分步长。** 无：每一步都是一条离散技能。打印的 `replan_every=1` 是论文里「过了一秒就重跑高层」的替身，以论文为准，不是物理时间步。
+
+### 公平设置
+
+`hi_robot_hierarchical_feedback_toy.py` 是**合成**的，只用标准库。**模型假设:** 离散技能 / 语言替身，不是 pi0 策略，不是 Paligemma，不是真正的 UR5e，也不是对论文图的复现。下面每个量都是**声明的玩具参数**，并打印在 declared 表头里。
+
+| 支 | 它是什么 |
+|---|---|
+| A_flat | 整条提示直接送给底层替身，它不会因为中途文本而重新规划 |
+| B_hier_feedback | 高层替身把提示、场景和中途用户文本映射成一条原子指令；新的用户一句话会触发重规划 |
+| C_hier_ignore | 同样的分层，但忽略中途反馈 |
+
+**共用随机数:** 一条 工况名加上种子 流按固定顺序先抽出 `n_scenes=8` 个共享场景，再让各支运行。五个种子（`seeds=5`）。在 `atomic_no_interrupt` 里，提示是 "pick up the cup"，没有中途插话；每个原子回合有 `n_atomic_steps=3`。在 `mid_task_correction` 里，提示是 "clear the trash"，桌上有 `n_objects=4`（`n_true_trash=2`、`n_forbidden=1`，再加上一只杯子），"that's not trash" 在 `interrupt_after=2`、第一次真正下手之前到来，共 `n_steps=6`。指标：`instruction_acc`（执行的指令符合反馈之后的意图）和 `task_progress`（算例里定义的那一项），都记为种子上的 mean±sd。
+
+| 工况 | 评估什么 | 预先声明 |
+|---|---|---|
+| atomic_no_interrupt | 熟悉的原子抓取，没有中途打断 | A 与 B 可能**近似平局**，**保留** |
+| mid_task_correction | "clear the trash" 加上中途的 "that's not trash" | B 在 instruction_acc 和 task_progress 上**稳定**获胜；A 与 C **输掉**，**保留** |
+
+还有一个备选，用同一组种子打印、**不采用**:把打断改到 `interrupt_after=3`。
+
+### 运行标准库玩具
+
+```bash
+$ cd ~/Hardware-learning/examples/month-6/policy-evaluation
+$ python3 hi_robot_hierarchical_feedback_toy.py
+```
+
+<CodeSource path="examples/month-6/policy-evaluation/hi_robot_hierarchical_feedback_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic Hi Robot-style hierarchical VLA with mid-task feedback.
+
+A discrete skill / language stand-in on a shared table scene. Not π,
+not Paligemma, not a real UR5e, and not a reproduction of the paper's
+instruction-accuracy / task-progress figures. Paper IA/TP figures are
+以论文为准; real robots / GPT-4o / paper-task runs are 本页未运行.
+
+Arms: A_flat (the full prompt is sent straight to the low-level
+stand-in, which does not replan on mid-task text), B_hier_feedback
+(a high-level stand-in maps the prompt, the scene and mid-task user
+text to an atomic command; a new user line triggers a replan),
+C_hier_ignore (the same hierarchy, but mid-task feedback is ignored).
+Regimes: atomic_no_interrupt (a familiar "pick up the cup" with no
+user line mid-task) and mid_task_correction (a "clear the trash"
+prompt plus "that's not trash" when the stand-in reaches for a bowl).
+
+Metrics: instruction_acc (the executed commands match the post-feedback
+intent) and task_progress (fraction of true-trash objects in the bin
+plus forbidden objects left in place, over all of those objects).
+
+Common random numbers: one random.Random(f"{regime}/{seed}") stream
+per (regime, seed) draws the shared scenes first, in a fixed order,
+before any arm is evaluated; all arms share the same scenes.
+
+Regimes and parameters were written before the first run.  Declared
+expectations are printed as they come, without tuning.
+"""
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+
+# Declared parameters, written before the first run.
+N_SCENES = 8
+N_STEPS = 6
+N_ATOMIC_STEPS = 3
+INTERRUPT_AFTER = 2
+ALT_INTERRUPT_AFTER = 3  # printed, not adopted
+REPLAN_EVERY = 1  # stand-in for the paper's "one second has elapsed"
+N_TRUE_TRASH = 2
+N_FORBIDDEN = 1
+N_OBJECTS = 4  # cup + 2 trash + 1 bowl (forbidden under the correction)
+HAND_TRASH = 2
+HAND_FORBIDDEN = 1
+
+ARMS = ("A_flat", "B_hier_feedback", "C_hier_ignore")
+METRICS = ("instruction_acc", "task_progress")
+PAIRS = (
+    ("B_hier_feedback", "A_flat"),
+    ("C_hier_ignore", "B_hier_feedback"),
+    ("C_hier_ignore", "A_flat"),
+)
+
+REGIMES = ("atomic_no_interrupt", "mid_task_correction")
+DECLARED = {
+    "atomic_no_interrupt": "A and B may near-tie - keep (hierarchy is not required for a familiar atomic command)",
+    "mid_task_correction": "B consistently wins on instruction_acc and task_progress; A and C lose - keep",
+}
+
+OBJECTS_ATOMIC = ("cup", "bowl", "bottle", "wrapper")
+TRASH_POOL = ("wrapper", "napkin", "can", "peel")
+FORBIDDEN_POOL = ("bowl", "plate", "mug")
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0  # identical values: no floating residue in mean or sd
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    """Half-up rounding on the shortest decimal repr; tiny non-zero values in scientific form."""
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def build_scenes(regime, seed):
+    rng = random.Random(f"{regime}/{seed}")
+    scenes = []
+    if regime == "atomic_no_interrupt":
+        for _ in range(N_SCENES):
+            objs = list(OBJECTS_ATOMIC)
+            rng.shuffle(objs)
+            scenes.append({
+                "objects": tuple(objs),
+                "target": "cup",
+                "true_trash": (),
+                "forbidden": (),
+                "interrupt": None,
+                "interrupt_after": None,
+            })
+        return scenes
+    for _ in range(N_SCENES):
+        trash = list(TRASH_POOL)
+        rng.shuffle(trash)
+        true_trash = tuple(trash[:N_TRUE_TRASH])
+        forb_pool = list(FORBIDDEN_POOL)
+        rng.shuffle(forb_pool)
+        forbidden = tuple(forb_pool[:N_FORBIDDEN])
+        objs = list(true_trash) + list(forbidden) + ["cup"]
+        rng.shuffle(objs)
+        scenes.append({
+            "objects": tuple(objs),
+            "target": None,
+            "true_trash": true_trash,
+            "forbidden": forbidden,
+            "interrupt": "that's not trash",
+            "interrupt_after": INTERRUPT_AFTER,
+        })
+    return scenes
+
+
+def low_level_step(command, remaining, bin_):
+    """Execute one atomic command. Returns the new remaining list and bin."""
+    rem = list(remaining)
+    bin_ = list(bin_)
+    if command is None:
+        return rem, bin_
+    kind, obj = command
+    if kind == "pick_bin" and obj in rem:
+        rem.remove(obj)
+        bin_.append(obj)
+    elif kind == "leave" and obj in rem:
+        rem.remove(obj)  # left on the table, not counted in the bin
+        # keep it out of 'remaining' so it is not picked later
+        # but it is not in the bin either; record as left-in-place via absence from bin
+        rem = rem  # already removed
+        # mark as left: store under a side channel? progress uses objects not in bin if forbidden
+        # We'll track left-in-place separately... actually remaining-remove means we need left set.
+        pass
+    return rem, bin_
+
+
+# Better to track left_in_place explicitly.
+
+def apply_cmd(command, remaining, bin_, left):
+    rem = list(remaining)
+    bin_ = list(bin_)
+    left = list(left)
+    if command is None:
+        return rem, bin_, left
+    kind, obj = command
+    if kind == "pick_bin" and obj in rem:
+        rem.remove(obj)
+        bin_.append(obj)
+    elif kind == "leave" and obj in rem:
+        rem.remove(obj)
+        left.append(obj)
+    elif kind == "pick_hold" and obj in rem:
+        rem.remove(obj)
+        left.append(obj)  # held/left on the table, not binned
+    return rem, bin_, left
+
+
+def high_level(scene, feedback, phase, remaining):
+    """Map prompt + optional mid-task text to the next atomic command."""
+    if scene["target"] is not None:
+        if scene["target"] in remaining:
+            return ("pick_hold", scene["target"])
+        return None
+    # "clear the trash"
+    if feedback == "that's not trash":
+        # after the correction: leave each forbidden object still on the table,
+        # then bin remaining true trash.
+        for obj in scene["forbidden"]:
+            if obj in remaining:
+                return ("leave", obj)
+        for obj in scene["true_trash"]:
+            if obj in remaining:
+                return ("pick_bin", obj)
+        return None
+    # before any correction: the stand-in mistakes the first forbidden
+    # object for trash, then the true trash (a false-positive first guess).
+    for obj in scene["forbidden"]:
+        if obj in remaining:
+            return ("pick_bin", obj)
+    for obj in scene["true_trash"]:
+        if obj in remaining:
+            return ("pick_bin", obj)
+    return None
+
+
+def flat_plan(scene):
+    """Low-level stand-in reading the original prompt only, no mid-task text."""
+    if scene["target"] is not None:
+        return [("pick_hold", scene["target"])]
+    # "clear the trash" with no feedback: bins the mistaken forbidden object
+    # and the true trash.
+    cmds = []
+    for obj in scene["forbidden"]:
+        cmds.append(("pick_bin", obj))
+    for obj in scene["true_trash"]:
+        cmds.append(("pick_bin", obj))
+    return cmds
+
+
+def rollout(arm, scene, interrupt_after):
+    remaining = list(scene["objects"])
+    bin_, left = [], []
+    cmds = []
+    n_steps = N_ATOMIC_STEPS if scene["target"] is not None else N_STEPS
+    flat_cmds = flat_plan(scene)
+    fi = 0
+    feedback = None
+    for t in range(n_steps):
+        # Mid-task: steps before the interrupt are a reach, not a commit.
+        # The correction arrives at interrupt_after, before the first pick.
+        if (
+            scene["interrupt"] is not None
+            and interrupt_after is not None
+            and t < interrupt_after
+        ):
+            cmds.append(None)
+            continue
+        if (
+            scene["interrupt"] is not None
+            and interrupt_after is not None
+            and t == interrupt_after
+            and arm == "B_hier_feedback"
+        ):
+            feedback = scene["interrupt"]
+        if arm == "A_flat":
+            command = flat_cmds[fi] if fi < len(flat_cmds) else None
+            fi += 1
+        else:
+            # High-level reruns every REPLAN_EVERY step, and also when B
+            # has just accepted a new user line.
+            command = high_level(
+                scene,
+                feedback if arm == "B_hier_feedback" else None,
+                t,
+                remaining,
+            )
+        cmds.append(command)
+        remaining, bin_, left = apply_cmd(command, remaining, bin_, left)
+    return cmds, remaining, bin_, left
+
+
+def score(scene, bin_, left):
+    if scene["target"] is not None:
+        ia = 1.0 if (scene["target"] in left and scene["target"] not in bin_) else 0.0
+        # task progress: the cup was picked and nothing else was binned
+        tp = 1.0 if ia == 1.0 and not bin_ else 0.0
+        return {"instruction_acc": ia, "task_progress": tp}
+    true = list(scene["true_trash"])
+    forb = list(scene["forbidden"])
+    trash_ok = sum(1 for o in true if o in bin_)
+    forb_ok = sum(1 for o in forb if o not in bin_)
+    denom = len(true) + len(forb)
+    tp = (trash_ok + forb_ok) / denom
+    intent_ok = (trash_ok == len(true)) and (forb_ok == len(forb))
+    ia = 1.0 if intent_ok else 0.0
+    return {"instruction_acc": ia, "task_progress": tp}
+
+
+def run_regime(regime, seed, interrupt_after=INTERRUPT_AFTER):
+    scenes = build_scenes(regime, seed)
+    # rebuild mid-task scenes if an alternative interrupt step was requested:
+    # the object draw stays on the same CRN stream; only the trigger step changes.
+    if regime == "mid_task_correction":
+        for sc in scenes:
+            sc["interrupt_after"] = interrupt_after
+    out = {arm: {m: 0.0 for m in METRICS} for arm in ARMS}
+    n = len(scenes)
+    for scene in scenes:
+        for arm in ARMS:
+            _, _, bin_, left = rollout(arm, scene, interrupt_after if regime == "mid_task_correction" else None)
+            sc = score(scene, bin_, left)
+            for m in METRICS:
+                out[arm][m] += sc[m]
+    for arm in ARMS:
+        for m in METRICS:
+            out[arm][m] /= n
+    return out
+
+
+def main():
+    hand_tp_wrong = HAND_TRASH / (HAND_TRASH + HAND_FORBIDDEN)  # all trash binned, forbidden also binned
+    hand_tp_right = (HAND_TRASH + HAND_FORBIDDEN) / (HAND_TRASH + HAND_FORBIDDEN)
+    print("Hi Robot-style hierarchical feedback toy: discrete skills on a shared table (synthetic; not pi, not Paligemma, not a UR5e)")
+    print("paper IA/TP figures 以论文为准; real robots / GPT-4o / paper-task runs: 本页未运行")
+    print(
+        f"seeds={len(SEEDS)} n_scenes={N_SCENES} n_steps={N_STEPS} n_atomic_steps={N_ATOMIC_STEPS} "
+        f"interrupt_after={INTERRUPT_AFTER} replan_every={REPLAN_EVERY} "
+        f"n_true_trash={N_TRUE_TRASH} n_forbidden={N_FORBIDDEN} n_objects={N_OBJECTS} "
+        f"hand_trash={HAND_TRASH} hand_forbidden={HAND_FORBIDDEN} (declared)"
+    )
+    print("Regimes and parameters were written before the first run")
+    print(f"hand_calc task_progress if all trash and the forbidden object are binned = {num(hand_tp_wrong)}")
+    print(f"hand_calc task_progress if trash is binned and the forbidden object is left = {num(hand_tp_right)}")
+    print(f"hand_calc instruction_acc in that last case = 1.0000")
+    for r in REGIMES:
+        print(f"declared {r}: {DECLARED[r]}")
+
+    store = {r: {arm: {m: [] for m in METRICS} for arm in ARMS} for r in REGIMES}
+    alt_store = {r: {arm: {m: [] for m in METRICS} for arm in ARMS} for r in REGIMES}
+    for seed in SEEDS:
+        for regime in REGIMES:
+            out = run_regime(regime, seed)
+            for arm in ARMS:
+                for m in METRICS:
+                    store[regime][arm][m].append(out[arm][m])
+            alt = run_regime(regime, seed, interrupt_after=ALT_INTERRUPT_AFTER)
+            for arm in ARMS:
+                for m in METRICS:
+                    alt_store[regime][arm][m].append(alt[arm][m])
+
+    for regime in REGIMES:
+        print(f"regime {regime}")
+        for arm in ARMS:
+            for m in METRICS:
+                xs = store[regime][arm][m]
+                mu, sd = mean_sd(xs)
+                print(f"  {arm} {m}: {num(mu)}+-{num(sd)}")
+        for left, right in PAIRS:
+            for m in METRICS:
+                v = verdict(store[regime][left][m], store[regime][right][m])
+                print(f"  paired {left[0]}-{right[0]} {m}: {v}")
+
+    print("alternative interrupt_after = 3 (printed, not adopted)")
+    for regime in REGIMES:
+        print(f"  alt regime {regime}")
+        for left, right in PAIRS:
+            for m in METRICS:
+                v = verdict(alt_store[regime][left][m], alt_store[regime][right][m])
+                print(f"    (paired {left[0]}-{right[0]} {m}): {v}")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Hi Robot-style hierarchical feedback toy: discrete skills on a shared table (synthetic; not pi, not Paligemma, not a UR5e)
+paper IA/TP figures 以论文为准; real robots / GPT-4o / paper-task runs: 本页未运行
+seeds=5 n_scenes=8 n_steps=6 n_atomic_steps=3 interrupt_after=2 replan_every=1 n_true_trash=2 n_forbidden=1 n_objects=4 hand_trash=2 hand_forbidden=1 (declared)
+Regimes and parameters were written before the first run
+hand_calc task_progress if all trash and the forbidden object are binned = 0.6667
+hand_calc task_progress if trash is binned and the forbidden object is left = 1.0000
+hand_calc instruction_acc in that last case = 1.0000
+declared atomic_no_interrupt: A and B may near-tie - keep (hierarchy is not required for a familiar atomic command)
+declared mid_task_correction: B consistently wins on instruction_acc and task_progress; A and C lose - keep
+regime atomic_no_interrupt
+  A_flat instruction_acc: 1.0000+-0.0000
+  A_flat task_progress: 1.0000+-0.0000
+  B_hier_feedback instruction_acc: 1.0000+-0.0000
+  B_hier_feedback task_progress: 1.0000+-0.0000
+  C_hier_ignore instruction_acc: 1.0000+-0.0000
+  C_hier_ignore task_progress: 1.0000+-0.0000
+  paired B-A instruction_acc: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A task_progress: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B instruction_acc: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B task_progress: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A instruction_acc: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A task_progress: 0.0000+-0.0000: tie: identical on every seed
+regime mid_task_correction
+  A_flat instruction_acc: 0.0000+-0.0000
+  A_flat task_progress: 0.6667+-0.0000
+  B_hier_feedback instruction_acc: 1.0000+-0.0000
+  B_hier_feedback task_progress: 1.0000+-0.0000
+  C_hier_ignore instruction_acc: 0.0000+-0.0000
+  C_hier_ignore task_progress: 0.6667+-0.0000
+  paired B-A instruction_acc: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A task_progress: 0.3333+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B instruction_acc: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B task_progress: -0.3333+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A instruction_acc: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A task_progress: 0.0000+-0.0000: tie: identical on every seed
+alternative interrupt_after = 3 (printed, not adopted)
+  alt regime atomic_no_interrupt
+    (paired B-A instruction_acc): 0.0000+-0.0000: tie: identical on every seed
+    (paired B-A task_progress): 0.0000+-0.0000: tie: identical on every seed
+    (paired C-B instruction_acc): 0.0000+-0.0000: tie: identical on every seed
+    (paired C-B task_progress): 0.0000+-0.0000: tie: identical on every seed
+    (paired C-A instruction_acc): 0.0000+-0.0000: tie: identical on every seed
+    (paired C-A task_progress): 0.0000+-0.0000: tie: identical on every seed
+  alt regime mid_task_correction
+    (paired B-A instruction_acc): 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    (paired B-A task_progress): 0.3333+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    (paired C-B instruction_acc): -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    (paired C-B task_progress): -0.3333+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    (paired C-A instruction_acc): 0.0000+-0.0000: tie: identical on every seed
+    (paired C-A task_progress): 0.0000+-0.0000: tie: identical on every seed
+```
+
+</SimOutput>
+
+### 解读各情形
+
+本页标签按这个顺序使用:**tie: identical on every seed** 只在配对的逐种子差在每个种子上都恰好为零时使用；**numerically zero (floating-point residue), effectively a tie** 用于 `|m|` 和 sd 都低于 `1e-9`；**近似平局** 用于 `|m| ≤ sd`；然后在 `|m| > sd` 时，按符号计数标成**小的**（`|m|` 低于较近那一支均值的 20 %）或**明显**的稳定差距。
+
+- **atomic_no_interrupt:**
+  - **A 与 B 在两个指标上都打平:** 两行都是 tie: identical on every seed，两支都是 `1.0000`。预先声明的「可能近似平局」因此是打平，并且被**保留**。C 也与它们打平：没有中途插话时，忽略反馈的那一支没有可忽略的东西。
+- **mid_task_correction:**
+  - **B 以明显差距获胜，声明成立:** B−A instruction_acc `+1.0000±0.0000`，B−A task_progress `+0.3333±0.0000`，五个种子同号。B 在两个指标上都是 `1.0000`。A（以及 C）把碗和垃圾一起丢进桶里，所以 instruction_acc 是 `0.0000`，task_progress 是 `0.6667`，也就是手算里「全部进桶」的那个值。
+  - **C 对 B 输掉，声明成立:** C−B instruction_acc `−1.0000±0.0000`，C−B task_progress `−0.3333±0.0000`，都是明显差距，五个种子同号。C−A 是打平：每个种子都相同，因为这两支都忽略中途那句话。预先声明里没有单独写 C−A，按实际结果写出。
+
+备选 `interrupt_after=3` 已打印、未采用，正式标签没有变化。
+
+**没有成立的预先声明。** 无。原子工况里「可能近似平局」实际是逐种子打平；这一点被**保留**，没有改参。中途纠正上 B 获胜以及 A / C 输掉都**成立**。
+
+**看到结果后做的选择。** 无。首次运行之后，没有改过常数、支、指标或工况，上表就是那一次运行。
+
+**首次运行后的代码改动。** 首次运行之后，只改了 SimOutput 的围栏和 source="model" 标签；结果没有改动。
+
+本页**不宣布通用的赢家**:在熟悉的原子指令、没有中途打断时，分层不会改变这次抓取；差距出现在必须把中途纠正写进下一条指令的时候。论文的 IA/TP 数字以论文为准，不是玩具输出。
+
+### 练习
+
+1. 重做算例：在 `hand_trash=2` 与 `hand_forbidden=1` 时，核对把所有东西都丢进桶里得到 task_progress `0.6667`，把垃圾丢进桶并留下碗得到 `1.0000` 且 instruction_acc 为 `1.0000`。
+2. 从 `build_scenes` 和 `rollout` 说明，同一个种子下 A、B、C 看到相同的物体、相同的真垃圾和同一只禁拿的碗，并且只有 B 会读到 "that's not trash"。
+3. 固定种子，把打断改到 `interrupt_after=3`（已打印的备选），说明正式的中途 B−A 与 C−B 标签会不会变。
+4. 在一个中途纠正场景上，写出纠正之后 B 发出的原子指令序列，以及 A 从原始提示发出的序列。
+5. 在任何真机、GPT-4o 或论文任务重跑之前（本页未运行），写明为什么这种分层**不是** Magma 的标记，**不是** SayCan 那种外部 LLM 乘以 affordance，也**不是** ChatVLA-2 那种端到端的冻结再跟随，并注明论文自己写的局限：两个模型是解耦的。
+
+**180 分钟安排:** 30 分钟读论文第 4.1–4.2 节和第 5.3–5.4 节，包括原子指令那句和局限段；25 分钟重算 `0.6667` / `1.0000` 的手算；50 分钟运行玩具，读两个工况；40 分钟在固定种子下比较打印的备选；35 分钟做练习。
+
 <Summary>
 
 报告成功率时带上区间，在同样的试验上比较策略，开始前先算好试验次数，读失败表，并把合成抽样、配对与非配对表、两层不确定度分开。机械臂运行本页未运行。
 
 - Set-of-Mark + Trace-of-Mark，Magma 风格的离散替身（`magma_som_tom_toy.py`）：杂乱场景中选标记明显胜过直接输出坐标点（配对 grounding +70.6000±1.9653，5/5）；只有一个目标时 grounding 和成功率打平；目标静止时带噪声的轨迹在成功率上明显落败（−62.1500±1.2324）；打乱的标记落败——不是 Magma 的基准。
+
+- Hi Robot，带中途反馈的分层 VLA 替身（`hi_robot_hierarchical_feedback_toy.py`）：在熟悉的原子抓取、没有中途打断时，扁平与分层打平；在 "that's not trash" 上分层明显获胜（B−A instruction_acc +1.0000±0.0000，task_progress +0.3333±0.0000，5/5），扁平 / 忽略反馈的两支输掉——以原文为准，本页未运行。
 </Summary>
