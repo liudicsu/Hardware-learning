@@ -1,5 +1,20 @@
 # Month 10 plan / 第 10 个月计划
 
+Current / 当前：**M10 4110 min**, Batch-25 PR3. Earlier entries below retain their historical totals.
+
+## Batch-25 PR3 / 本月 H5+H6 (+360)
+
+Base `44bc06ba51af58cc6663d022f4ff4bbd1f2600de` (batch-25 PR2 merged as #202; site **43020**). PR3 only on M10 hosts: **M10 3750→4110 (+360)**. Site **43020→43380**, still 71 lessons. Hosts: `edge-deploy-checklist` 540→**720**, `real-time-chunking` 390→**570**.
+
+- **H5 / edge-deploy-checklist: 540→720 (+180).** TacitVLA (arXiv 2610.17540 v1, abs + HTML + PDF body read; 11 authors in abs order). PDF title-page marks (not on the abs line): Lu's dagger is an internship at NVIDIA, not corresponding and not equal first author; Pavone and Yan Wang's stars are equal advising, not corresponding; no invented corresponding-author mark. Comments: project page only, no venue. PDF header 2026-10-14 disclosed as a compiled / header date, not a second version. Toy `tacitvla_reasoning_latency_toy.py`: shared tasks, shared backbone-quality stand-in, shared reasoning-token cost; arms A explicit / B tacit / C no-supervision or stale reasoning. Common random numbers, 5 seeds. short_reactive: B-A success `0.0000+-0.0000` tie: identical on every seed; B-A latency `-12.0000+-0.0000` clear, 5/5 — held, kept. memory_ledger: B-C success `0.7500+-0.0000` clear, 5/5, B-C latency exact tie at `8.0000+-0.0000` (comparable) — held, kept. stale_memory: C-B success `-1.0000+-0.0000` clear, 5/5 — held, kept. Tacit was not retuned to beat explicit on success. Alternative `ALT_T_REASON=25.0000` on the same seeds, not adopted. ≠ int8 budget / VLA-Adapter / RTC / CoT-VLA / ChatVLA-2 / ThinkAct. Paper 3.4× / 17.1 % / 82.7 % / 77.5 % / 72.9 % / 52.5 % 以论文为准; GPU / RoboMME / PhysicalAI-AV 本页未运行.
+
+- **H6 / real-time-chunking: 390→570 (+180).** Vela (arXiv 2610.05230 v1, abs + HTML + PDF body read; 7 authors in abs order). Visible title spelling Parametrization. PDF title-page marks: Li and Wang equal contribution; Yue and Fu both corresponding authors, both marks kept. No comments field, no venue. Toy `vela_spline_action_toy.py`: shared continuous references, shared K=8, shared query grid; arms A fixed-rate chunk / B cubic Hermite with motion-dependent support / C same K stretched over a longer horizon. Common random numbers, 5 seeds. short_smooth: B-A RMSE `6.208e-17+-0.0000` numerically zero — held as a near-tie, kept. mixed_motion: B-A RMSE `-0.1478+-0.0000` clear, 5/5 — held, kept. coarse_horizon: C-B RMSE `0.1692+-0.0000` clear, 5/5 — held, kept. Dropped-knot alternative on the same seeds, not adopted (C-B `0.0030+-0.0000`, small but consistent). Official K was not retuned. ≠ RTC seams / FORGE-Tree / π0 flow-matching. Paper LIBERO-X / EBench / cooking scores 以论文为准; GPU / real cooking / EBench 本页未运行.
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes per host.
+
+**Site accounting / 全站核算:** **43380=43020+360**; **M10=4110**, **71 lessons**.
+
+
 Current / 当前：**M10 3750 min**, Batch-18 PR3. Earlier entries below retain their historical totals.
 
 ## Batch-18 PR3 / 本月 H5+H6 (+420)

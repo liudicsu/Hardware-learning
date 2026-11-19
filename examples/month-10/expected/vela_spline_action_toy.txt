@@ -1,0 +1,51 @@
+Stdlib stand-in of fixed-rate chunks vs motion-dependent splines; not a Vela eval
+declared K=8 N_QUERY=121 T_SHORT=1.0000 T_LONG=4.0000 T_PRECISE=1.0000 T_MIXED=5.0000 BUMP_AMP=1.0000 BUMP_WIDTH=0.1600 C_STRETCH=2.0000 SMALL_FRAC=0.2000 seeds=0,1,2,3,4
+declared arms: A_fixed uniform temporal grid of length K; B_spline compact cubic Hermite curve with motion-dependent temporal support; C_lose official stretch of the same K over a longer horizon; dropped-knot support is a named alternative
+hand_calc T_LONG + T_PRECISE = 5.0000
+hand_calc query spacing on short = 0.0083
+hand_calc query spacing on mixed = 0.0417
+hand_calc 20 percent small-vs-clear factor = 0.2000
+paper_figure LIBERO-X / EBench / real cooking scores 以论文为准, not a toy output
+Regimes and parameters were written before the first run
+Common random numbers: reference motions, output-budget K and the query grid are shared across arms at each regime and seed
+Assumptions: stdlib tracking-error stand-in, not LIBERO-X eval, not EBench, not real cooking, not RTC seams, not FORGE-Tree, not pi0 flow-matching
+Paper LIBERO-X / EBench / cooking scores 以论文为准
+GPU / real cooking / EBench: 本页未运行
+declared short_smooth: short, already-smooth move whose uniform grid is fine enough; A and B may near-tie on tracking error - keep
+regime short_smooth  (mean+-sd over seeds)
+  k=8 n_query=121 horizon=1.0000 A_n=8 B_n=8 C_n=8
+  A_fixed rmse 3.990e-18+-0.0000
+  B_spline rmse 6.606e-17+-0.0000
+  C_lose rmse 3.990e-18+-0.0000
+  paired B-A rmse: 6.208e-17+-0.0000: numerically zero (floating-point residue), effectively a tie
+  paired C-B rmse: -6.208e-17+-0.0000: numerically zero (floating-point residue), effectively a tie
+  paired C-A rmse: 0.0000+-0.0000: tie: identical on every seed
+declared expectation mixed_motion: long smooth + short precise under the same K; B consistent lower error than A - keep
+regime mixed_motion  (mean+-sd over seeds)
+  k=8 n_query=121 horizon=5.0000 A_n=8 B_n=8 C_n=5
+  A_fixed rmse 0.1661+-0.0000
+  B_spline rmse 0.0183+-0.0000
+  C_lose rmse 0.1875+-0.0000
+  paired B-A rmse: -0.1478+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B rmse: 0.1692+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A rmse: 0.0214+-0.0000: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+declared expectation coarse_horizon: C spreads the same K over a longer horizon and loses - keep
+regime coarse_horizon  (mean+-sd over seeds)
+  k=8 n_query=121 horizon=5.0000 A_n=8 B_n=8 C_n=5
+  A_fixed rmse 0.1661+-0.0000
+  B_spline rmse 0.0183+-0.0000
+  C_lose rmse 0.1875+-0.0000
+  paired B-A rmse: -0.1478+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B rmse: 0.1692+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A rmse: 0.0214+-0.0000: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative same seeds dropped-knot support (not adopted)
+regime mixed_motion alt_dropped_knot  (mean+-sd over seeds)
+  k=8 n_query=121 horizon=5.0000 A_n=8 B_n=8 C_n=7
+  A_fixed rmse 0.1661+-0.0000
+  B_spline rmse 0.0183+-0.0000
+  C_lose rmse 0.0212+-0.0000
+  paired B-A rmse: -0.1478+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B rmse: 0.0030+-0.0000: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A rmse: -0.1449+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No GPU eval was started
+No winner is universal: a short already-smooth move may near-tie; do not retune K so the spline must win every cell
