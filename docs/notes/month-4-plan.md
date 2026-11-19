@@ -1,6 +1,14 @@
 # Month 4 plan / 第4个月计划
 
-Current / 当前：**M4 3390 min**, Batch-21 PR2. Earlier entries below retain their historical totals.
+Current / 当前：**M4 3570 min**, Batch-23 PR2. Earlier entries below retain their historical totals.
+
+## Batch-23 PR2 / 本月 H3 (+180)
+
+Base `5930053b6e4298a41f13906160965fd453365707` (batch-23 PR1 #193 merged; site **40500**). PR2 on M4 host: **M4 3390→3570 (+180)**; M7 moves in the same PR on its own plan. Site **40500→40860** (40860=40500+180+180), still 71 lessons.
+
+- **H3 / 4.6 slam-nav: 810→990 (+180).** AMCL, particle-filter localization against a known map (`amcl_particle_filter_localization_toy.py`; common random numbers, 5 seeds; true start, motion directions and noise, beam noise and the kidnap pose drawn once per regime and seed, shared by all three arms). Wikipedia Monte Carlo localization body read (rev 1279828307; 以原文为准): particle filter localization on a given map, uniform start, motion and sensor updates, multimodal belief, particle deprivation and the kidnapped robot (M ≤ 50), random particles as remedy, KLD sampling. Archived ROS wiki `amcl` page (Wayback 2024-12-26; 以原文为准): adaptive (KLD-sampling) MCL against a known map; min_particles 100 / max_particles 5000, kld_err 0.01, recovery alphas 0.0 by default with 0.001 / 0.1 suggested, laser_model_type likelihood_field. Live ROS wiki and the Nav2 AMCL configuration page not cited. Declared toy parameters: rooms 10×6 m with three boxes and a 12×2 m corridor, heading known, 4 axis beams SIG_Z=0.1 m capped at 8 m, step 0.3 m with 0.05 scale and 0.02 m additive noise, SIG_L=0.2, Z_HIT/Z_RAND=0.9/0.1, EPS=0.05, Z_Q=2.326, 0.5 m bins, B 100–600 particles with recovery 0.05 / 0.5, C 30 particles without recovery; particles move without added noise. Hand calc (printed): KLD 65.8404 → 100, 216.9395, 749.3302 → 600; floor 0.0125; drift 0.1250 m. distinctive_unknown: B−A err `-2.9468±1.1879`, **clear**, 5/5 (held); C−B err `3.1153±2.1111` clear. known_short: B−A err `-0.0157±0.0066`, **clear**, 5/5 (declared near-tie **did not hold**). kidnapped: C−B err `4.4777±1.9964` and success `-1.0000±0.0000`, **clear**, 5/5 (held, kept); B−A err `-4.4787±2.0026`. corridor_multimodal: B−A err `-2.3561±1.0515` clear; the declared possible B failure did not occur (both end walls within 8 m of every point, 手算). Alternatives (declared, same seeds): B recovery off X−B err `4.4964±1.9985`; N_MAX=300 X−B err `-0.0115±0.0566` near-tie; C with recovery X−C err `-2.7986±1.3081`; none adopted. No code change after the first run. ≠ ICP, DWA/RPP, OctoMap/TSDF; the OctoMap wording is untouched. Real robot / Nav2 AMCL 本页未运行. / AMCL：起点未知或被绑架时带恢复的滤波胜过航位推算，粒子太少又不恢复会丢失位姿。
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
 
 ## Batch-21 PR2 / 本月 H3 (+180)
 

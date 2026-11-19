@@ -45,3 +45,7 @@ examples/month-4/check.sh             # with ROS 2 Jazzy sourced, or: cd example
 ## Batch-21 PR2 / 第21批 PR2
 
 `urdf-tf/urdf_parallel_axis_inertia_toy.py`: standard-library synthetic bookkeeping of a URDF `<inertial>` written three ways (origin at the COM, the same matrix at the joint, the matrix moved to the joint with the parallel-axis tensor form) on a shared chassis box, not Gazebo; expected output in `expected/urdf_parallel_axis_inertia_toy.txt`, run by `check.sh` without ROS. Gazebo / a real inertia measurement 本页未运行. / 标准库合成的 URDF `<inertial>` 三种写法对照（原点在质心、同一矩阵写在关节处、用平行轴张量公式移到关节处），不是 Gazebo，输出由 `check.sh` 核对（不需要 ROS）。
+
+## slam-nav/ — AMCL: particle-filter localization on a known map / AMCL：在已知地图上做粒子滤波定位
+
+`slam-nav/amcl_particle_filter_localization_toy.py`: standard-library synthetic 2-D rooms with four axis-aligned beams (dead reckoning vs a KLD-style adaptive particle filter with recovery vs a 30-particle filter without recovery; unknown start, short known-start move, kidnapped robot, corridor) on shared true path, odometry and beam noise; no ROS; expected output in `expected/amcl_particle_filter_localization_toy.txt`, included in `check.sh`. Wikipedia and archived ROS wiki text 以原文为准; real robot / Nav2 AMCL 本页未运行. / 标准库合成的二维房间和四束轴向光束（航位推算、带恢复的 KLD 式自适应粒子滤波、不恢复的 30 粒子滤波；起点未知、已知起点短距离、被绑架、走廊），共用真实路径、里程计和光束噪声，不是 ROS 运行，输出由 `check.sh` 核对。

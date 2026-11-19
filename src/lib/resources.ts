@@ -6843,6 +6843,60 @@ export const resources: Record<string, Resource> = {
     },
     extra: true,
   },
+  "gae-paper": {
+    id: "gae-paper",
+    url: "https://arxiv.org/abs/1506.02438",
+    title: { zh: "GAE 论文（Schulman 等，2015）", en: "GAE paper (Schulman et al., 2015)" },
+    author: "John Schulman, Philipp Moritz, Sergey Levine, Michael Jordan, Pieter Abbeel",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "High-Dimensional Continuous Control Using Generalized Advantage Estimation（ICLR 2016）：作者按 arXiv 摘要页顺序；PDF 署名写作 Michael I. Jordan（同一人、同一顺序）。GAE(γ, λ) 是各 k 步优势估计的指数加权平均，化简为 TD 残差 δ_t = r_t + γV(s_{t+1}) − V(s_t) 的折扣和（式 16）；λ = 0 为一步残差（式 17），λ = 1 为折扣回报减 V（式 18）；GAE(γ, 1) 不论 V 准不准都是 γ-just 但方差大，GAE(γ, 0) 只在 V 准确时 γ-just、否则有偏但方差通常小得多，0 < λ < 1 在两者间折中。cart-pole 上 λ 取 0.92–0.98 的中间值时提升最快；一步回报（λ = 0）偏差过大、表现差。摘要页与 PDF 正文已读（v6，2018 年 10 月 20 日）；以原文为准。双足 / 四足实验与 GPU 训练：本页未运行。",
+      en: "High-Dimensional Continuous Control Using Generalized Advantage Estimation (ICLR 2016): authors in arXiv abstract-page order; the PDF byline writes Michael I. Jordan (same person, same order). GAE(γ, λ) is the exponentially-weighted average of the k-step advantage estimators and reduces to a discounted sum of TD residuals δ_t = r_t + γV(s_{t+1}) − V(s_t) (Eq. 16); λ = 0 is the one-step residual (Eq. 17) and λ = 1 the discounted return minus V (Eq. 18); GAE(γ, 1) is γ-just regardless of V's accuracy but has high variance, GAE(γ, 0) is γ-just only for the true V and otherwise biased but typically much lower in variance, and 0 < λ < 1 compromises between them. On cart-pole intermediate λ in 0.92–0.98 improved fastest; the one-step return (λ = 0) gave excessive bias and poor performance. Abstract page and PDF body read (v6, 20 Oct 2018); 以原文为准. Biped / quadruped runs and GPU training: 本页未运行.",
+    },
+    license: { zh: "预印本（arXiv 非独占分发许可），© 原作者；仅提供外链", en: "Preprint (arXiv non-exclusive distribution licence), © authors; external link only" },
+    extra: true,
+  },
+  "wiki-mcl": {
+    id: "wiki-mcl",
+    url: "https://en.wikipedia.org/w/index.php?oldid=1279828307",
+    title: {
+      zh: "Wikipedia：蒙特卡洛定位（Monte Carlo localization）",
+      en: "Wikipedia: Monte Carlo localization",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "蒙特卡洛定位（粒子滤波定位）用粒子滤波在给定地图上估计机器人的位置与朝向，每个粒子是一个位姿假设；通常从均匀分布开始，运动时带噪声平移粒子，感知时按读数吻合程度加权并重采样。粒子滤波能表示多峰信念（一排相似的门各一个峰）；粒子耗尽：粒子收敛到错误状态或收敛后机器人被绑架时算法无法恢复，粒子少（例如 M ≤ 50）时更易发生，每次迭代随机加入粒子可补救；KLD 采样按把握程度调整粒子数。HTML 正文已核验（rev 1279828307）；以原文为准。真实机器人与 Nav2 AMCL：本页未运行。",
+      en: "Monte Carlo localization (particle filter localization) estimates a robot's position and orientation on a given map with a particle filter, each particle a pose hypothesis; it typically starts uniform, shifts particles with noise on motion, and weights and resamples them by how well the reading fits. A particle filter can hold a multimodal belief (one peak per similar door); particle deprivation: if particles converge on a wrong state or the robot is kidnapped after convergence the algorithm cannot recover, more likely with few particles (e.g. M ≤ 50), and adding random particles each iteration is a remedy; KLD sampling adapts the particle count to how sure the robot is. HTML body checked (rev 1279828307); 以原文为准. Real robot and Nav2 AMCL: 本页未运行.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "ros-amcl-archive": {
+    id: "ros-amcl-archive",
+    url: "https://web.archive.org/web/20241226202453/https://wiki.ros.org/amcl",
+    title: {
+      zh: "ROS wiki：amcl（2024-12-26 存档）",
+      en: "ROS wiki: amcl (archived 2024-12-26)",
+    },
+    author: "ROS wiki contributors (package author Brian P. Gerkey)",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "amcl 是二维移动机器人的概率定位系统，实现自适应（KLD 采样）蒙特卡洛定位，用粒子滤波在已知地图上跟踪位姿。参数：min_particles 100、max_particles 5000、kld_err 0.01；recovery_alpha_slow / recovery_alpha_fast 默认 0.0（关闭），页面建议 0.001 / 0.1，用于决定何时加入随机位姿；laser_model_type 默认 likelihood_field。读的是 Wayback 存档快照正文；在线 wiki 页面不作引用；以原文为准。真实机器人与 Nav2 AMCL：本页未运行。",
+      en: "amcl is a probabilistic localization system for a robot moving in 2D, implementing adaptive (KLD-sampling) Monte Carlo localization with a particle filter that tracks the pose against a known map. Parameters: min_particles 100, max_particles 5000, kld_err 0.01; recovery_alpha_slow / recovery_alpha_fast default 0.0 (disabled), with 0.001 / 0.1 suggested, deciding when to add random poses; laser_model_type defaults to likelihood_field. Body read from the Wayback snapshot; the live wiki page is not cited; 以原文为准. Real robot and Nav2 AMCL: 本页未运行.",
+    },
+    license: {
+      zh: "以原站条款为准；仅提供外链",
+      en: "See original terms; external link only",
+    },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {
