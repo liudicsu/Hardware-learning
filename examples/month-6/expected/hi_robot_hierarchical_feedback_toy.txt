@@ -1,0 +1,50 @@
+Hi Robot-style hierarchical feedback toy: discrete skills on a shared table (synthetic; not pi, not Paligemma, not a UR5e)
+paper IA/TP figures 以论文为准; real robots / GPT-4o / paper-task runs: 本页未运行
+seeds=5 n_scenes=8 n_steps=6 n_atomic_steps=3 interrupt_after=2 replan_every=1 n_true_trash=2 n_forbidden=1 n_objects=4 hand_trash=2 hand_forbidden=1 (declared)
+Regimes and parameters were written before the first run
+hand_calc task_progress if all trash and the forbidden object are binned = 0.6667
+hand_calc task_progress if trash is binned and the forbidden object is left = 1.0000
+hand_calc instruction_acc in that last case = 1.0000
+declared atomic_no_interrupt: A and B may near-tie - keep (hierarchy is not required for a familiar atomic command)
+declared mid_task_correction: B consistently wins on instruction_acc and task_progress; A and C lose - keep
+regime atomic_no_interrupt
+  A_flat instruction_acc: 1.0000+-0.0000
+  A_flat task_progress: 1.0000+-0.0000
+  B_hier_feedback instruction_acc: 1.0000+-0.0000
+  B_hier_feedback task_progress: 1.0000+-0.0000
+  C_hier_ignore instruction_acc: 1.0000+-0.0000
+  C_hier_ignore task_progress: 1.0000+-0.0000
+  paired B-A instruction_acc: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A task_progress: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B instruction_acc: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B task_progress: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A instruction_acc: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A task_progress: 0.0000+-0.0000: tie: identical on every seed
+regime mid_task_correction
+  A_flat instruction_acc: 0.0000+-0.0000
+  A_flat task_progress: 0.6667+-0.0000
+  B_hier_feedback instruction_acc: 1.0000+-0.0000
+  B_hier_feedback task_progress: 1.0000+-0.0000
+  C_hier_ignore instruction_acc: 0.0000+-0.0000
+  C_hier_ignore task_progress: 0.6667+-0.0000
+  paired B-A instruction_acc: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A task_progress: 0.3333+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B instruction_acc: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B task_progress: -0.3333+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A instruction_acc: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A task_progress: 0.0000+-0.0000: tie: identical on every seed
+alternative interrupt_after = 3 (printed, not adopted)
+  alt regime atomic_no_interrupt
+    (paired B-A instruction_acc): 0.0000+-0.0000: tie: identical on every seed
+    (paired B-A task_progress): 0.0000+-0.0000: tie: identical on every seed
+    (paired C-B instruction_acc): 0.0000+-0.0000: tie: identical on every seed
+    (paired C-B task_progress): 0.0000+-0.0000: tie: identical on every seed
+    (paired C-A instruction_acc): 0.0000+-0.0000: tie: identical on every seed
+    (paired C-A task_progress): 0.0000+-0.0000: tie: identical on every seed
+  alt regime mid_task_correction
+    (paired B-A instruction_acc): 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    (paired B-A task_progress): 0.3333+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    (paired C-B instruction_acc): -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    (paired C-B task_progress): -0.3333+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    (paired C-A instruction_acc): 0.0000+-0.0000: tie: identical on every seed
+    (paired C-A task_progress): 0.0000+-0.0000: tie: identical on every seed
