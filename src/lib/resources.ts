@@ -6897,6 +6897,33 @@ export const resources: Record<string, Resource> = {
     },
     extra: true,
   },
+
+  "chatvla2-paper": {
+    id: "chatvla2-paper",
+    url: "https://arxiv.org/abs/2505.21906",
+    title: { zh: "ChatVLA-2 论文（Zhou 等，2025）", en: "ChatVLA-2 paper (Zhou et al., 2025)" },
+    author: "Zhongyi Zhou, Yichen Zhu, Junjie Wen, Chaomin Shen, Yi Xu",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "ChatVLA-2: Vision-Language-Action Model with Open-World Embodied Reasoning from Pretrained Knowledge（arXiv 2505.21906 v2，2025 年 5 月 28 日投稿，本版 5 月 29 日）：作者按摘要页顺序，与 PDF 顺序相同。PDF 在 Zhou 与 Zhu 旁标星号，通常读作同等贡献，并在 Yichen Zhu 旁标匕首号作为通讯作者；这些星号只在 PDF 上看得见，arXiv HTML 转换把两条脚注都写成了匕首号并丢掉了星号，顺序仍与 PDF 相同。主张保留开放世界具身推理并做推理跟随；动态混合专家（八个专家、推理时选两个）加两阶段训练（第二阶段冻结 VLM、只训动作专家）。表 1 开放世界数学配对 43/52（OCR 3.58/4，数学 1.73/2），域内 11/13，并写明域内没有显著超过 π0 / DexVLA；表 4 只做第一阶段 12/52、只做第二阶段 3/52、两阶段 43/52；表 3 动态 MoE 43/52，静态再加动态 11/52。摘要页、HTML 与 PDF 正文已读；以原文为准。GPU / 真实白板 / 论文任务成功率：本页未运行。",
+      en: "ChatVLA-2: Vision-Language-Action Model with Open-World Embodied Reasoning from Pretrained Knowledge (arXiv 2505.21906 v2, submitted 28 May 2025, this version 29 May 2025): authors in abstract-page order, the same as the PDF. The PDF marks Zhou and Zhu with an asterisk usually read as equal contribution, and Yichen Zhu with a dagger as corresponding author; those asterisks are visible on the PDF, while the arXiv HTML conversion shows both footnotes as a dagger and drops the asterisk, with the order still the same as the PDF. The paper argues for keeping open-world embodied reasoning and for reasoning-following; a dynamic mixture of experts (eight experts, two selected at inference) plus two-stage training (stage 2 freezes the VLM and trains only the action expert). Table 1 open-world math-matching 43/52 (OCR 3.58/4, math 1.73/2), in-domain 11/13, and it does not significantly outperform π0 / DexVLA in-domain; Table 4 stage 1 only 12/52, stage 2 only 3/52, both stages 43/52; Table 3 dynamic MoE 43/52 versus static plus dynamic 11/52. Abstract page, HTML and PDF body read; 以原文为准. GPU / real whiteboard / paper-task success rates: 本页未运行.",
+    },
+    extra: true,
+  },
+  "hirobot-paper": {
+    id: "hirobot-paper",
+    url: "https://arxiv.org/abs/2502.19417",
+    title: { zh: "Hi Robot 论文（Shi 等，2025）", en: "Hi Robot paper (Shi et al., 2025)" },
+    author: "Lucy Xiaoyang Shi, Brian Ichter, Michael Equi, Liyiming Ke, Karl Pertsch, Quan Vuong, James Tanner, Anna Walling, Haohuan Wang, Niccolo Fusai, Adrian Li-Bell, Danny Driess, Lachy Groom, Sergey Levine, Chelsea Finn",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "Hi Robot: Open-Ended Instruction Following with Hierarchical Vision-Language-Action Models（arXiv 2502.19417 v2，2025 年 2 月 26 日投稿，本版 7 月 15 日）：作者按摘要页顺序，与 PDF、HTML 顺序相同；PDF 与 HTML 上都没有同等贡献标记，通讯写给 Physical Intelligence（research@physicalintelligence.company），不是某个名字上的个人通讯作者标记；单位 Physical Intelligence / Stanford / UC Berkeley 不改变顺序。高层 VLM 把图像与开放式提示（以及中途用户文本）写成中间语言指令，底层 VLA 用 flow-matching 动作头执行；高层在过了一秒或有新的用户交互时重跑。熟悉的原子指令不必分层。论文报告指令准确率 / 任务进度高于 GPT-4o 高层基线与扁平 VLA，并能吸收中途反馈；合成组合数据必要，分层优于用同一组数据训练的扁平策略。局限：高层与底层解耦，彼此只通过训练例子了解对方的能力。摘要页、HTML 与 PDF 正文已读；以原文为准。真机 / GPT-4o / 论文 IA–TP 数字：本页未运行。",
+      en: "Hi Robot: Open-Ended Instruction Following with Hierarchical Vision-Language-Action Models (arXiv 2502.19417 v2, submitted 26 Feb 2025, this version 15 Jul 2025): authors in abstract-page order, the same as the PDF and HTML; no equal-contribution mark on the PDF or the HTML; correspondence is to Physical Intelligence (research@physicalintelligence.company), not a personal corresponding-author mark on one name; affiliations Physical Intelligence / Stanford / UC Berkeley do not change the order. A high-level VLM maps images and an open-ended prompt (plus mid-task user text) to an intermediate language command; a low-level VLA with a flow-matching action head executes it; high-level inference is rerun when one second has elapsed or a new user interaction arrives. Hierarchy is not necessary for a familiar atomic command. The paper reports higher instruction accuracy / task progress than a GPT-4o high-level baseline and a flat VLA, and that mid-task feedback is incorporated; synthetic compositional data is essential, and the hierarchy beats a flat policy trained on the same data. Limitation: the two models are decoupled and know each other's capabilities only through training examples. Abstract page, HTML and PDF body read; 以原文为准. Real robots / GPT-4o / paper IA–TP figures: 本页未运行.",
+    },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

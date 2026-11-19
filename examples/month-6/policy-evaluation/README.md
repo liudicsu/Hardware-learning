@@ -34,3 +34,12 @@ python3 examples/month-6/policy-evaluation/magma_som_tom_toy.py
 
 Stdlib only. A Magma-style discrete stand-in on shared scenes: a direct point (softmax-weighted average) vs choosing a numbered mark (256-bin quantisation) and predicting its trace vs marks drawn on the wrong objects; grounding, trace ADE and success over five seeds with common random numbers; no integration step. Magma benchmarks 以论文为准; GPU / UI / robot 本页未运行.
 只用标准库。共享场景上的 Magma 风格离散替身：比较直接输出坐标点（softmax 加权平均）、选编号标记（256 区间量化）并预测其轨迹、以及标记画在错误物体上；5 个种子、共用随机数，报告 grounding、轨迹 ADE 和成功率；没有积分步。Magma 基准以论文为准；GPU / UI / 机器人本页未运行。
+
+## hi_robot_hierarchical_feedback_toy.py — hierarchical VLA and mid-task feedback / 分层 VLA 与中途反馈
+
+```bash
+python3 examples/month-6/policy-evaluation/hi_robot_hierarchical_feedback_toy.py
+```
+
+Stdlib only. A Hi Robot-style discrete-skill stand-in on shared scenes: a flat policy vs a hierarchy that replans on mid-task text vs a hierarchy that ignores that text; instruction accuracy and task progress over five seeds with common random numbers. Paper IA/TP figures 以论文为准; real robots / GPT-4o 本页未运行.
+只用标准库。共享场景上的 Hi Robot 风格离散技能替身：比较扁平策略、中途文本触发重规划的分层、以及忽略该文本的分层；5 个种子、共用随机数，报告指令准确率和任务进度。论文 IA/TP 数字以论文为准；真机 / GPT-4o 本页未运行。
