@@ -397,6 +397,524 @@ ASAP（Aligning Simulation and Real-World Physics）是两阶段框架，论文�
 
 等数据标量 Plant-A→B 残差动作迁移实验（不是人形训练）见 [7.2 RL 基础](/zh/month/month-7/rl-foundations)。
 
+## NaVILA：中层语言与视觉运动
+
+<Resource id="navila-paper" />
+
+主要来源是 **NaVILA: Legged Robot Vision-Language-Action Model for Navigation**，arXiv 2412.04453 v2（更新于 2025 年 2 月 17 日 18:27:27 UTC = 2025 年 2 月 18 日 02:27 Asia/Shanghai；v1 提交于 2024 年 12 月 5 日；摘要、HTML 与 PDF 正文均已阅读；以论文为准）。此处读到的 v2 摘要、HTML 与 PDF 正文没有写明会议信息。
+
+作者行按摘要，十个姓名依次为：An-Chieh Cheng、Yandong Ji、Zhaojing Yang、Zaitian Gongye、Xueyan Zou、Jan Kautz、Erdem Bıyık、Hongxu Yin、Sifei Liu、Xiaolong Wang。摘要的作者行没有标贡献。PDF 与 HTML 有标记：Cheng、Ji 与 Yang 为共同一作，按字母序；Yin、Liu 与 Wang 为共同指导。PDF 上的单位是 UC San Diego、USC 与 NVIDIA。Erdem Bıyık 与 Hongxu Yin 的拼写与摘要、PDF 一致，不得从次级页面改写成别的称呼。
+
+NaVILA 是两层的腿式视觉-语言导航结构：视觉-语言-动作模型输出带空间信息的**中层语言动作**，再由**视觉运动强化学习策略**执行（摘要 / HTML / PDF；以论文为准）。解耦、通过更换底层策略实现跨机器人迁移，以及用更高频率的运动回路做避障，均以论文为准。论文中的基准提升，包括所报告的「超过 17 %」的 VLN 成功率改进，以及在 25 条真实指令上 88 % 的成功率（Unitree Go2 / H1 / Booster T1），均以论文为准，**不是**玩具输出。
+
+本节**不是**本页已有的 LIPM / ZMP / 捕获点，**不是**分层操作 VLA，**不是** `vla-models` 上已有的双系统慢规划加快控制 VLA，**不是** AMCL，也**不是** `nav-arm-compose` 上轮式先导航再拾取的组合约定。本页关于四足 / 腿式运动场与 Isaac Lab 大规模训练的「不在范围内」一行保持不变：这是 CPU 替身，不是那个运动场。IsaacLab / 真实 Unitree 或 Booster / GPU 均**本页未运行**。
+
+玩具是标准库、只在 CPU 上运行的**二维运动学 / 反应式车道替身**，不是 Isaac，不是 Nav2，也不是真实的 Unitree 或 Booster。共享指令是沿走廊向前走到远端目标并停下。共享的占有 / 障碍物与中层命令词表在每种情形、每个种子上只抽一次，然后每一臂都读同一份（公共随机数；五个种子 0 到 4；n_scenes = 25.0000；ROUND_HALF_UP 输出）。声明的几何（打印在表头与 hand_calc 行）：走廊长 8.0000 m，半宽 1.2000 m，机器人半径 0.1500 m，障碍半径 0.2500 m，目标容差 0.4000 m，贴墙间隙 1.2000 − 0.1500 = 1.0500，碰撞间隙 0.1500 + 0.2500 = 0.4000。中层词表作为本课替身、不是论文测量，使用前进 0.7500 m、侧移 0.5000 m 与转向 30.0000 度（运动学替身使用前进与侧移）。正式的臂 A_flat_lowlevel 是直接输出底层运动的平坦趋目标策略，只对不透明障碍侧移，随后回到中线；透明障碍仍会计入碰撞。臂 B_midlevel_visual 使用中层语言动作，加上能看见并侧移所有障碍（包括透明障碍）的视觉运动替身。臂 C_blind_ignored 使用同一套中层词表，但忽略这些命令，并以 0.2000 rad 的盲目航向偏置前进（hand_calc：tan = 0.2027，在长度 8.0000 处 y = 1.6217，大于 1.0500，因此 C 在 x = 5.1798 处撞墙）。指标是平均成功率（越大越好）和平均碰撞次数，障碍命中加撞墙（越小越好）。小差距阈值是较小一臂均值的 0.2000（hand_calc）。两种情形都在首次运行前写定：open_corridor 的 n_obs = 0.0000，A 与 B 在成功率与碰撞上可能接近打平；clutter_transparent 的 n_obs = 4.0000，其中 n_transparent = 2.0000，B 在成功率上须一贯高于 A，在碰撞上须一贯低于 A。两种情形都声明 C 在成功率上输给 B。
+
+<CodeSource path="examples/month-11/humanoid-wbc-overview/navila_midlevel_locomotion_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic mid-level language plus visual locomotion stand-in.
+
+Stdlib only. Shared instruction, occupancy / clutter and mid-level command
+vocabulary are drawn once per (regime, seed, scene) and then read by every
+arm (common random numbers).
+
+Arm A is a flat low-level go-to-goal policy that only sidesteps opaque
+obstacles and then resumes the center lane. Arm B emits mid-level language
+actions and a vision-using locomotion stand-in that can sidestep every
+obstacle, including transparent ones. Arm C ignores mid-level commands and
+follows a blind constant heading bias.
+
+This is a 2-D kinematic / reactive lane stand-in, not Isaac, not Nav2, and
+not a real Unitree Go2 / H1 / Booster T1. It is not LIPM / ZMP /
+capture-point, not a hierarchical manipulation VLA, not a dual-system VLA,
+not AMCL, and not a wheeled nav-then-pick compose contract. Paper VLN
+success-rate lift and real-world instruction success figures are 以论文为准
+and are not toy outputs. IsaacLab / real Unitree or Booster / GPU: 本页未运行.
+
+Regimes and parameters were written before the first run.
+
+Labels: tie = identical on every seed; numerically zero = |paired mean| and sd
+both < 1e-9; |m| <= sd = near-tie; |m| > sd = consistent gap (small if |m| < 20 %
+of the smaller arm mean, else clear), with a sign count. ROUND_HALF_UP output.
+"""
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+SMALL_FRAC = 0.2000
+
+LEN = 8.0000
+HALF_W = 1.2000
+ROBOT_R = 0.1500
+OBS_R = 0.2500
+GOAL_TOL = 0.4000
+SIDE = 0.5000
+MID_FWD = 0.7500
+MID_TURN_DEG = 30.0000
+N_SCENES = 25
+N_OBS_CLUTTER = 4
+N_TRANSPARENT = 2
+C_YAW_BIAS = 0.2000
+WALL_CLEAR = HALF_W - ROBOT_R
+HIT_CLEAR = ROBOT_R + OBS_R
+
+ALT_SIDE = 0.3000
+ALT_C_YAW_BIAS = 0.1000
+
+OX_LO = ROBOT_R + OBS_R + 0.2000
+OX_HI = LEN - GOAL_TOL - 0.2000
+
+METRICS = ("success", "collisions")
+ARMS = ("A_flat_lowlevel", "B_midlevel_visual", "C_blind_ignored")
+PAIRS = (("B", "A"), ("C", "B"), ("C", "A"))
+
+REGIMES = {
+    "open_corridor": "A and B may near-tie on success and collisions (open corridor, no clutter) - keep",
+    "clutter_transparent": "B consistently above A on success and consistently below A on collisions (cluttered / transparent-obstacle stand-in) - keep",
+}
+C_EXPECT = "C loses to B on success (mid-level commands ignored, blind heading bias 0.2000 rad) - keep"
+REGIME_IDS = {"open_corridor": 0, "clutter_transparent": 1}
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < SMALL_FRAC * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def clamp(x, lo, hi):
+    return lo if x < lo else hi if x > hi else x
+
+
+def dist_point_to_seg(px, py, x0, y0, x1, y1):
+    vx, vy = x1 - x0, y1 - y0
+    wx, wy = px - x0, py - y0
+    denom = vx * vx + vy * vy
+    if denom == 0.0:
+        return math.hypot(wx, wy)
+    t = (wx * vx + wy * vy) / denom
+    if t < 0.0:
+        t = 0.0
+    elif t > 1.0:
+        t = 1.0
+    return math.hypot(px - (x0 + t * vx), py - (y0 + t * vy))
+
+
+def draw_obstacles(regime, seed, scene_index):
+    if regime == "open_corridor":
+        return []
+    rng = random.Random(seed + 1000 * REGIME_IDS[regime] + scene_index)
+    obs = []
+    for i in range(N_OBS_CLUTTER):
+        ox = 1.8000 + i * 1.4000 + rng.uniform(-0.2000, 0.2000)
+        ox = clamp(ox, OX_LO, OX_HI)
+        if i < N_TRANSPARENT:
+            oy = rng.uniform(-0.0500, 0.0500)
+            trans = True
+        elif i == N_TRANSPARENT:
+            oy = rng.uniform(-0.0500, 0.0500)
+            trans = False
+        else:
+            oy = 0.8000 + rng.uniform(-0.1000, 0.1000)
+            trans = False
+        obs.append((ox, oy, trans))
+    return obs
+
+
+def visible_of(obstacles, see_transparent):
+    if see_transparent:
+        return list(obstacles)
+    return [o for o in obstacles if not o[2]]
+
+
+def lane_free(y_lane, obstacles, x0, x1, hit_clear):
+    if abs(y_lane) > WALL_CLEAR:
+        return False
+    lo, hi = (x0, x1) if x0 <= x1 else (x1, x0)
+    for ox, oy, _trans in obstacles:
+        if lo <= ox <= hi and abs(oy - y_lane) < hit_clear:
+            return False
+    return True
+
+
+def long_hits(x0, x1, y, obstacles, hit_clear):
+    lo, hi = (x0, x1) if x0 <= x1 else (x1, x0)
+    hits = []
+    for i, (ox, oy, _trans) in enumerate(obstacles):
+        if lo <= ox <= hi and abs(oy - y) < hit_clear:
+            hits.append(i)
+    return hits
+
+
+def lateral_hits(x, y0, y1, obstacles, hit_clear):
+    lo, hi = (y0, y1) if y0 <= y1 else (y1, y0)
+    hits = []
+    for i, (ox, oy, _trans) in enumerate(obstacles):
+        if abs(ox - x) < hit_clear and lo <= oy <= hi:
+            hits.append(i)
+        elif abs(ox - x) < hit_clear and min(abs(oy - y0), abs(oy - y1)) < hit_clear:
+            hits.append(i)
+    return hits
+
+
+def choose_lane(x, x_next, y, visible, hit_clear, side):
+    for y_new in (side, -side):
+        if lane_free(y_new, visible, x, x_next, hit_clear):
+            return y_new
+    return y
+
+
+def follow_lanes(obstacles, see_transparent, resume_center_always, side, hit_clear):
+    """Return (success, collision_count) for an A/B lane-following policy."""
+    visible = visible_of(obstacles, see_transparent)
+    x = 0.0
+    y = 0.0
+    hit = set()
+    wall = False
+
+    def bump_long(x0, x1, yy):
+        if abs(yy) > WALL_CLEAR:
+            return True
+        hit.update(long_hits(x0, x1, yy, obstacles, hit_clear))
+        return False
+
+    def bump_lat(xx, y0, y1):
+        if abs(y0) > WALL_CLEAR or abs(y1) > WALL_CLEAR:
+            return True
+        hit.update(lateral_hits(xx, y0, y1, obstacles, hit_clear))
+        return False
+
+    while x < LEN - 1e-15:
+        x_next = min(x + MID_FWD, LEN)
+        look = min(LEN, x_next + hit_clear)
+        blockers = [o for o in visible if x < o[0] <= look and abs(o[1] - y) < hit_clear]
+        if blockers:
+            o = min(blockers, key=lambda t: t[0])
+            # Sidestep just before the open hit interval. Subtract a tiny
+            # numerical guard so ox - x_sw is not slightly < hit_clear by rounding.
+            x_sw = o[0] - hit_clear - 1e-12
+            if x_sw < x:
+                x_sw = x
+            if x_sw > x:
+                if bump_long(x, x_sw, y):
+                    wall = True
+                x = x_sw
+            y_new = choose_lane(x, LEN, y, visible, hit_clear, side)
+            if y_new != y:
+                if bump_lat(x, y, y_new):
+                    wall = True
+                y = y_new
+            x_pass = max(x_next, o[0] + hit_clear)
+            if x_pass > LEN:
+                x_pass = LEN
+            if x_pass > x:
+                if bump_long(x, x_pass, y):
+                    wall = True
+                x = x_pass
+            if abs(y) > 0.0 and x + 1e-15 >= o[0] + hit_clear:
+                following = min(x + MID_FWD, LEN)
+                center_clear = lane_free(0.0, visible, x, following, hit_clear)
+                lat_clear = not lateral_hits(x, y, 0.0, obstacles, hit_clear)
+                if (resume_center_always or center_clear) and lat_clear:
+                    if bump_lat(x, y, 0.0):
+                        wall = True
+                    y = 0.0
+        else:
+            if bump_long(x, x_next, y):
+                wall = True
+            x = x_next
+
+    if abs(y) > 0.0:
+        if bump_lat(LEN, y, 0.0):
+            wall = True
+        y = 0.0
+
+    collisions = float(len(hit) + (1 if wall else 0))
+    success = 1.0 if (not wall and not hit and abs(y) <= GOAL_TOL and x >= LEN - 1e-15) else 0.0
+    return success, collisions
+
+
+def follow_c(obstacles, yaw_bias, hit_clear):
+    tan_b = math.tan(yaw_bias)
+    x_wall = WALL_CLEAR / tan_b if tan_b > 0.0 else LEN + 1.0
+    wall = x_wall <= LEN
+    x_end = min(LEN, x_wall)
+    y_end = x_end * tan_b
+    hit = set()
+    for i, (ox, oy, _trans) in enumerate(obstacles):
+        if dist_point_to_seg(ox, oy, 0.0, 0.0, x_end, y_end) < hit_clear:
+            hit.add(i)
+    collisions = float(len(hit) + (1 if wall else 0))
+    success = 1.0 if (not wall and not hit and abs(y_end) <= GOAL_TOL and x_end >= LEN - 1e-15) else 0.0
+    return success, collisions
+
+
+def run_scene(obstacles, side, yaw_bias, hit_clear):
+    a = follow_lanes(obstacles, False, True, side, hit_clear)
+    b = follow_lanes(obstacles, True, False, side, hit_clear)
+    c = follow_c(obstacles, yaw_bias, hit_clear)
+    return {
+        "A_flat_lowlevel": {"success": a[0], "collisions": a[1]},
+        "B_midlevel_visual": {"success": b[0], "collisions": b[1]},
+        "C_blind_ignored": {"success": c[0], "collisions": c[1]},
+    }
+
+
+def run_regime(regime, seed, side=SIDE, yaw_bias=C_YAW_BIAS):
+    acc = {arm: {m: 0.0 for m in METRICS} for arm in ARMS}
+    for scene_index in range(N_SCENES):
+        obs = draw_obstacles(regime, seed, scene_index)
+        out = run_scene(obs, side, yaw_bias, HIT_CLEAR)
+        for arm in ARMS:
+            for m in METRICS:
+                acc[arm][m] += out[arm][m]
+    n = float(N_SCENES)
+    return {arm: {m: acc[arm][m] / n for m in METRICS} for arm in ARMS}
+
+
+def main():
+    tan_b = math.tan(C_YAW_BIAS)
+    y_at_len = LEN * tan_b
+    x_wall = WALL_CLEAR / tan_b
+    print(
+        "Mid-level language locomotion toy: 2-D synthetic corridor under "
+        "common random numbers (kinematic / reactive lane stand-in, not "
+        "Isaac, not a real Unitree or Booster)"
+    )
+    print(
+        "Paper VLN success-rate lift and real-world instruction success "
+        "figures 以论文为准 and are not toy outputs; IsaacLab / real Unitree "
+        "or Booster / GPU: 本页未运行"
+    )
+    print(
+        f"seeds={len(SEEDS)} n_scenes={num(float(N_SCENES))} len={num(LEN)} "
+        f"half_w={num(HALF_W)} robot_r={num(ROBOT_R)} obs_r={num(OBS_R)} "
+        f"goal_tol={num(GOAL_TOL)} side={num(SIDE)} mid_fwd={num(MID_FWD)} "
+        f"mid_turn_deg={num(MID_TURN_DEG)} n_obs_clutter={num(float(N_OBS_CLUTTER))} "
+        f"n_transparent={num(float(N_TRANSPARENT))} c_yaw_bias={num(C_YAW_BIAS)} "
+        f"wall_clear={num(WALL_CLEAR)} hit_clear={num(HIT_CLEAR)} "
+        f"small_frac={num(SMALL_FRAC)}"
+    )
+    print("Regimes and parameters were written before the first run")
+    print(
+        "Common random numbers: the instruction, occupancy / clutter and "
+        "mid-level command vocabulary are shared across arms at each regime "
+        "and seed"
+    )
+    print(f"hand_calc n_scenes = {num(float(N_SCENES))}")
+    print(f"hand_calc wall_clear = {num(HALF_W)} - {num(ROBOT_R)} = {num(WALL_CLEAR)}")
+    print(f"hand_calc hit_clear = {num(ROBOT_R)} + {num(OBS_R)} = {num(HIT_CLEAR)}")
+    print(
+        f"hand_calc mid-level vocabulary forward {num(MID_FWD)} m, sidestep "
+        f"{num(SIDE)} m, turn {num(MID_TURN_DEG)} deg"
+    )
+    print(
+        f"hand_calc C yaw bias {num(C_YAW_BIAS)} rad, tan = {num(tan_b)}, "
+        f"y at LEN = {num(LEN)} * tan({num(C_YAW_BIAS)}) = {num(y_at_len)}, "
+        f"which is > {num(WALL_CLEAR)} so C hits the wall"
+    )
+    print(f"hand_calc C wall x = {num(WALL_CLEAR)} / tan({num(C_YAW_BIAS)}) = {num(x_wall)}")
+    print(
+        f"hand_calc n_obs open = {num(0.0)}; clutter n_obs = "
+        f"{num(float(N_OBS_CLUTTER))} of which n_transparent = {num(float(N_TRANSPARENT))}"
+    )
+    print(f"hand_calc small-gap threshold = {num(SMALL_FRAC)} of the smaller arm mean")
+
+    for r, exp in REGIMES.items():
+        print(f"declared {r}: {exp}")
+        print(f"declared {r} C: {C_EXPECT}")
+
+    store = {r: {arm: {m: [] for m in METRICS} for arm in ARMS} for r in REGIMES}
+    alt_side = {r: {arm: {m: [] for m in METRICS} for arm in ARMS} for r in REGIMES}
+    alt_bias = {r: {arm: {m: [] for m in METRICS} for arm in ARMS} for r in REGIMES}
+    for seed in SEEDS:
+        for r in REGIMES:
+            official = run_regime(r, seed)
+            side_run = run_regime(r, seed, side=ALT_SIDE)
+            bias_run = run_regime(r, seed, yaw_bias=ALT_C_YAW_BIAS)
+            for arm in ARMS:
+                for m in METRICS:
+                    store[r][arm][m].append(official[arm][m])
+                    alt_side[r][arm][m].append(side_run[arm][m])
+                    alt_bias[r][arm][m].append(bias_run[arm][m])
+
+    def arm_of(letter):
+        return [a for a in ARMS if a.startswith(letter + "_")][0]
+
+    for r in REGIMES:
+        print(f"regime {r}")
+        for arm in ARMS:
+            for m in METRICS:
+                mu, sd = mean_sd(store[r][arm][m])
+                print(f"  {arm} {m}: {num(mu)}+-{num(sd)}")
+        for left, right in PAIRS:
+            for m in METRICS:
+                print(
+                    f"  paired {left}-{right} {m}: "
+                    f"{verdict(store[r][arm_of(left)][m], store[r][arm_of(right)][m])}"
+                )
+
+    print("alternatives on the same seeds (not adopted):")
+    print(f"  alternative side={num(ALT_SIDE)}")
+    for r in REGIMES:
+        print(f"  regime {r}")
+        for left, right in (("B", "A"), ("C", "B")):
+            for m in METRICS:
+                print(
+                    f"    paired {left}-{right} {m}: "
+                    f"{verdict(alt_side[r][arm_of(left)][m], alt_side[r][arm_of(right)][m])}"
+                )
+    print(f"  alternative c_yaw_bias={num(ALT_C_YAW_BIAS)}")
+    for r in REGIMES:
+        print(f"  regime {r}")
+        for left, right in (("B", "A"), ("C", "B")):
+            for m in METRICS:
+                print(
+                    f"    paired {left}-{right} {m}: "
+                    f"{verdict(alt_bias[r][arm_of(left)][m], alt_bias[r][arm_of(right)][m])}"
+                )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Mid-level language locomotion toy: 2-D synthetic corridor under common random numbers (kinematic / reactive lane stand-in, not Isaac, not a real Unitree or Booster)
+Paper VLN success-rate lift and real-world instruction success figures 以论文为准 and are not toy outputs; IsaacLab / real Unitree or Booster / GPU: 本页未运行
+seeds=5 n_scenes=25.0000 len=8.0000 half_w=1.2000 robot_r=0.1500 obs_r=0.2500 goal_tol=0.4000 side=0.5000 mid_fwd=0.7500 mid_turn_deg=30.0000 n_obs_clutter=4.0000 n_transparent=2.0000 c_yaw_bias=0.2000 wall_clear=1.0500 hit_clear=0.4000 small_frac=0.2000
+Regimes and parameters were written before the first run
+Common random numbers: the instruction, occupancy / clutter and mid-level command vocabulary are shared across arms at each regime and seed
+hand_calc n_scenes = 25.0000
+hand_calc wall_clear = 1.2000 - 0.1500 = 1.0500
+hand_calc hit_clear = 0.1500 + 0.2500 = 0.4000
+hand_calc mid-level vocabulary forward 0.7500 m, sidestep 0.5000 m, turn 30.0000 deg
+hand_calc C yaw bias 0.2000 rad, tan = 0.2027, y at LEN = 8.0000 * tan(0.2000) = 1.6217, which is > 1.0500 so C hits the wall
+hand_calc C wall x = 1.0500 / tan(0.2000) = 5.1798
+hand_calc n_obs open = 0.0000; clutter n_obs = 4.0000 of which n_transparent = 2.0000
+hand_calc small-gap threshold = 0.2000 of the smaller arm mean
+declared open_corridor: A and B may near-tie on success and collisions (open corridor, no clutter) - keep
+declared open_corridor C: C loses to B on success (mid-level commands ignored, blind heading bias 0.2000 rad) - keep
+declared clutter_transparent: B consistently above A on success and consistently below A on collisions (cluttered / transparent-obstacle stand-in) - keep
+declared clutter_transparent C: C loses to B on success (mid-level commands ignored, blind heading bias 0.2000 rad) - keep
+regime open_corridor
+  A_flat_lowlevel success: 1.0000+-0.0000
+  A_flat_lowlevel collisions: 0.0000+-0.0000
+  B_midlevel_visual success: 1.0000+-0.0000
+  B_midlevel_visual collisions: 0.0000+-0.0000
+  C_blind_ignored success: 0.0000+-0.0000
+  C_blind_ignored collisions: 1.0000+-0.0000
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A collisions: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B success: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B collisions: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A success: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A collisions: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+regime clutter_transparent
+  A_flat_lowlevel success: 0.0000+-0.0000
+  A_flat_lowlevel collisions: 2.0000+-0.0000
+  B_midlevel_visual success: 1.0000+-0.0000
+  B_midlevel_visual collisions: 0.0000+-0.0000
+  C_blind_ignored success: 0.0000+-0.0000
+  C_blind_ignored collisions: 1.9840+-0.0219
+  paired B-A success: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A collisions: -2.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B collisions: 1.9840+-0.0219: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A collisions: -0.0160+-0.0219: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+alternatives on the same seeds (not adopted):
+  alternative side=0.3000
+  regime open_corridor
+    paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+    paired B-A collisions: 0.0000+-0.0000: tie: identical on every seed
+    paired C-B success: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C-B collisions: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  regime clutter_transparent
+    paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+    paired B-A collisions: 0.0000+-0.0000: tie: identical on every seed
+    paired C-B success: 0.0000+-0.0000: tie: identical on every seed
+    paired C-B collisions: -1.0160+-0.0219: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  alternative c_yaw_bias=0.1000
+  regime open_corridor
+    paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+    paired B-A collisions: 0.0000+-0.0000: tie: identical on every seed
+    paired C-B success: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C-B collisions: 0.0000+-0.0000: tie: identical on every seed
+  regime clutter_transparent
+    paired B-A success: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired B-A collisions: -2.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C-B success: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C-B collisions: 3.0400+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+```
+
+</SimOutput>
+
+在 **open_corridor** 上，A_flat_lowlevel 的 success 为 1.0000±0.0000，collisions 为 0.0000±0.0000；B_midlevel_visual 在两项指标上与之相同。成对 B−A success 与 B−A collisions 均为 0.0000±0.0000，是**打平，每个种子都相同**。预先声明的「A 与 B 可能接近打平」**成立**（这是精确打平）。C_blind_ignored 的 success 为 0.0000±0.0000，collisions 为 1.0000±0.0000。成对 C−B success 为 −1.0000±0.0000，成对 C−B collisions 为 1.0000±0.0000，都是**明显差距，不是打平**（5 个种子符号相同）。C 会输的声明成立。
+
+在 **clutter_transparent** 上，A 的 success 为 0.0000±0.0000，collisions 为 2.0000±0.0000；B 的 success 为 1.0000±0.0000，collisions 为 0.0000±0.0000。成对 B−A success 为 1.0000±0.0000，成对 B−A collisions 为 −2.0000±0.0000，都是**明显差距，不是打平**（5 个种子符号相同）。B 在成功率上更高、在碰撞上更低的声明成立。C 的 success 为 0.0000±0.0000，collisions 为 1.9840±0.0219。成对 C−B success 为 −1.0000±0.0000，是**明显差距，不是打平**（5/5）。C 会输的声明在这一情形同样成立。
+
+**看过结果后做的选择**。 首次正式运行之后，给每段新的 SimOutput 加上了 text 围栏，好让输出检查看到恰好一块围栏（只改版式），并把 † 标记从「通讯 / 共同指导」改为「共同指导」，与 v2 PDF、HTML 脚注一致（脚注没有写「通讯」）。首次运行之后没有改任何常数、臂、指标或情形。走廊几何、中层词表、航向偏置 = 0.2000 rad、n_scenes = 25.0000 以及两种情形都在首次运行前写定。同一组种子上打印、但未采纳的替代：侧移 = 0.3000 m，以及航向偏置 = 0.1000 rad。在预先声明的正式指标上，两种替代下开放走廊的 A 与 B 仍打平。在杂乱情形里，当替代仍使用正式侧移（航向偏置 = 0.1000）时，B 在成功率上仍高于 A、在碰撞上仍低于 A；侧移 = 0.3000 的替代已打印，未采纳。正式的 C 在两种正式情形、正式航向偏置 = 0.2000 下在成功率上仍会输；这不是说每一个打印的替代都保持相同的 C 标签。
+
+本页**不宣布普遍赢家**。在空旷走廊里，平坦的底层趋目标策略可以与中层加视觉运动替身精确打平；在杂乱 / 透明障碍替身上，中层加视觉的一臂一贯更好；忽略中层命令并带盲目航向偏置的一臂在两种情形都会输。论文中的 VLN 成功率提升与真实指令成功率以论文为准。IsaacLab / 真实 Unitree 或 Booster / GPU 均**本页未运行**。
+
+**180 分钟安排:** 30 分钟阅读 arXiv 2412.04453 v2 摘要的作者行（十个姓名按摘要顺序）、PDF / HTML 的共同一作与共同指导标记、单位，以及中层语言加视觉运动等说法；25 分钟手算打印的贴墙间隙 1.0500、碰撞间隙 0.4000、C 撞墙位置 x = 5.1798，以及 0.2000 的小差距阈值（手算）；50 分钟运行玩具并阅读两种情形，包括开放走廊的精确打平与杂乱情形中的中层获胜；40 分钟固定种子对照打印的侧移 = 0.3000 与航向偏置 = 0.1000；35 分钟做练习（30+25+50+40+35=180）。
+
+### 练习
+
+1. 按摘要写出作者行：十个姓名按摘要顺序，并写出 Erdem Bıyık 与 Hongxu Yin。PDF 与 HTML 把共同一作和共同指导标在谁身上，为什么必须写出这些标记？
+2. 根据打印的 hand_calc 行，说明贴墙间隙为 1.2000 − 0.1500 = 1.0500，以及 C 的 0.2000 rad 偏置在长度 8.0000 处达到 y = 1.6217，因此 C 在 x = 5.1798 处撞墙。为什么论文中「超过 17 %」的 VLN 提升与 25 条真实指令上 88 % 的成功率（以论文为准）不是玩具输出？
+3. 在 open_corridor 里，成对 B−A 的成功率与碰撞都是精确打平。为什么这与预先声明的可能接近打平相容，若在看过结果之后删掉这一情形会有什么问题？
+4. 在 clutter_transparent 里，成对 B−A success 为 1.0000±0.0000，成对 B−A collisions 为 −2.0000±0.0000，都是明显差距（5/5），C−B success 为 −1.0000±0.0000。结合打印的各臂，说明为什么能看见并侧移透明障碍的中层加视觉策略可以胜过看不见它们的平坦策略，而忽略中层命令的一臂仍然会输。
+5. 列出若要在真实 NaVILA 栈上检验中层语言加视觉运动，你需要哪些东西（IsaacLab 或 Unitree / Booster 机器人，以及如何保持中层词表）。只作为计划；IsaacLab / 真实 Unitree 或 Booster / GPU 均本页未运行。
+
 <Summary>
 
 **要点**
@@ -425,4 +943,5 @@ ASAP（Aligning Simulation and Real-World Physics）是两阶段框架，论文�
 
 - 11.7 接触丰富策略：把 11.3 的触觉折进模仿策略。
 
+- NaVILA 中层语言运动：在共享占有的二维走廊替身上，开放走廊里 A 与 B 精确打平（success 1.0000，collisions 0.0000）；杂乱情形中 B 的成功率一贯更高、碰撞一贯更低（成对 B−A success 1.0000±0.0000，collisions −2.0000±0.0000，明显，5/5）；C 会输（C−B success −1.0000±0.0000，明显，5/5，保留）——不是 Isaac，也不是真实 Unitree / Booster；论文 VLN 提升与真实指令成功率以论文为准（本页未运行）。
 </Summary>

@@ -44,4 +44,7 @@ check xvla_soft_prompt_toy.txt "$PY" "$M11/cross-embodiment-datasets/xvla_soft_p
 check ntc_inrush_limiter_toy.txt "$PY" "$M11/power-battery-emc/ntc_inrush_limiter_toy.py"
 check egovla_human_pretrain_retarget_toy.txt "$PY" "$M11/umi-style-collection/egovla_human_pretrain_retarget_toy.py"
 
+check navila_midlevel_locomotion_toy.txt "$PY" "$M11/humanoid-wbc-overview/navila_midlevel_locomotion_toy.py"
+check fdvla_force_distill_toy.txt "$PY" "$M11/contact-rich-policies/fdvla_force_distill_toy.py"
+
 exit $fail
