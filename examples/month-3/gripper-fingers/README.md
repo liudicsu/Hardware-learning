@@ -26,3 +26,8 @@ Rendered and checked in software only; not printed by the site editor. / 只在�
 python3 fingertip_retarget_toy.py
 ```
 
+`jamming_gripper_holding_force_toy.py`: Brown et al. arXiv 1009.4444 v2 holding-force stand-in (unjammed vs friction-only vs friction plus membrane-seal suction) on shared contact-angle draws. Stdlib; stdout checked by `examples/month-3/check.sh`. Paper fits and the volume-change remark are 以论文为准; no real bag or pump is started.
+
+```bash
+python3 jamming_gripper_holding_force_toy.py
+```

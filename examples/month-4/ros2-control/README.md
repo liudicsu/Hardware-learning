@@ -22,3 +22,5 @@ Needs ROS 2 Jazzy with `ros-jazzy-ros2-control`, `ros-jazzy-ros2-controllers` an
 需要装有 `ros-jazzy-ros2-control`、`ros-jazzy-ros2-controllers` 和 `ros-jazzy-gz-ros2-control` 的 ROS 2 Jazzy，见 [`../README.md`](../README.md)。这些都是真实的 ROS 2 软件驱动**仿真**机器人（Gazebo，或 ros2_control 的 mock 硬件）；[`../../../tools/sim/ros/run.sh`](../../../tools/sim/ros/run.sh) 会重复课程引用的每一次运行。包的许可证故意保留 `TODO` 占位符。
 
 - `ethercat_dc_timing_toy.py` — FreeRun / SM-sync / DC SYNC0 on shared jitter (stdlib; no EtherCAT NIC). Batch-4.
+
+- `controller_chaining_cascade_toy.py` — single-loop vs cascade vs broken chain on a shared two-time-scale plant (stdlib; no `controller_manager`).

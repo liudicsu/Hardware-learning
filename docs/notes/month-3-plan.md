@@ -1,6 +1,19 @@
 # Month 3 plan / 第 3 个月计划
 
+Current / 当前：**M3 3870 min**, Batch-26 PR1. Earlier entries below retain their historical totals.
+
 Current / 当前：**M3 3690 min**, Batch-23 PR1. Earlier entries below retain their historical totals.
+
+## Batch-26 PR1 / 本月 H1 (+180)
+
+Base `783242044cfd250be2d3747a5b31633f650b1369` (batch-25 PR3 #203 squash-merged; site **43380**). PR1 on M3 host: **M3 3690→3870 (+180)**; M4 moves in the same PR on its own plan. Site **43380→43740** (43740=43380+180+180), still 71 lessons.
+
+- **H1 / 3.6 gripper-fingers: 570→750 (+180).** Brown, Rodenberg, Amend, Mozeika, Steltz, Zakin, Lipson, Jaeger, arXiv 1009.4444 v2 holding-force model (`jamming_gripper_holding_force_toy.py`; common random numbers, 5 seeds; shared contact-angle draws). Eqs. 1-2 with `F_h` clamped to 0 at or below `theta_c = arctan(1/mu)`; paper "suction" is a membrane seal, not an industrial cup; paper fits `mu = 1.04 +- 0.06`, `sigma_star = 50 +- 4 kPa`, `d = 1.07 +- 0.07 mm`, volume change less than 0.5 %, and the "about 10 times" remark 以论文为准. Declared toy parameters: `R=0.0125` m, `MU=1.0400`, `SIGMA_STAR=50000.0000` Pa, `D=0.00107` m, seeds 0-4, `SMALL_FRAC=0.2000`. Hand calc (printed): `theta_c=0.7658` rad, `pi/4=0.7854`, `pi/2=1.5708`, `D=1.0700` mm, `50.0000` kPa, `0.2000`. below_theta_c: all `F_h` `0.0000+-0.0000`, **tie: identical on every seed** (declared lose **held**). modest_seal: C-B `11.8387+-8.5333`, **clear**, 5/5 (held); C `13.9682+-9.9559` N, B `2.1295+-1.4229` N. good_theta_unjammed: B-A `3.0794+-0.9884` and C-A `20.6079+-7.1491`, **clear**, 5/5 (held). thin_disk: all `0.0000+-0.0000`, lose held. Alternatives (declared, same seeds): `MU=1.1000` (paper independent `1.10 +- 0.03` 以论文为准) keeps the official labels (modest C-B still clear `12.8686+-8.9134`); not adopted. No official toy or expected/ change after the first official run 2026-11-20 04:07:30 Asia/Shanghai. ≠ form-closure / Ferrari-Canny / fin-ray / industrial vacuum cup. Real bag / pump / Instron 本页未运行. / 低于临界角和薄圆盘时保持力为零；中等包覆下膜密封稳定高于仅摩擦；未阻塞夹不住。
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
+
+**Site accounting / 全站核算:** **43740=43380+360** with M4 +180 on month-4-plan.md; **M3=3870**, **71 lessons**.
+
 
 ## Batch-23 PR1 / 本月 H2 (+180)
 
