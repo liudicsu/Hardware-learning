@@ -1,0 +1,69 @@
+Synthetic 4R planar redundant IK; 2-D tip task; Jacobian is 2 by 4 (n>m)
+Not the lesson 3 x 3 SO-101 position Jacobian; that model is not redundant for a 3-D tip-position task
+declared LINKS_m=0.1000,0.1000,0.1000,0.1000 reach_max_m=0.4000 DT=0.0200 N_STEP=80 KP=4.0000 KS=2.0000 SIG_TIP_m=0.0002
+declared Q_PREF_rad=0.6000,0.7000,0.5000,0.4000
+declared Q_MID_rad=0.6000,0.7000,0.5000,0.4000
+declared Q_LIMIT_rad=0.6000,0.7000,0.5000,2.0000
+declared MID_OFFSET_m=0.0300,-0.0200
+declared LIMIT_OFFSET_m=0.0200,0.0250
+declared SMALL_FRAC=0.2000 seeds=0,1,2,3,4
+unweighted specialization: theta_dot = J^+ v + (I-J^+ J) z of the MR weighted form plus the MP projector; not a verbatim MR equation
+MR Eq. 6.7 and the weighted secondary form, and the Wikipedia projector identities, 以原文为准
+hand_calc reach_max = 4 * 0.1000 = 0.4000 m
+hand_calc 20 percent small-vs-clear factor = 0.2000
+hand_calc horizon = N_STEP * DT = 1.6000 s
+hand_calc mid_start q=(0.6000, 0.7000, 0.5000, 0.4000) rad tip=(0.0277, 0.3311) m rank=2 det(JJt)=0.0025 proj_residual_frob=1.007e-16
+hand_calc limit_start q=(0.6000, 0.7000, 0.5000, 2.0000) rad tip=(0.0075, 0.1890) m rank=2 det(JJt)=0.0012 proj_residual_frob=7.028e-17
+hand_calc stretched q=(0.0000, 0.0000, 0.0000, 0.0000) rad tip=(0.4000, 0.0000) m rank=1 det(JJt)=0.0000 proj_residual_frob=3.114e-17
+rank_deficient stretched configuration: rank=1 det(JJt)=0.0000; no secondary-task win is declared at a rank-deficient J
+hand_calc stretched v=(0.0500, 0.0000) m/s maps to J J^+ v=(0.0000, 0.0000) m/s; primary x motion cannot be produced
+Regimes and parameters were written before the first run
+Common random numbers: the tip-measurement noise sequence is shared across arms at each regime and seed
+Real arm / MoveIt / TRAC-IK: 本页未运行
+declared mid_workspace: A and B may near-tie on primary error - keep
+declared near_joint_limit: B consistent better secondary cost at comparable primary error - keep
+declared C loses on primary error - keep
+declared expectation mid_workspace: A and B may near-tie on primary error (secondary already satisfied) - keep
+regime mid_workspace  (mean+-sd over seeds)
+  A_min_norm primary_mm 0.0793+-0.0292 secondary_cost 0.0226+-0.0001
+  B_projected primary_mm 0.0793+-0.0292 secondary_cost 0.0225+-0.0001
+  C_unprojected primary_mm 12.0240+-0.0323 secondary_cost 0.0102+-4.077e-5
+  paired B-A primary_mm: -2.175e-6+-2.755e-7: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A secondary_cost: -9.891e-6+-5.112e-8: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A primary_mm: 11.9447+-0.0078: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A secondary_cost: -0.0123+-2.177e-5: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B primary_mm: 11.9447+-0.0078: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B secondary_cost: -0.0123+-2.172e-5: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+declared expectation near_joint_limit: B consistent better secondary cost at comparable primary error - keep
+regime near_joint_limit  (mean+-sd over seeds)
+  A_min_norm primary_mm 0.0857+-0.0409 secondary_cost 1.1597+-0.0004
+  B_projected primary_mm 0.0841+-0.0426 secondary_cost 0.3840+-0.0003
+  C_unprojected primary_mm 42.7297+-0.0425 secondary_cost 0.1763+-0.0002
+  paired B-A primary_mm: -0.0016+-0.0031: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired B-A secondary_cost: -0.7757+-4.637e-5: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A primary_mm: 42.6440+-0.0731: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A secondary_cost: -0.9834+-0.0002: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B primary_mm: 42.6456+-0.0758: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B secondary_cost: -0.2078+-0.0002: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative same seeds KS=0.5000 (not adopted)
+regime mid_workspace alt_KS=0.5000  (mean+-sd over seeds)
+  A_min_norm primary_mm 0.0793+-0.0292 secondary_cost 0.0226+-0.0001
+  B_projected primary_mm 0.0793+-0.0292 secondary_cost 0.0226+-0.0001
+  C_unprojected primary_mm 4.0393+-0.0337 secondary_cost 0.0179+-0.0001
+  paired B-A primary_mm: -1.147e-6+-1.261e-7: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A secondary_cost: -6.969e-6+-2.456e-8: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A primary_mm: 3.9600+-0.0067: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A secondary_cost: -0.0047+-7.435e-6: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B primary_mm: 3.9600+-0.0067: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B secondary_cost: -0.0047+-7.411e-6: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+regime near_joint_limit alt_KS=0.5000  (mean+-sd over seeds)
+  A_min_norm primary_mm 0.0857+-0.0409 secondary_cost 1.1597+-0.0004
+  B_projected primary_mm 0.0851+-0.0427 secondary_cost 0.5658+-0.0003
+  C_unprojected primary_mm 15.3289+-0.0559 secondary_cost 0.4802+-0.0003
+  paired B-A primary_mm: -0.0007+-0.0033: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired B-A secondary_cost: -0.5939+-4.412e-5: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A primary_mm: 15.2432+-0.0797: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A secondary_cost: -0.6795+-0.0001: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B primary_mm: 15.2439+-0.0829: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B secondary_cost: -0.0856+-0.0001: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner is universal: mid-workspace primary error can tie; the projector is what keeps the secondary task off the primary

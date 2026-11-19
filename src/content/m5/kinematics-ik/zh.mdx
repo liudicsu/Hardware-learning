@@ -1233,8 +1233,578 @@ Real arm FK check: 本页未运行; Wikipedia formulas 以原文为准
 4. 固定种子，把 `TILT_DEG` 改成 0.5。运行前先预测 `matched` 中 C−B 的末端误差（误差随 `L2 · |sin q2| · sin(tilt)` 增大）。
 5. 在真实机械臂上核对之前（本页未运行），写下为什么 B−A 数值上为零，**并不**说明你量的连杆长度是对的。
 
+## 冗余逆解：零空间次任务
+
+本课开头教的是 SO-101 前三个关节，配一张 **3×3** 数值*位置*雅可比。这个模型对三维末端位置任务**并不冗余**。“真实机械臂多了什么”里已经有一句“冗余还会带来更多解”；本节补上缺失的玩具。这里引入一张**新的**、明显是矩形的雅可比（`n>m`）：四转动关节的平面臂，连杆都是 `0.1000` m，任务是二维末端位置，于是 `J` 为 2×4。不要把现有的 3×3 模型说成冗余，也不要改写 `kinematics.py`。
+
+对冗余机器人，在主任务有解时，Moore–Penrose 伪逆给出满足主任务的最小二范数关节速度（《现代机器人学》2019 年 12 月更新第一版预印本，第 6 章式 6.7，`θ̇ = J†(θ) Vd`；Wikipedia《Inverse kinematics》中的 Jacobian 逆 / 伪逆方法；以原文为准）。投影 `I − A⁺A` 是到 `ker(A)` 的正交投影，并且 `A(I − A⁺A) = 0`（Wikipedia《Moore–Penrose inverse》的 “Projectors” 节；以原文为准）。Modern Robotics 接着导出加权次目标形式 `θ̇ = G Vd + (I − GJ) M⁻¹ ∇h`，约束为 `J θ̇ = Vd`，其中 `G = M⁻¹ Jᵀ (J M⁻¹ Jᵀ)⁻¹`。玩具里使用的无加权更新 `θ̇ = J⁺ v + (I − J⁺ J) z`（取 `G = J⁺`）是该 MR 加权形式的**无加权特例**，再加上 Moore–Penrose 投影恒等式。它不是 MR 的原文公式。MR 讨论的是 `n>6` 的空间情形；本玩具用更小的矩形（`n>m`）模型说明同一个投影想法，并不是说平面例子也必须 `n>6`。本节不是本页已有的 DLS、奇异点、可操作度或指数积的重讲。
+
+<Resource id="modern-robotics" />
+
+<Resource id="wiki-inverse-kinematics" />
+
+<Resource id="wiki-moore-penrose" />
+
+<Formula label="最小二范数主任务（MR 式 6.7，以原文为准）">θ̇ = J†(θ) Vd</Formula>
+
+<Formula label="MR 加权形式的无加权特例加上 MP 投影，不是 MR 原文公式">θ̇ = J⁺ v + (I − J⁺ J) z</Formula>
+
+### 公平设置
+
+`redundant_ik_nullspace_toy.py` 是**合成的**，只用标准库。声明的几何与增益为 `LINKS = 0.1000,0.1000,0.1000,0.1000` m（因此 `hand_calc reach_max = 4 * 0.1000 = 0.4000` m）、`DT = 0.0200` s、`N_STEP = 80`（时域 `hand_calc` 1.6000 s）、主任务增益 `KP = 4.0000` /s、次任务增益 `KS = 2.0000` /s，以及共享的末端测量噪声 `SIG_TIP = 0.0002` m。偏好姿态为 `Q_PREF = 0.6000,0.7000,0.5000,0.4000` rad。区分“小”与“明显”的 20 % 因子打印为 0.2000；五个种子 `0,1,2,3,4`。**公共随机数**。 每个（情形，种子）先抽取一次末端测量噪声序列，再加到每一组自己的正运动学末端上，然后才形成主误差。
+
+| 组别 | 关节速度 |
+|---|---|
+| A_min_norm | 只有主任务，`θ̇ = J⁺ v` |
+| B_projected | 主任务加上零空间投影后的次任务，`θ̇ = J⁺ v + (I − J⁺ J) z`，其中 `z = KS (q_pref − q)` |
+| C_unprojected | 把同一个 `z` 在没有投影的情况下加上去，于是 `Jᵀ` 值域里的分量会污染主任务 |
+
+中位形起点（已经是偏好姿态）打印为秩 2、`det(JJt)=0.0025`、末端 `(0.0277, 0.3311)` m、投影残差 `1.007e-16`。靠近限位的起点 `q4 = 2.0000` rad 打印为秩 2、`det(JJt)=0.0012`、末端 `(0.0075, 0.1890)` m、残差 `7.028e-17`。完全伸直的构型 `q = 0` 上，雅可比秩为 1，`det(JJt)=0.0000`，末端 `(0.4000, 0.0000)` m；指令 `v = (0.0500, 0.0000)` m/s 被映射成 `J J⁺ v = (0.0000, 0.0000)` m/s，因此沿 `x` 的主运动无法产生，**不在秩亏的 `J` 上宣布次任务获胜**。
+
+| 情形 | 起点 | 主任务偏移 | 第一次运行前的预声明 |
+|---|---|---|---|
+| mid_workspace | 偏好姿态 | `(0.0300, -0.0200)` m | A 与 B 在主误差上可能接近打平（次任务已被满足）——保留 |
+| near_joint_limit | 末关节在 `2.0000` rad | `(0.0200, 0.0250)` m | B 在相当的主误差下，稳定更好的次任务代价——保留 |
+
+两种官方情形都打印 C 在主误差上失败的预声明对照。**看过结果后做的选择**。官方参数在第一次运行之后没有改过。官方第一次运行之后，课文排版按中文加粗不含句号或全角冒号、也不与全角冒号紧贴的规则做了调整，新的小结句含有本页未运行，并且本节配对标签使用官方输出的 ASCII `B-A` 排版。备选 `KS=0.5000` 在同一组种子上跑过，**未采用**。
+
+### 运行标准库玩具
+
+```bash
+cd ~/Hardware-learning/examples/month-5/kinematics-ik
+python3 redundant_ik_nullspace_toy.py
+```
+
+<CodeSource path="examples/month-5/kinematics-ik/redundant_ik_nullspace_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic redundant inverse kinematics with a nullspace secondary task.
+
+Stdlib only. A new 4R planar arm with a 2-D tip-position task, so the
+Jacobian is 2 by 4 (n > m). This is not the lesson's 3-joint SO-101 model
+and is not a rewrite of kinematics.py. That 3 x 3 position Jacobian is not
+redundant for a 3-D tip-position task.
+
+The minimum-two-norm primary velocity is theta_dot = J^+ v, Modern Robotics
+Dec 2019 preprint Eq. 6.7 (以原文为准). The unweighted update
+theta_dot = J^+ v + (I - J^+ J) z is the unweighted specialization of the
+Modern Robotics weighted form theta_dot = G Vd + (I - G J) M^{-1} grad h
+with G = J^+, plus the Moore-Penrose projector identity I - A^+ A onto
+ker(A). It is not a verbatim Modern Robotics equation. MR discusses a
+spatial case with n > 6; this toy is a smaller rectangular (n > m) model
+for the same projector idea, not a claim that MR requires n > 6 for a
+planar example.
+
+Arms:
+  A_min_norm -- primary only, theta_dot = J^+ v, no secondary task
+  B_projected -- primary plus a nullspace-projected secondary task
+  C_unprojected -- the same secondary velocity added without the projector
+    (a component in the range of J^T pollutes the primary)
+
+Shared rectangular arm, shared primary target, shared preferred posture,
+shared numerical noise under common random numbers.
+
+Regimes and parameters were written before the first run.
+
+Labels: tie = identical on every seed; numerically zero = |paired mean| and sd
+both < 1e-9; |m| <= sd = near-tie; |m| > sd = consistent gap (small if |m| < 20 %
+of the smaller arm mean, else clear), with a sign count. ROUND_HALF_UP output.
+
+Real arm / MoveIt / TRAC-IK: 本页未运行. Wikipedia and Modern Robotics figures
+are 以原文为准 and are not toy outputs.
+"""
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+SMALL_FRAC = 0.2000  # 20 % of the smaller-arm mean; printed as 0.2000
+RANK_TOL = 1e-10
+
+# Declared 4R planar geometry and gains (not a datasheet, not the SO-101 model).
+LINKS = (0.1000, 0.1000, 0.1000, 0.1000)  # m
+N_JOINTS = 4
+N_TASK = 2
+DT = 0.0200  # s
+N_STEP = 80
+KP = 4.0000  # 1/s, primary task gain
+KS = 2.0000  # 1/s, secondary posture gain
+SIG_TIP = 0.0002  # m, shared tip-measurement noise
+
+Q_PREF = (0.6000, 0.7000, 0.5000, 0.4000)  # rad
+# mid_workspace starts on the preferred posture (secondary already satisfied).
+Q_MID = Q_PREF
+# near a joint limit: same first three joints, last joint near +2.0 rad.
+Q_LIMIT = (0.6000, 0.7000, 0.5000, 2.0000)
+# fully stretched: rank-deficient J for a 2-D position task.
+Q_STRETCH = (0.0000, 0.0000, 0.0000, 0.0000)
+
+# Primary targets are declared offsets from the mid-workspace tip, in metres.
+MID_OFFSET = (0.0300, -0.0200)
+LIMIT_OFFSET = (0.0200, 0.0250)
+
+ARMS = ("A_min_norm", "B_projected", "C_unprojected")
+METRICS = ("primary_mm", "secondary_cost")
+PAIRS = (("B", "A"), ("C", "A"), ("C", "B"))
+
+# name: (q0, offset, declared expectation); written before the first run
+REGIMES = {
+    "mid_workspace": (
+        Q_MID,
+        MID_OFFSET,
+        "A and B may near-tie on primary error (secondary already satisfied) - keep",
+    ),
+    "near_joint_limit": (
+        Q_LIMIT,
+        LIMIT_OFFSET,
+        "B consistent better secondary cost at comparable primary error - keep",
+    ),
+}
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-5:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < SMALL_FRAC * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def matmul(a, b):
+    bt = list(zip(*b))
+    return [[sum(x * y for x, y in zip(row, col)) for col in bt] for row in a]
+
+
+def transpose(a):
+    return [list(row) for row in zip(*a)]
+
+
+def matvec(a, x):
+    return [sum(aij * xj for aij, xj in zip(row, x)) for row in a]
+
+
+def add(u, v, s=1.0):
+    return [ui + s * vi for ui, vi in zip(u, v)]
+
+
+def scale(u, s):
+    return [s * ui for ui in u]
+
+
+def ident(n):
+    return [[1.0 if i == j else 0.0 for j in range(n)] for i in range(n)]
+
+
+def frobenius(a):
+    return math.sqrt(sum(x * x for row in a for x in row))
+
+
+def invert_2x2(m):
+    a, b, c, d = m[0][0], m[0][1], m[1][0], m[1][1]
+    det = a * d - b * c
+    if abs(det) <= RANK_TOL:
+        return det, None
+    inv_det = 1.0 / det
+    return det, [[d * inv_det, -b * inv_det], [-c * inv_det, a * inv_det]]
+
+
+def pinv_and_rank(j):
+    """Right-looking Moore-Penrose inverse of a 2 by n Jacobian.
+
+    Full row rank: J^+ = J^T (J J^T)^{-1}. Rank-deficient: J^+ = J^T (J J^T)^+
+    from the 2 x 2 eigendecomposition of J J^T.
+    """
+    jt = transpose(j)
+    jjt = matmul(j, jt)
+    det, inv = invert_2x2(jjt)
+    if inv is not None:
+        return matmul(jt, inv), 2, det
+    tr = jjt[0][0] + jjt[1][1]
+    # Symmetric 2 x 2: eigenvalues (tr +- sqrt(tr^2 - 4 det))/2, but det ~ 0.
+    disc = max(0.0, tr * tr - 4.0 * det)
+    root = math.sqrt(disc)
+    ev = [(tr + root) / 2.0, (tr - root) / 2.0]
+    # Eigenvectors of a symmetric 2 x 2.
+    def eigvec(lam):
+        a, b = jjt[0][0] - lam, jjt[0][1]
+        if abs(b) >= abs(a) and abs(b) > RANK_TOL:
+            v = [1.0, -a / b]
+        elif abs(a) > RANK_TOL:
+            v = [-b / a, 1.0]
+        else:
+            v = [1.0, 0.0] if lam == ev[0] else [0.0, 1.0]
+        nrm = math.hypot(v[0], v[1]) or 1.0
+        return [v[0] / nrm, v[1] / nrm]
+
+    u0, u1 = eigvec(ev[0]), eigvec(ev[1])
+    # Orthonormalize u1 against u0 if needed.
+    dot = u0[0] * u1[0] + u0[1] * u1[1]
+    u1 = [u1[0] - dot * u0[0], u1[1] - dot * u0[1]]
+    n1 = math.hypot(u1[0], u1[1])
+    if n1 > RANK_TOL:
+        u1 = [u1[0] / n1, u1[1] / n1]
+    else:
+        u1 = [-u0[1], u0[0]]
+    pinv_jjt = [[0.0, 0.0], [0.0, 0.0]]
+    rank = 0
+    for lam, u in ((ev[0], u0), (ev[1], u1)):
+        if lam > RANK_TOL:
+            rank += 1
+            inv_lam = 1.0 / lam
+            for r in range(2):
+                for c in range(2):
+                    pinv_jjt[r][c] += inv_lam * u[r] * u[c]
+    return matmul(jt, pinv_jjt), rank, det
+
+
+def nullspace_projector(j, jp):
+    n = len(jp)
+    jp_j = matmul(jp, j)
+    eye = ident(n)
+    return [[eye[i][k] - jp_j[i][k] for k in range(n)] for i in range(n)]
+
+
+def cumulative_angles(q):
+    acc = 0.0
+    out = []
+    for qi in q:
+        acc += qi
+        out.append(acc)
+    return out
+
+
+def fk(q, links=LINKS):
+    x = y = 0.0
+    acc = 0.0
+    for qi, li in zip(q, links):
+        acc += qi
+        x += li * math.cos(acc)
+        y += li * math.sin(acc)
+    return [x, y]
+
+
+def jacobian(q, links=LINKS):
+    """Analytical 2 x 4 position Jacobian of the 4R planar arm."""
+    acc = cumulative_angles(q)
+    # J[:, k] = d(x,y)/d q_{k+1} = sum_{i>=k} Li * (-sin, cos) of acc_i
+    cols_x = [0.0] * len(q)
+    cols_y = [0.0] * len(q)
+    for i, (ang, li) in enumerate(zip(acc, links)):
+        dx, dy = -li * math.sin(ang), li * math.cos(ang)
+        for k in range(i + 1):
+            cols_x[k] += dx
+            cols_y[k] += dy
+    return [cols_x, cols_y]
+
+
+def secondary_cost(q, q_pref=Q_PREF):
+    return 0.5 * sum((qi - pi) ** 2 for qi, pi in zip(q, q_pref))
+
+
+def secondary_velocity(q, ks=KS, q_pref=Q_PREF):
+    return [ks * (pi - qi) for qi, pi in zip(q, q_pref)]
+
+
+def step_arm(arm, q, x_des, noise, ks=KS, links=LINKS):
+    x = add(fk(q, links), noise)
+    v = scale(add(x_des, x, -1.0), KP)
+    j = jacobian(q, links)
+    jp, rank, _det = pinv_and_rank(j)
+    qdot_p = matvec(jp, v)
+    z = secondary_velocity(q, ks)
+    if arm == "A_min_norm":
+        qdot = qdot_p
+    elif arm == "B_projected":
+        p = nullspace_projector(j, jp)
+        qdot = add(qdot_p, matvec(p, z))
+    elif arm == "C_unprojected":
+        qdot = add(qdot_p, z)
+    else:
+        raise ValueError(arm)
+    q_next = add(q, scale(qdot, DT))
+    return q_next, rank
+
+
+def rng_for(*parts):
+    h = 20261119
+    for p in parts:
+        if isinstance(p, str):
+            for ch in p:
+                h = (h * 131 + ord(ch)) & 0xFFFFFFFFFFFFFFFF
+        else:
+            h = (h * 131 + int(p)) & 0xFFFFFFFFFFFFFFFF
+    return random.Random(h)
+
+
+def shared_noise(seed, n_step=N_STEP, sig=SIG_TIP, tag="official"):
+    """Common random numbers: tip-measurement noise shared across arms."""
+    rng = rng_for("ik-noise", tag, seed, int(round(sig * 1e9)))
+    return [[rng.gauss(0.0, sig), rng.gauss(0.0, sig)] for _ in range(n_step)]
+
+
+def simulate(arm, q0, x_des, noise, ks=KS, links=LINKS):
+    q = list(q0)
+    ranks = []
+    for eps in noise:
+        q, rank = step_arm(arm, q, x_des, eps, ks=ks, links=links)
+        ranks.append(rank)
+    tip = fk(q, links)
+    primary_mm = 1000.0 * math.hypot(tip[0] - x_des[0], tip[1] - x_des[1])
+    return {
+        "primary_mm": primary_mm,
+        "secondary_cost": secondary_cost(q),
+        "min_rank": min(ranks) if ranks else 0,
+        "q": q,
+        "tip": tip,
+    }
+
+
+def run_regime(name, seed, ks=KS, links=LINKS, sig=SIG_TIP):
+    q0, offset, _decl = REGIMES[name]
+    x0 = fk(q0, links)
+    x_des = add(x0, offset)
+    noise = shared_noise(seed, sig=sig, tag=name)
+    return {arm: simulate(arm, q0, x_des, noise, ks=ks, links=links) for arm in ARMS}
+
+
+def print_regime(title, rows):
+    print(f"regime {title}  (mean+-sd over seeds)")
+    for arm in ARMS:
+        pri = [r[arm]["primary_mm"] for r in rows]
+        sec = [r[arm]["secondary_cost"] for r in rows]
+        print(
+            f"  {arm} primary_mm {num(mean_sd(pri)[0])}+-{num(mean_sd(pri)[1])} "
+            f"secondary_cost {num(mean_sd(sec)[0])}+-{num(mean_sd(sec)[1])}"
+        )
+    for left, right in PAIRS:
+        la = [a for a in ARMS if a.startswith(left)][0]
+        ra = [a for a in ARMS if a.startswith(right)][0]
+        for key in METRICS:
+            xa = [r[la][key] for r in rows]
+            xb = [r[ra][key] for r in rows]
+            print(f"  paired {left}-{right} {key}: {verdict(xa, xb)}")
+
+
+def official_rows(name, **kwargs):
+    return [run_regime(name, seed, **kwargs) for seed in SEEDS]
+
+
+def describe_config(label, q, links=LINKS):
+    j = jacobian(q, links)
+    jp, rank, det = pinv_and_rank(j)
+    p = nullspace_projector(j, jp)
+    residual = matmul(j, p)
+    tip = fk(q, links)
+    print(
+        f"hand_calc {label} q=({', '.join(num(qi) for qi in q)}) rad "
+        f"tip=({num(tip[0])}, {num(tip[1])}) m rank={rank} det(JJt)={num(det)} "
+        f"proj_residual_frob={num(frobenius(residual))}"
+    )
+    return j, jp, rank, det, residual, tip
+
+
+def main():
+    reach = sum(LINKS)
+    print("Synthetic 4R planar redundant IK; 2-D tip task; Jacobian is 2 by 4 (n>m)")
+    print("Not the lesson 3 x 3 SO-101 position Jacobian; that model is not redundant for a 3-D tip-position task")
+    print(
+        f"declared LINKS_m={','.join(num(x) for x in LINKS)} reach_max_m={num(reach)} "
+        f"DT={num(DT)} N_STEP={N_STEP} KP={num(KP)} KS={num(KS)} SIG_TIP_m={num(SIG_TIP)}"
+    )
+    print(f"declared Q_PREF_rad={','.join(num(x) for x in Q_PREF)}")
+    print(f"declared Q_MID_rad={','.join(num(x) for x in Q_MID)}")
+    print(f"declared Q_LIMIT_rad={','.join(num(x) for x in Q_LIMIT)}")
+    print(f"declared MID_OFFSET_m={num(MID_OFFSET[0])},{num(MID_OFFSET[1])}")
+    print(f"declared LIMIT_OFFSET_m={num(LIMIT_OFFSET[0])},{num(LIMIT_OFFSET[1])}")
+    print(f"declared SMALL_FRAC={num(SMALL_FRAC)} seeds={','.join(str(s) for s in SEEDS)}")
+    print("unweighted specialization: theta_dot = J^+ v + (I-J^+ J) z of the MR weighted form plus the MP projector; not a verbatim MR equation")
+    print("MR Eq. 6.7 and the weighted secondary form, and the Wikipedia projector identities, 以原文为准")
+    print("hand_calc reach_max = 4 * 0.1000 = 0.4000 m")
+    print(f"hand_calc 20 percent small-vs-clear factor = {num(SMALL_FRAC)}")
+    print(f"hand_calc horizon = N_STEP * DT = {num(N_STEP * DT)} s")
+    describe_config("mid_start", Q_MID)
+    describe_config("limit_start", Q_LIMIT)
+    describe_config("stretched", Q_STRETCH)
+    # Stretched arm: print rank and do not invent a secondary-task win.
+    j_s = jacobian(Q_STRETCH)
+    _jp_s, rank_s, det_s = pinv_and_rank(j_s)
+    print(
+        f"rank_deficient stretched configuration: rank={rank_s} det(JJt)={num(det_s)}; "
+        "no secondary-task win is declared at a rank-deficient J"
+    )
+    # One step in the unreachable x direction, shared, for disclosure only.
+    v_x = [0.0500, 0.0000]
+    jp_s, rank_s, _ = pinv_and_rank(j_s)
+    qdot_try = matvec(jp_s, v_x)
+    dx = matvec(j_s, qdot_try)
+    print(
+        f"hand_calc stretched v=(0.0500, 0.0000) m/s maps to J J^+ v="
+        f"({num(dx[0])}, {num(dx[1])}) m/s; primary x motion cannot be produced"
+    )
+    print("Regimes and parameters were written before the first run")
+    print("Common random numbers: the tip-measurement noise sequence is shared across arms at each regime and seed")
+    print("Real arm / MoveIt / TRAC-IK: 本页未运行")
+    print("declared mid_workspace: A and B may near-tie on primary error - keep")
+    print("declared near_joint_limit: B consistent better secondary cost at comparable primary error - keep")
+    print("declared C loses on primary error - keep")
+
+    official = {name: official_rows(name) for name in REGIMES}
+    for name, (_q0, _off, decl) in REGIMES.items():
+        print(f"declared expectation {name}: {decl}")
+        print_regime(name, official[name])
+
+    print("alternative same seeds KS=0.5000 (not adopted)")
+    for name in REGIMES:
+        print_regime(f"{name} alt_KS=0.5000", official_rows(name, ks=0.5000))
+
+    print("No winner is universal: mid-workspace primary error can tie; the projector is what keeps the secondary task off the primary")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic 4R planar redundant IK; 2-D tip task; Jacobian is 2 by 4 (n>m)
+Not the lesson 3 x 3 SO-101 position Jacobian; that model is not redundant for a 3-D tip-position task
+declared LINKS_m=0.1000,0.1000,0.1000,0.1000 reach_max_m=0.4000 DT=0.0200 N_STEP=80 KP=4.0000 KS=2.0000 SIG_TIP_m=0.0002
+declared Q_PREF_rad=0.6000,0.7000,0.5000,0.4000
+declared Q_MID_rad=0.6000,0.7000,0.5000,0.4000
+declared Q_LIMIT_rad=0.6000,0.7000,0.5000,2.0000
+declared MID_OFFSET_m=0.0300,-0.0200
+declared LIMIT_OFFSET_m=0.0200,0.0250
+declared SMALL_FRAC=0.2000 seeds=0,1,2,3,4
+unweighted specialization: theta_dot = J^+ v + (I-J^+ J) z of the MR weighted form plus the MP projector; not a verbatim MR equation
+MR Eq. 6.7 and the weighted secondary form, and the Wikipedia projector identities, 以原文为准
+hand_calc reach_max = 4 * 0.1000 = 0.4000 m
+hand_calc 20 percent small-vs-clear factor = 0.2000
+hand_calc horizon = N_STEP * DT = 1.6000 s
+hand_calc mid_start q=(0.6000, 0.7000, 0.5000, 0.4000) rad tip=(0.0277, 0.3311) m rank=2 det(JJt)=0.0025 proj_residual_frob=1.007e-16
+hand_calc limit_start q=(0.6000, 0.7000, 0.5000, 2.0000) rad tip=(0.0075, 0.1890) m rank=2 det(JJt)=0.0012 proj_residual_frob=7.028e-17
+hand_calc stretched q=(0.0000, 0.0000, 0.0000, 0.0000) rad tip=(0.4000, 0.0000) m rank=1 det(JJt)=0.0000 proj_residual_frob=3.114e-17
+rank_deficient stretched configuration: rank=1 det(JJt)=0.0000; no secondary-task win is declared at a rank-deficient J
+hand_calc stretched v=(0.0500, 0.0000) m/s maps to J J^+ v=(0.0000, 0.0000) m/s; primary x motion cannot be produced
+Regimes and parameters were written before the first run
+Common random numbers: the tip-measurement noise sequence is shared across arms at each regime and seed
+Real arm / MoveIt / TRAC-IK: 本页未运行
+declared mid_workspace: A and B may near-tie on primary error - keep
+declared near_joint_limit: B consistent better secondary cost at comparable primary error - keep
+declared C loses on primary error - keep
+declared expectation mid_workspace: A and B may near-tie on primary error (secondary already satisfied) - keep
+regime mid_workspace  (mean+-sd over seeds)
+  A_min_norm primary_mm 0.0793+-0.0292 secondary_cost 0.0226+-0.0001
+  B_projected primary_mm 0.0793+-0.0292 secondary_cost 0.0225+-0.0001
+  C_unprojected primary_mm 12.0240+-0.0323 secondary_cost 0.0102+-4.077e-5
+  paired B-A primary_mm: -2.175e-6+-2.755e-7: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A secondary_cost: -9.891e-6+-5.112e-8: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A primary_mm: 11.9447+-0.0078: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A secondary_cost: -0.0123+-2.177e-5: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B primary_mm: 11.9447+-0.0078: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B secondary_cost: -0.0123+-2.172e-5: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+declared expectation near_joint_limit: B consistent better secondary cost at comparable primary error - keep
+regime near_joint_limit  (mean+-sd over seeds)
+  A_min_norm primary_mm 0.0857+-0.0409 secondary_cost 1.1597+-0.0004
+  B_projected primary_mm 0.0841+-0.0426 secondary_cost 0.3840+-0.0003
+  C_unprojected primary_mm 42.7297+-0.0425 secondary_cost 0.1763+-0.0002
+  paired B-A primary_mm: -0.0016+-0.0031: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired B-A secondary_cost: -0.7757+-4.637e-5: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A primary_mm: 42.6440+-0.0731: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A secondary_cost: -0.9834+-0.0002: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B primary_mm: 42.6456+-0.0758: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B secondary_cost: -0.2078+-0.0002: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative same seeds KS=0.5000 (not adopted)
+regime mid_workspace alt_KS=0.5000  (mean+-sd over seeds)
+  A_min_norm primary_mm 0.0793+-0.0292 secondary_cost 0.0226+-0.0001
+  B_projected primary_mm 0.0793+-0.0292 secondary_cost 0.0226+-0.0001
+  C_unprojected primary_mm 4.0393+-0.0337 secondary_cost 0.0179+-0.0001
+  paired B-A primary_mm: -1.147e-6+-1.261e-7: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A secondary_cost: -6.969e-6+-2.456e-8: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A primary_mm: 3.9600+-0.0067: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A secondary_cost: -0.0047+-7.435e-6: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B primary_mm: 3.9600+-0.0067: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B secondary_cost: -0.0047+-7.411e-6: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+regime near_joint_limit alt_KS=0.5000  (mean+-sd over seeds)
+  A_min_norm primary_mm 0.0857+-0.0409 secondary_cost 1.1597+-0.0004
+  B_projected primary_mm 0.0851+-0.0427 secondary_cost 0.5658+-0.0003
+  C_unprojected primary_mm 15.3289+-0.0559 secondary_cost 0.4802+-0.0003
+  paired B-A primary_mm: -0.0007+-0.0033: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired B-A secondary_cost: -0.5939+-4.412e-5: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A primary_mm: 15.2432+-0.0797: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A secondary_cost: -0.6795+-0.0001: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B primary_mm: 15.2439+-0.0829: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B secondary_cost: -0.0856+-0.0001: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner is universal: mid-workspace primary error can tie; the projector is what keeps the secondary task off the primary
+```
+
+</SimOutput>
+
+### 读懂各情形
+
+本页标签按以下顺序使用。**打平（每个种子都完全相同）**只用于配对的逐种子差值在每个种子上都严格为零；`|配对均值|` 和它的标准差都小于 1e-9 时标为**数值上为零（浮点残差），等同打平**（这种行不打印同号计数）；`|配对均值| <= sd` 时为**接近打平、差距很小，在种子噪声之内**；否则是**稳定**差距（`|配对均值| > sd`），`|m|` 小于两组中较小均值的 20 % 时叫**小**，否则叫**明显**；20 % 规则只用来在这两个词之间选择。每条稳定的行都带 5 个种子上的同号计数。差距都由未四舍五入的数值计算。配对差值为 B-A、C-A 和 C−B。
+
+- **mid_workspace** 情形，A 与 B 的主误差终点分别是 0.0793+-0.0292 mm 和 0.0793+-0.0292 mm。预声明的 A/B 主误差接近打平**并未**以接近打平成立，结果仍**保留**。B-A `primary_mm` 是**小而稳定**的差距，-2.175e-6+-2.755e-7 mm，5 个种子同号。这个差值比 0.0793 mm 的主误差本身小六个数量级；它是投影次运动在离散步进里留下的残差，不是改参数的理由。C 在主误差上明显失败：C-A `primary_mm` 11.9447+-0.0078 mm，5 个种子同号。
+- **near_joint_limit** 情形，B-A `primary_mm` 为**接近打平**，-0.0016+-0.0031 mm（5 个种子里有 2 个反号），因此主误差仍相当（A 0.0857+-0.0409 mm，B 0.0841+-0.0426 mm）。B-A `secondary_cost` 是**明显**差距，-0.7757+-4.637e-5，5 个种子同号（A 1.1597+-0.0004，B 0.3840+-0.0003），因此如预声明那样，B 有稳定更好的次任务代价。C 在主误差上明显失败：C-A `primary_mm` 42.6440+-0.0731 mm，5 个种子同号。
+- **秩亏的伸直构型**单独打印，`rank=1`，`det(JJt)=0.0000`。这里不宣布次任务获胜。
+
+同一组种子上 `KS=0.5000` 的备选未采用。中位形 B-A `primary_mm` 仍是小而稳定的差距（-1.147e-6+-1.261e-7）；靠近限位时主误差 B-A 仍是接近打平（-0.0007+-0.0033），次任务代价仍是 B 的明显改善（-0.5939+-4.412e-5）；C 在主误差上仍然失败（15.2432+-0.0797 mm）。
+
+本页**不宣布普遍赢家**。中位形上，最小范数与投影次任务的主误差可以几乎相同；把次任务挡在主任务之外的，是那个投影。教材与 Wikipedia 数字以原文为准。真实机械臂 / MoveIt / TRAC-IK。**本页未运行**。
+
+**180 分钟安排**如下。30+25+50+40+35=180。30 分钟读 Modern Robotics 式 6.7 与加权形式，以及 Wikipedia 的投影恒等式，并写清为什么课内 3×3 模型对三维末端位置任务并不冗余；25 分钟在运行前写清 2×4 雅可比和无加权特例；50 分钟运行玩具并读懂官方情形，包括中位形的披露和伸直构型的秩；40 分钟在同一组种子上重跑 `KS=0.5000` 备选；35 分钟写下一次真实的冗余臂或 TRAC-IK 检查还要核对什么（本页未运行）。
+
+### 练习
+
+1. 在伸直构型上，用四段剩余长度 `0.4000, 0.3000, 0.2000, 0.1000` m 手写 `J`，说明其秩为 1，并与打印的 `det(JJt)=0.0000` 对照。
+2. 从 `shared_noise` 和 `simulate` 说明，同一个种子下 A、B、C 看到相同的末端噪声序列，并且 B 只通过 `I − J⁺ J` 施加 `z`。
+3. 由中位形起点处的 `J (I − J⁺ J)` 解释，为什么打印的投影残差 `1.007e-16` 是预期的，以及 C 为何仍能污染主任务。
+4. 固定种子，先预测把 `KS` 降到 0.5000 是否仍能在靠近限位时保持 B 的次任务代价优势，再核对该备选区块。
+5. 在真实机械臂或 MoveIt 上核对之前（本页未运行），写下为什么中位形主误差只有 -2.175e-6 mm，**并不**说明课内 SO-101 的 3×3 模型已经变成冗余。
+
+
 <Summary>
 
-简化三关节 SO-101 模型把变换链和平面 FK 联系起来，数值 Jacobian 映射关节速度到末端运动。阻尼最小二乘 IK 依赖初始分支、可达范围和阻尼；每次都用 FK 核对，并保留不可达目标残差。位置 Jacobian 秩亏、单位/符号、关节限制和避碰规划仍是实际约束。独立 ZYX 姿态实验展示 pitch±90° 的 Euler 坐标图秩亏，对照相同端点的 Euler/slerp 路径，并明确四元数双覆盖与归一化。可操作度：Yoshikawa 的 `w = √det(J Jᵀ) = σ1 σ2`（平面 2R 上为 `L1 L2 |sin q2|`）和条件数 `κ = σ1/σ2` 衡量机械臂离奇异点有多近；远离奇异点时 `w` 监测器从不触发，与普通跟踪打平（每个种子都完全相同），靠近奇异点时在 `w` 到达阈值处封顶伸展距离，要放弃 2.39 mm——这是合成模型，不是机器人实验。指数积：每个关节用一条在基座坐标系里表示的螺旋轴写同一条链，不用 DH 坐标系，得到的位姿与 DH 只差浮点残差（各情形配对位姿误差都数值上为零），而肘关节运动旋量错 2° 则明显输掉（3.3504±0.1425 mm，5 个种子同号）——这是合成模型，不是机器人实验。
+简化三关节 SO-101 模型把变换链和平面 FK 联系起来，数值 Jacobian 映射关节速度到末端运动。阻尼最小二乘 IK 依赖初始分支、可达范围和阻尼；每次都用 FK 核对，并保留不可达目标残差。位置 Jacobian 秩亏、单位/符号、关节限制和避碰规划仍是实际约束。独立 ZYX 姿态实验展示 pitch±90° 的 Euler 坐标图秩亏，对照相同端点的 Euler/slerp 路径，并明确四元数双覆盖与归一化。可操作度：Yoshikawa 的 `w = √det(J Jᵀ) = σ1 σ2`（平面 2R 上为 `L1 L2 |sin q2|`）和条件数 `κ = σ1/σ2` 衡量机械臂离奇异点有多近；远离奇异点时 `w` 监测器从不触发，与普通跟踪打平（每个种子都完全相同），靠近奇异点时在 `w` 到达阈值处封顶伸展距离，要放弃 2.39 mm——这是合成模型，不是机器人实验。指数积：每个关节用一条在基座坐标系里表示的螺旋轴写同一条链，不用 DH 坐标系，得到的位姿与 DH 只差浮点残差（各情形配对位姿误差都数值上为零），而肘关节运动旋量错 2° 则明显输掉（3.3504±0.1425 mm，5 个种子同号）——这是合成模型，不是机器人实验。冗余逆解：新的 4R 平面臂用 2×4 雅可比（`n>m`）演示最小二范数主任务与零空间投影次任务；课内 3×3 位置雅可比对三维末端位置任务并不冗余，`θ̇ = J⁺v + (I − J⁺J)z` 是 Modern Robotics 加权形式的无加权特例加上 MP 投影，不是 MR 原文公式。中位形主误差的接近打平预声明未成立，保留 B-A 小而稳定的差距 -2.175e-6+-2.755e-7 mm（5/5）；靠近关节限位时 B 在主误差接近打平下有稳定更好的次任务代价，无投影的 C 在主误差上明显失败——这是合成模型，不是机器人实验，本页未运行。
 
 </Summary>

@@ -1,5 +1,15 @@
 # Month 4 plan / 第4个月计划
 
+Current / 当前：**M4 3750 min**, Batch-25 PR1. Earlier entries below retain their historical totals.
+
+## Batch-25 PR1 / 本月 H1 (+180)
+
+Base `def8795172af98816d18a7c732ac33b2066f8ea3` (batch-24 polish #200 merged; site **42300**). PR1 on M4 host: **M4 3570→3750 (+180)**; M5 moves in the same PR on its own plan. Site **42300→42660** (42660=42300+180+180), still 71 lessons.
+
+- **H1 / 4.1 ros2-setup: 360→540 (+180).** rmw_zenoh versus default Fast DDS (`rmw_zenoh_qos_discovery_toy.py`; common random numbers, 5 seeds; shared publication timeline, payload and Bernoulli drops at P_DROP=0.0500, N_PUB=40). Working with Zenoh bodies (Kilted `c16e4499d67f350e22dfec987a289e6e59ce506c`, Jazzy `1b19bccd1317223f5dab53b495426f177fdcddda`, byte-identical; 以文档为准): `export RMW_IMPLEMENTATION=rmw_zenoh_cpp`, `sudo apt install ros-{DISTRO}-rmw-zenoh-cpp`, `ros2 run rmw_zenoh_cpp rmw_zenohd`; without the router, multicast discovery is disabled by default and gossip goes via the router. Kilted vendors (`17d097028c3a8dd09725ea3ceeaba2a9db103c35`; 以文档为准): Fast DDS is the default RMW; “Zenoh offers a more lightweight alternative to DDS and maintains Quality of Service features (in Zenoh, there are essentially no ‘incompatible’ QoS settings)”; rmw_zenoh_cpp “Packaged with binary releases starting with Kilted Kaiju.” Jazzy vendors (`95dbbf32761f6dfca6e6f6327a3a2cfb9784a653`; 以文档为准): Fast DDS default; Zenoh is not in the packaged-RMW table (Fast DDS, RTI Connext Pro, Eclipse Cyclone DDS, GurumNetworks GurumDDS). Kilted release notes (`1f757343c8ed06b57896b5a5febc536919b10e7f`; 以文档为准): rmw_fastrtps_cpp* default Tier 1; rmw_zenoh_cpp Eclipse Zenoh Tier 1, all platforms. Course still starts on Jazzy; Zenoh is not called the default or Jazzy Tier 1. Declared stand-in parameters: N_PUB 40, P_DROP 0.0500, seeds 0–4, SMALL_FRAC 0.2000; stand-in rule treats reliable publisher + best-effort subscriber as incompatible under A only. Hand calc (printed): 40.0000, 38.0000, 0.2000, 32.0000. compatible_qos: B−A received `0.0000+-0.0000`, **tie: identical on every seed** (declared “may near-tie”, held as an exact tie). incompatible_qos: B−A received `38.0000+-1.0000`, **clear**, 5/5 (held); A received 0.0000. no_router: C−B received `-38.4000+-1.3416`, **clear**, 5/5 (held); C received 0.0000. Alternatives (declared, same seeds): P_DROP=0.2000 keeps the official labels (compatible tie at 32.4000+-2.5100; incompatible clear 33.6000+-1.1402); swapped best-effort publisher / reliable subscriber is compatible under the stand-in rule, so A and B tie at 38.0000+-1.0000 (not adopted). No code change after the first official run. ≠ SROS2 / Deadline / EtherCAT; the existing “newer Zenoh RMW supports neither” discovery-env sentence is untouched. Real rmw / rmw_zenohd / multi-machine multicast 本页未运行. / 相容 QoS 时 DDS 式与 Zenoh 式投递打平；不相容时只有 Zenoh 式送达；没有路由器时 Zenoh 式发现失败。
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
+
 Current / 当前：**M4 3570 min**, Batch-23 PR2. Earlier entries below retain their historical totals.
 
 ## Batch-23 PR2 / 本月 H3 (+180)

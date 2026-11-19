@@ -23,6 +23,7 @@ check_py() {
   else echo "DIFF  $name"; cat "$TMP/$name.diff"; fail=1; fi
 }
 check_py sros_enclave_acl_toy.txt python3 "$M4/ros2-setup/sros_enclave_acl_toy.py"
+check_py rmw_zenoh_qos_discovery_toy.txt python3 "$M4/ros2-setup/rmw_zenoh_qos_discovery_toy.py"
 check_py composition_container_toy.txt python3 "$M4/ros2-graph/composition_container_toy.py"
 check_py icp_point_plane_toy.txt python3 "$M4/slam-nav/icp_point_plane_toy.py"
 check_py ethercat_dc_timing_toy.txt python3 "$M4/ros2-control/ethercat_dc_timing_toy.py"
