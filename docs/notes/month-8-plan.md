@@ -1,6 +1,15 @@
 # Month 8 plan
 
-Current / 当前：**M8 3990 min**, Batch-21 PR3. Earlier entries below retain their historical totals.
+Current / 当前：**M8 4170 min**, Batch-24 PR2. Earlier entries below retain their historical totals.
+
+## Batch-24 PR2 — π0.5 heterogeneous co-training on dataset-engineering (+180)
+
+Base `e4a8c2236cd5a2e37144408108b8d0f12f23f320` (batch-24 PR1 #197 merged; site **41580**). PR2 on M8 host: **M8 3990→4170 (+180)**; M2 moves in the same PR on its own plan. Site **41580→41940** (41940=41580+180+180), still 71 lessons.
+
+- **H4 / dataset-engineering: 330→510 (+180).** π0.5 heterogeneous co-training, not packed flow-matching-policies (`pi05_heterogeneous_cotrain_toy.py`; common random numbers, 5 seeds; linear / lookup stand-in). arXiv 2504.16054 v1 abs + HTML + PDF bodies read. Authorship follows the abs: Physical Intelligence first, then the 35 named authors in abs order; the PDF places “Physical Intelligence” as an org line above the same 35 names (order matches; disclosed). 97.6 % and house-clean figures 以论文为准, not toy outputs. in_domain: paired B−A success −0.0131±0.0062, **small but consistent**, 5/5 — the pre-declared near-tie **did not hold**, kept, not retuned. ood_new_home: paired B−A 0.1504±0.0199, **clear**, 5/5 (declared co-train win held). C loses on both regimes: C−B −0.3032±0.0038 and −0.1370±0.0121, **clear**, 5/5 (held). Alternatives sig = 0.1200 and B weights 0.5000/0.2000/0.2000/0.1000 printed, not adopted. Choices after seeing results: none. GPU / π0.5 weights / real homes: 本页未运行. / π0.5 异构共训练，预先声明的域内接近打平未成立并保留。
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
+
 
 ## Batch-21 PR3 / 本月 H6 (+180)
 

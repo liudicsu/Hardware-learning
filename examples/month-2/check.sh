@@ -44,4 +44,6 @@ check optocoupler_ctr_isolation_toy.txt "$PY" "$M2/arduino-io/optocoupler_ctr_is
 
 check steinhart_hart_ntc_sense_toy.txt "$PY" "$M2/sensors-fusion/steinhart_hart_ntc_sense_toy.py"
 
+check encoder_speed_frequency_period_toy.txt "$PY" "$M2/motors-drivers/encoder_speed_frequency_period_toy.py"
+
 exit $fail

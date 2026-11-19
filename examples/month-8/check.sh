@@ -46,6 +46,8 @@ check openvla_oft_parallel_l1_toy.txt "$PY" "$M8/vla-finetune/openvla_oft_parall
 
 check dataset_crc_integrity_toy.txt "$PY" "$M8/dataset-engineering/dataset_crc_integrity_toy.py"
 
+check pi05_heterogeneous_cotrain_toy.txt "$PY" "$M8/dataset-engineering/pi05_heterogeneous_cotrain_toy.py"
+
 check nora_fastplus_small_vla_toy.txt "$PY" "$M8/async-deployment/nora_fastplus_small_vla_toy.py"
 
 exit $fail
