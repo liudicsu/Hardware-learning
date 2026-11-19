@@ -1198,6 +1198,407 @@ Real half-bridge, gate driver and scope: 本页未运行; driver/app-note number
 4. Raise `SENSE_SIGMA` to 0.2 A and rerun the light scenario. Keep the reference, V_dc and seeds unchanged, and explain what happens to I3/I1 and its spread.
 5. List what you would need to measure a real leg: probe points, the gate driver's actual dead time, and what a current probe must resolve near zero. Keep this as a plan; no real bridge runs on this page.
 
+## Encoder speed: frequency versus period
+
+<Resource id="wiki-incremental-encoder" />
+
+The primary source is the Wikipedia **Incremental encoder** page, revision 1357373609 (2 June 2026, 15:12 Asia/Shanghai; 以原文为准). Speed from an incremental encoder is a *derivative of a quantized position*. The interface usually tracks displacement and does not measure speed directly, so speed has to be taken as a time derivative of that quantized position, which is awkward at low speed.
+
+**By frequency** (same page, “By frequency”; 以原文为准): count pulses or edges in a fixed window. If the interface is read at time T_0 to get count C_0 and later at T_1 to get C_1, the average speed in the interval is speed = (C_1 − C_0)/(T_1 − T_0). Measurement resolution grows with encoder resolution *and* with the window; a short window is coarse, and low speed is limited by position quantization. The lesson’s existing 50 ms windowed-count RPM worked example earlier on this page is this method; it is kept, not deleted or rewritten.
+
+**By period** (same page, “By period”; 以原文为准): time the interval between edges, so a measurement is triggered at positions rather than at clock instants. That avoids position quantization but inherits time-reference quantization, and it is more sensitive to phase errors, symmetry errors, and transitions that are not at their nominal locations.
+
+The cited Wikipedia frequency-to-RPM worked example (a 4096-count encoder read once per second) is 以原文为准 and is **not** a toy output. The toy uses a **lesson stand-in**, not a vendor fact: 12.0000 counts per motor-shaft turn times a 120.0000 gear equals 1440.0000 counts per output-shaft turn (hand_calc), the same numbers already used on this page for the x4 count table and the one-revolution exercise. The A-channel pulse rate on that stand-in is 1440.0000 / 4.0000 = 360.0000 pulses per output-shaft turn, so a frequency arm that counts A rising and falling edges sees 720.0000 edges per turn (hand_calc).
+
+This section is **not** a re-teach of the x1/x2/x4 *count* table, **not** the existing 50 ms windowed-count worked example (keep it), **not** Z-index homing, **not** PWM dead time, and **not** the deferred X4 comparison. It is **not** a re-run of `one_rev`, **not** a scope capture, and **not** an FPGA timer-resolution claim. Craig / Petrella / NASA primer PDFs linked from the Wikipedia page were not opened for this writing and are not cited as bodies. A real encoder or timer capture: **本页未运行**.
+
+<Formula label="Speed by frequency">speed = (C_1 − C_0)/(T_1 − T_0)</Formula>
+
+The toy is a standard-library, CPU-only model. A shared constant shaft speed, a shared A-channel edge train and a shared jitter draw are generated once per regime and seed and then read by every arm (Common random numbers; five seeds 0 through 4; ROUND_HALF_UP output). The shared train has declared symmetry 0.3000 (high-time fraction of each A-period, not 0.5000) and modest Gaussian jitter with jitter_frac = 0.0200 of the nominal A-period. The period arm quantizes each timed interval to timer_tick = 1.0000000000e-06 s (hand_calc). Official arms: A_frequency counts A rising and falling edges in a fixed window starting at t0 = 0.0000; B_period averages n_periods_B = 4.0000 full A-rising periods after t0 (time between edges, so a full period cancels the 0.3000 symmetry); C_short_pulse times only the first high pulse after t0, with no averaging, and treats that pulse as if the duty were assumed_duty_C = 0.5000, so the implied A-period scale is 0.3000/0.5000 = 0.6000 (hand_calc). The metric is absolute output-shaft speed error in RPM (abs_rpm_err; lower is better). Two regimes were written before the first run: low_speed at 10.0000 RPM with a 0.0200 s window (expected A-edges = 2.4000; A-period = 1.6666666667e-02 s) and high_speed_long_window at 300.0000 RPM with a 0.1000 s window (expected A-edges = 360.0000; A-period = 5.5555555556e-04 s).
+
+<CodeSource path="examples/month-2/motors-drivers/encoder_speed_frequency_period_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic incremental-encoder speed toy: frequency window vs period.
+
+Stdlib only. A shared shaft motion, a shared A-channel edge train and shared
+jitter are drawn once per (regime, seed) and then read by every arm (common
+random numbers).
+
+Speed is a derivative of a quantized position. Arm A uses a fixed window of
+counts (by frequency). Arm B times full A-channel periods (by period;
+measurements at positions, not at clock instants). Arm C times a single
+high pulse with no averaging, treating the pulse as if the duty were 0.5000.
+
+The 12.0000 counts-per-motor-turn times 120.0000 gear equals 1440.0000
+counts per output-shaft turn is a lesson stand-in, not a vendor fact. The
+cited Wikipedia frequency-to-RPM worked example is 以原文为准 and is not a
+toy output.
+
+Not a re-teach of the x1/x2/x4 count table, not the existing 50 ms windowed
+count worked example, not Z-index homing, not PWM dead time, not a re-run
+of one_rev, not a scope capture, and not an FPGA timer-resolution claim.
+Real encoder / timer capture: 本页未运行.
+
+Regimes and parameters were written before the first run.
+
+Labels: tie = identical on every seed; numerically zero = |paired mean| and sd
+both < 1e-9; |m| <= sd = near-tie; |m| > sd = consistent gap (small if |m| < 20 %
+of the smaller arm mean, else clear), with a sign count. ROUND_HALF_UP output.
+"""
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+
+# Declared toy parameters (lesson stand-in, not a vendor fact).
+MOTOR_CPR = 12.0
+GEAR = 120.0
+SHAFT_CPR = MOTOR_CPR * GEAR  # 1440 counts per output-shaft turn at x4
+PULSES_PER_REV = SHAFT_CPR / 4.0  # 360 A-channel pulses per output-shaft turn
+EDGES_PER_REV_A = 2.0 * PULSES_PER_REV  # 720 rising+falling A edges per turn
+TIMER_TICK = 1.0e-6
+JITTER_FRAC = 0.0200
+SYMMETRY = 0.3000
+ASSUMED_DUTY_C = 0.5000
+N_PERIODS_B = 4
+T_END = 2.0
+T0 = 0.0
+
+METRICS = ("abs_rpm_err",)
+ARMS = ("A_frequency", "B_period", "C_short_pulse")
+PAIRS = (("B", "A"), ("C", "B"), ("C", "A"))
+
+# name: (true_rpm, window_s, declared expectation); written before the first run
+REGIMES = {
+    "low_speed": (
+        10.0,
+        0.0200,
+        "B consistently below A on abs_rpm_err (period has lower speed error than frequency at low speed, modest jitter) - keep",
+    ),
+    "high_speed_long_window": (
+        300.0,
+        0.1000,
+        "A and B may near-tie on abs_rpm_err (high speed and a long window) - keep",
+    ),
+}
+
+REGIME_IDS = {"low_speed": 0, "high_speed_long_window": 1}
+
+C_EXPECT = (
+    "C loses to B on abs_rpm_err (single high-pulse period with large declared "
+    "symmetry 0.3000 and no averaging) - keep"
+)
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def a_period(true_rpm):
+    return 60.0 / (true_rpm * PULSES_PER_REV)
+
+
+def quantize(dt, tick=TIMER_TICK):
+    ticks = max(1, int(round(dt / tick)))
+    return ticks * tick
+
+
+def generate_edges(true_rpm, rng, jitter_frac, symmetry, t_end=T_END):
+    period = a_period(true_rpm)
+    t = rng.uniform(0.0, period)
+    rises, falls = [], []
+    last = -tick_floor()
+    while t < t_end + 2.0 * period:
+        tr = t + rng.gauss(0.0, jitter_frac * period)
+        tf = t + symmetry * period + rng.gauss(0.0, jitter_frac * period)
+        if tr <= last:
+            tr = last + TIMER_TICK
+        if tf <= tr:
+            tf = tr + TIMER_TICK
+        rises.append(tr)
+        falls.append(tf)
+        last = tf
+        t += period
+    return rises, falls
+
+
+def tick_floor():
+    return TIMER_TICK
+
+
+def in_window(t, t0, window):
+    return t0 <= t < t0 + window
+
+
+def rpm_frequency(rises, falls, window, t0=T0):
+    count = sum(1 for t in rises if in_window(t, t0, window)) + sum(
+        1 for t in falls if in_window(t, t0, window)
+    )
+    rpm = (count / window) / EDGES_PER_REV_A * 60.0
+    return rpm, count
+
+
+def rpm_period(rises, n_periods=N_PERIODS_B, t0=T0, tick=TIMER_TICK):
+    after = [t for t in rises if t >= t0]
+    intervals = []
+    for i in range(n_periods):
+        if i + 1 >= len(after):
+            break
+        intervals.append(quantize(after[i + 1] - after[i], tick))
+    mean_i = sum(intervals) / len(intervals)
+    return 60.0 / (mean_i * PULSES_PER_REV)
+
+
+def rpm_short_pulse(rises, falls, assumed_duty=ASSUMED_DUTY_C, t0=T0, tick=TIMER_TICK):
+    for tr, tf in zip(rises, falls):
+        if tr >= t0 and tf > tr:
+            interval = quantize(tf - tr, tick)
+            return 60.0 / (interval / assumed_duty * PULSES_PER_REV)
+    raise RuntimeError("no high pulse after t0")
+
+
+def run_regime(regime, seed, jitter_frac=JITTER_FRAC, window_scale=1.0):
+    true_rpm, window, _exp = REGIMES[regime]
+    window = window * window_scale
+    rng = random.Random(seed + 1000 * REGIME_IDS[regime] + int(round(1000 * jitter_frac)) + int(round(100 * window_scale)))
+    # Official path must share one stream per (regime, seed). Alternatives use a
+    # distinct seed offset so their draws are also deterministic, but official
+    # calls always pass the default jitter and window_scale.
+    if jitter_frac == JITTER_FRAC and window_scale == 1.0:
+        rng = random.Random(seed + 1000 * REGIME_IDS[regime])
+    rises, falls = generate_edges(true_rpm, rng, jitter_frac, SYMMETRY)
+    rpm_a, _count = rpm_frequency(rises, falls, window)
+    rpm_b = rpm_period(rises)
+    rpm_c = rpm_short_pulse(rises, falls)
+    return {
+        "A_frequency": {"abs_rpm_err": abs(rpm_a - true_rpm), "rpm": rpm_a},
+        "B_period": {"abs_rpm_err": abs(rpm_b - true_rpm), "rpm": rpm_b},
+        "C_short_pulse": {"abs_rpm_err": abs(rpm_c - true_rpm), "rpm": rpm_c},
+    }
+
+
+def main():
+    print(
+        "Encoder speed toy: frequency window vs period on a shared synthetic "
+        "edge train (lesson stand-in 12.0000 x 120.0000 = 1440.0000 counts per "
+        "output-shaft turn, not a vendor fact; not a scope capture, not an FPGA "
+        "timer-resolution claim, not a re-run of one_rev)"
+    )
+    print(
+        "Wikipedia Incremental encoder speed-measurement claims 以原文为准; "
+        "the cited frequency-to-RPM worked example is 以原文为准 and is not a "
+        "toy output; real encoder / timer capture: 本页未运行"
+    )
+    print(
+        f"seeds={len(SEEDS)} motor_cpr={num(MOTOR_CPR)} gear={num(GEAR)} "
+        f"shaft_cpr={num(SHAFT_CPR)} pulses_per_rev={num(PULSES_PER_REV)} "
+        f"edges_per_rev_A={num(EDGES_PER_REV_A)} timer_tick={TIMER_TICK:.10e} "
+        f"jitter_frac={num(JITTER_FRAC)} symmetry={num(SYMMETRY)} "
+        f"assumed_duty_C={num(ASSUMED_DUTY_C)} n_periods_B={num(float(N_PERIODS_B))} "
+        f"t0={num(T0)} t_end={num(T_END)} "
+        f"low_speed_rpm={num(REGIMES['low_speed'][0])} "
+        f"low_speed_window={num(REGIMES['low_speed'][1])} "
+        f"high_speed_rpm={num(REGIMES['high_speed_long_window'][0])} "
+        f"high_speed_window={num(REGIMES['high_speed_long_window'][1])}"
+    )
+    print("Regimes and parameters were written before the first run")
+    print(
+        "Common random numbers: the shaft motion, A-channel edge train and jitter "
+        "draws are shared across arms at each regime and seed"
+    )
+    print(f"hand_calc motor_cpr * gear = {num(MOTOR_CPR)} * {num(GEAR)} = {num(SHAFT_CPR)}")
+    print(
+        f"hand_calc pulses_per_rev A-channel = {num(SHAFT_CPR)} / 4.0000 = {num(PULSES_PER_REV)}"
+    )
+    print(f"hand_calc frequency edges per rev (A rise+fall) = {num(EDGES_PER_REV_A)}")
+    print(f"hand_calc timer_tick = {TIMER_TICK:.10e}")
+    for name, (rpm, window, _exp) in REGIMES.items():
+        period = a_period(rpm)
+        expected_edges = window * EDGES_PER_REV_A * rpm / 60.0
+        print(
+            f"hand_calc {name} true_rpm={num(rpm)} A-period={period:.10e} "
+            f"window={num(window)} expected A-edges={num(expected_edges)}"
+        )
+    print(
+        f"hand_calc symmetry {num(SYMMETRY)} vs assumed_duty_C {num(ASSUMED_DUTY_C)}; "
+        f"C scale factor {num(SYMMETRY)}/{num(ASSUMED_DUTY_C)} = {num(SYMMETRY / ASSUMED_DUTY_C)}"
+    )
+    print(f"hand_calc n_periods_B = {num(float(N_PERIODS_B))}")
+
+    for r, (_rpm, _w, exp) in REGIMES.items():
+        print(f"declared {r}: {exp}")
+        print(f"declared {r} C: {C_EXPECT}")
+
+    store = {r: {arm: {m: [] for m in METRICS} for arm in ARMS} for r in REGIMES}
+    alt_jitter = {r: {arm: {m: [] for m in METRICS} for arm in ARMS} for r in REGIMES}
+    alt_window = {r: {arm: {m: [] for m in METRICS} for arm in ARMS} for r in REGIMES}
+    for seed in SEEDS:
+        for r in REGIMES:
+            official = run_regime(r, seed)
+            jit = run_regime(r, seed, jitter_frac=0.0100)
+            win = run_regime(r, seed, window_scale=2.0)
+            for arm in ARMS:
+                for m in METRICS:
+                    store[r][arm][m].append(official[arm][m])
+                    alt_jitter[r][arm][m].append(jit[arm][m])
+                    alt_window[r][arm][m].append(win[arm][m])
+
+    for r in REGIMES:
+        print(f"regime {r}")
+        for arm in ARMS:
+            for m in METRICS:
+                mu, sd = mean_sd(store[r][arm][m])
+                print(f"  {arm} {m}: {num(mu)}+-{num(sd)}")
+        for left, right in PAIRS:
+            la = [a for a in ARMS if a.startswith(left + "_")][0]
+            ra = [a for a in ARMS if a.startswith(right + "_")][0]
+            for m in METRICS:
+                print(f"  paired {left}-{right} {m}: {verdict(store[r][la][m], store[r][ra][m])}")
+
+    print("alternatives on the same seeds (not adopted):")
+    print("  alternative jitter_frac=0.0100")
+    for r in REGIMES:
+        print(f"  regime {r}")
+        for left, right in (("B", "A"), ("C", "B")):
+            la = [a for a in ARMS if a.startswith(left + "_")][0]
+            ra = [a for a in ARMS if a.startswith(right + "_")][0]
+            print(
+                f"    paired {left}-{right} abs_rpm_err: "
+                f"{verdict(alt_jitter[r][la]['abs_rpm_err'], alt_jitter[r][ra]['abs_rpm_err'])}"
+            )
+    print("  alternative window_scale=2.0000")
+    for r in REGIMES:
+        print(f"  regime {r}")
+        for left, right in (("B", "A"), ("C", "B")):
+            la = [a for a in ARMS if a.startswith(left + "_")][0]
+            ra = [a for a in ARMS if a.startswith(right + "_")][0]
+            print(
+                f"    paired {left}-{right} abs_rpm_err: "
+                f"{verdict(alt_window[r][la]['abs_rpm_err'], alt_window[r][ra]['abs_rpm_err'])}"
+            )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Encoder speed toy: frequency window vs period on a shared synthetic edge train (lesson stand-in 12.0000 x 120.0000 = 1440.0000 counts per output-shaft turn, not a vendor fact; not a scope capture, not an FPGA timer-resolution claim, not a re-run of one_rev)
+Wikipedia Incremental encoder speed-measurement claims 以原文为准; the cited frequency-to-RPM worked example is 以原文为准 and is not a toy output; real encoder / timer capture: 本页未运行
+seeds=5 motor_cpr=12.0000 gear=120.0000 shaft_cpr=1440.0000 pulses_per_rev=360.0000 edges_per_rev_A=720.0000 timer_tick=1.0000000000e-06 jitter_frac=0.0200 symmetry=0.3000 assumed_duty_C=0.5000 n_periods_B=4.0000 t0=0.0000 t_end=2.0000 low_speed_rpm=10.0000 low_speed_window=0.0200 high_speed_rpm=300.0000 high_speed_window=0.1000
+Regimes and parameters were written before the first run
+Common random numbers: the shaft motion, A-channel edge train and jitter draws are shared across arms at each regime and seed
+hand_calc motor_cpr * gear = 12.0000 * 120.0000 = 1440.0000
+hand_calc pulses_per_rev A-channel = 1440.0000 / 4.0000 = 360.0000
+hand_calc frequency edges per rev (A rise+fall) = 720.0000
+hand_calc timer_tick = 1.0000000000e-06
+hand_calc low_speed true_rpm=10.0000 A-period=1.6666666667e-02 window=0.0200 expected A-edges=2.4000
+hand_calc high_speed_long_window true_rpm=300.0000 A-period=5.5555555556e-04 window=0.1000 expected A-edges=360.0000
+hand_calc symmetry 0.3000 vs assumed_duty_C 0.5000; C scale factor 0.3000/0.5000 = 0.6000
+hand_calc n_periods_B = 4.0000
+declared low_speed: B consistently below A on abs_rpm_err (period has lower speed error than frequency at low speed, modest jitter) - keep
+declared low_speed C: C loses to B on abs_rpm_err (single high-pulse period with large declared symmetry 0.3000 and no averaging) - keep
+declared high_speed_long_window: A and B may near-tie on abs_rpm_err (high speed and a long window) - keep
+declared high_speed_long_window C: C loses to B on abs_rpm_err (single high-pulse period with large declared symmetry 0.3000 and no averaging) - keep
+regime low_speed
+  A_frequency abs_rpm_err: 2.6667+-1.8066
+  B_period abs_rpm_err: 0.0605+-0.0260
+  C_short_pulse abs_rpm_err: 7.5560+-1.4410
+  paired B-A abs_rpm_err: -2.6062+-1.8042: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B abs_rpm_err: 7.4955+-1.4420: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A abs_rpm_err: 4.8893+-2.2875: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+regime high_speed_long_window
+  A_frequency abs_rpm_err: 0.3333+-0.4564
+  B_period abs_rpm_err: 2.3910+-1.0786
+  C_short_pulse abs_rpm_err: 200.6720+-49.7772
+  paired B-A abs_rpm_err: 2.0576+-1.2790: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B abs_rpm_err: 198.2811+-49.3165: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A abs_rpm_err: 200.3387+-49.6204: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternatives on the same seeds (not adopted):
+  alternative jitter_frac=0.0100
+  regime low_speed
+    paired B-A abs_rpm_err: -2.6390+-1.8013: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C-B abs_rpm_err: 6.5545+-1.0607: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  regime high_speed_long_window
+    paired B-A abs_rpm_err: 1.0636+-0.6855: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C-B abs_rpm_err: 177.0142+-12.0613: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  alternative window_scale=2.0000
+  regime low_speed
+    paired B-A abs_rpm_err: -1.2918+-0.9152: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C-B abs_rpm_err: 6.0556+-0.5969: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  regime high_speed_long_window
+    paired B-A abs_rpm_err: 1.8671+-1.5873: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C-B abs_rpm_err: 187.1354+-33.6506: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+```
+
+</SimOutput>
+
+On **low_speed**, A_frequency abs_rpm_err is 2.6667±1.8066 and B_period is 0.0605±0.0260. Paired B−A abs_rpm_err is −2.6062±1.8042, a **clear gap, not a tie** (same sign on all 5 seeds). The declaration that period has consistently lower speed error than a short frequency window at low speed, with modest jitter, held. C_short_pulse is 7.5560±1.4410; paired C−B is 7.4955±1.4420, a **clear gap, not a tie** (5/5). The declaration that C loses held.
+
+On **high_speed_long_window**, A is 0.3333±0.4564 and B is 2.3910±1.0786. Paired B−A abs_rpm_err is 2.0576±1.2790, a **clear gap, not a tie** (same sign on all 5 seeds): the long frequency window is clearly better here, because it averages 360.0000 expected edges, while B still uses only 4.0000 periods and therefore keeps more of the 0.0200 jitter. The pre-declared “A and B may near-tie” cell **did not hold**. It is printed as-is and **kept**, not retuned (the window, jitter, symmetry, n_periods_B and both speeds stay at their pre-declared values). C is 200.6720±49.7772; paired C−B is 198.2811±49.3165, a **clear gap, not a tie** (5/5). The declaration that C loses held on this regime as well.
+
+**Choices made after seeing results.** None. No constant, arm, metric or regime was changed after the first run. The stand-in 12.0000 × 120.0000 = 1440.0000 counts, timer_tick, jitter_frac = 0.0200, symmetry = 0.3000, n_periods_B = 4.0000, both windows and both speeds were written before the first run. Alternatives on the same seeds, printed and not adopted: jitter_frac = 0.0100 and window_scale = 2.0000 leave the official labels in the same direction (B still consistently below A at low speed; the high-speed A/B comparison is still a clear gap, not a near-tie; C still loses).
+
+The page **does not declare a universal winner**: at low speed a short frequency window is quantized by a handful of edges, and period timing is consistently better; a long window at high speed can make the frequency arm the tighter of the two, so a pre-declared near-tie is not guaranteed; a single high pulse with large declared symmetry and no averaging loses in both regimes. A real encoder or timer capture: **本页未运行**.
+
+**180-minute work plan:** 30 min read the Wikipedia Incremental encoder speed-measurement, by-frequency and by-period sections at revision 1357373609; 25 min work 12.0000 × 120.0000 = 1440.0000, the 720.0000 frequency edges per turn, both A-periods and the 0.3000/0.5000 = 0.6000 C scale by hand (手算); 50 min run the toy and read both regimes, including the high-speed cell that did not near-tie; 40 min compare the printed jitter_frac = 0.0100 and window_scale = 2.0000 alternatives with the seeds fixed; 35 min the exercises (30+25+50+40+35=180).
+
+### Exercises
+
+1. From the printed hand_calc lines, show that 12.0000 × 120.0000 = 1440.0000 and that a frequency arm counting A rise and fall sees 720.0000 edges per output-shaft turn. Why is this a lesson stand-in and not a vendor CPR?
+2. At 10.0000 RPM the 0.0200 s window expects 2.4000 A-edges. Why does position quantization hurt the frequency arm at low speed, and how does timing a full A-period avoid that?
+3. In high_speed_long_window, paired B−A abs_rpm_err is 2.0576±1.2790, a clear gap, even though a near-tie was pre-declared. Using the printed 360.0000 expected edges and n_periods_B = 4.0000, explain why the long window can favour A, and why that cell was kept rather than retuned.
+4. C treats a 0.3000 high pulse as if the duty were 0.5000. From the printed 0.6000 scale factor, predict the sign of C’s speed error, then check the official C−B gaps 7.4955±1.4420 and 198.2811±49.3165.
+5. List what you would need to compare frequency and period on a real encoder (timer capture resolution, a known shaft speed, and how you would quantify symmetry). Keep this as a plan; a real encoder or timer capture is 本页未运行.
+
 <Summary>
 
 **Key points**
@@ -1220,5 +1621,7 @@ Real half-bridge, gate driver and scope: 本页未运行; driver/app-note number
 - Month 2 · Sensors, I2C & the complementary filter adds the IMU the self-balancer needs.
 - Month 2 · Your first two robots: line follower & self-balancer drives two of these motors through a TB6612FNG.
 
+
+- Encoder speed, frequency versus period: on a shared synthetic edge train, period timing has consistently lower speed error than a short frequency window at low speed (paired B−A abs_rpm_err −2.6062±1.8042, clear, 5/5); the pre-declared high-speed / long-window near-tie did not hold (B−A 2.0576±1.2790, clear, 5/5, kept); a single high-pulse with declared symmetry 0.3000 and no averaging loses (C−B 7.4955±1.4420 and 198.2811±49.3165, clear, 5/5, kept) — lesson stand-in, not a scope capture (本页未运行).
 </Summary>
 

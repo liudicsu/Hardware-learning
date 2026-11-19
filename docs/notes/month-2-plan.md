@@ -1,6 +1,15 @@
 # Month 2 plan / 第 2 个月计划
 
-Current / 当前：**M2 3930 min**, Batch-24 PR1. Earlier entries below retain their historical totals.
+Current / 当前：**M2 4110 min**, Batch-24 PR2. Earlier entries below retain their historical totals.
+
+## Batch-24 PR2 — Encoder frequency vs period on motors-drivers (+180)
+
+Base `e4a8c2236cd5a2e37144408108b8d0f12f23f320` (batch-24 PR1 #197 merged; site **41580**). PR2 on M2 host: **M2 3930→4110 (+180)**; M8 moves in the same PR on its own plan. Site **41580→41940** (41940=41580+180+180), still 71 lessons.
+
+- **H3 / motors-drivers: 720→900 (+180).** Encoder speed, frequency versus period, on a shared synthetic edge train (`encoder_speed_frequency_period_toy.py`; common random numbers, 5 seeds). Wikipedia Incremental encoder rev 1357373609 body read; Craig / Petrella / NASA PDFs not opened. Lesson stand-in 12.0000 × 120.0000 = 1440.0000, not a vendor fact; the cited frequency-to-RPM worked example 以原文为准, not a toy output. The existing 50 ms windowed-count RPM worked example, the x1/x2/x4 count table, Z-index homing and PWM dead time are kept and not retconned. low_speed: paired B−A abs_rpm_err −2.6062±1.8042, **clear**, 5/5 (declared consistent period win held). high_speed_long_window: paired B−A 2.0576±1.2790, **clear**, 5/5 — the pre-declared near-tie **did not hold**, kept, not retuned. C loses on both regimes: C−B 7.4955±1.4420 and 198.2811±49.3165, **clear**, 5/5 (held). Alternatives jitter_frac = 0.0100 and window_scale = 2.0000 printed, not adopted. Choices after seeing results: none. Real encoder / timer capture: 本页未运行. / 编码器频率法与周期法，预先声明的高速接近打平未成立并保留。
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
+
 
 ## Batch-24 PR1 — Steinhart–Hart NTC on sensors-fusion (+180)
 

@@ -322,9 +322,403 @@ Real recording/storage faults and format integration: 本页未运行
 3. 推导任意单突发≤32 的次数论证，再看33 位碰撞；为什么有限枚举本身不是证明？
 4. 篡改后重算标签并说明认证为何失败；列出覆盖之外的边界、缺块、标签与实际格式集成。
 
+## π0.5：异构共训练
+
+<Resource id="pi05-paper" />
+
+主要来源是 **π0.5: a Vision-Language-Action Model with Open-World Generalization**，arXiv 2504.16054 仅 v1（提交于 2025 年 4 月 22 日 17:31:29 UTC = 2025 年 4 月 23 日 01:31 Asia/Shanghai；摘要、HTML 与 PDF 正文均已阅读；以论文为准）。截至本次写作，摘要页没有 `journal-ref`。π0.5 是 π0 家族的视觉-语言-动作模型，它用**异构任务上的共训练**——多机器人、高层语义预测、网页数据和其他来源——让移动操作臂能推广到*新的住宅*。
+
+作者署名按摘要：先写 **Physical Intelligence**，再按摘要顺序写出 35 位具名作者：Kevin Black, Noah Brown, James Darpinian, Karan Dhabalia, Danny Driess, Adnan Esmail, Michael Equi, Chelsea Finn, Niccolo Fusai, Manuel Y. Galliker, Dibya Ghosh, Lachy Groom, Karol Hausman, Brian Ichter, Szymon Jakubczak, Tim Jones, Liyiming Ke, Devin LeBlanc, Sergey Levine, Adrian Li-Bell, Mohith Mothukuri, Suraj Nair, Karl Pertsch, Allen Z. Ren, Lucy Xiaoyang Shi, Laura Smith, Jost Tobias Springenberg, Kyle Stachowicz, James Tanner, Quan Vuong, Homer Walke, Anna Walling, Haohuan Wang, Lili Yu, Ury Zhilinsky。PDF 把 “Physical Intelligence” 放在这 35 个姓名*上方*作为机构行；这 35 个姓名的顺序与摘要一致。这里披露这一呈现差异。机构行不能丢掉，也不能另编一套顺序。
+
+论文报告，第一阶段训练里有 97.6 % 的非目标数据（其他机器人或网页，而不是在做家务的移动操作臂）；运行时循环先预测语义子任务，再预测低层动作块（HTML / PDF；以论文为准，**不是**玩具输出）。论文中的住宅清洁数字（在完全未见过的住宅里清理厨房或卧室，包括 10 到 15 分钟的长程运行）同样以论文为准，不是玩具输出。
+
+本节**不是** `flow-matching-policies` 上已有的 π0 十步流匹配约定，**不是** Knowledge Insulation（梯度隔离），**不是** `vla-models` 上已点名的 FAST-then-flow 结构，也**不是** `edge-deploy-checklist` / `real-time-chunking` 上的 RTC 延迟。GPU / π0.5 权重 / 真实住宅均**本页未运行**。
+
+玩具是标准库、只在 CPU 上运行的**线性查找替身**，不是 π0.5 权重，也不是住宅回合。共享的场景、指令和评估特征在每种情形、每个种子上只抽一次，然后每一臂都读同一份（公共随机数；五个种子 0 到 4；n_scenes = 25.0000；ROUND_HALF_UP 输出）。每个场景有四个裁剪到 [0.0000, 1.0000] 的特征：目标机器人 / 域内动作、网页、子任务、以及其他机器人。正式的臂 A_target_only 只用目标特征，权重 w_target_A = 1.0000。臂 B_cotrain 是共训练混合替身，声明权重为 w_target = 0.4000、w_web = 0.2000、w_subtask = 0.2500、w_other = 0.1500，四者之和为 1.0000（hand_calc）。臂 C_no_target 使用相同的网页 / 子任务 / 其他机器人权重，且 w_target_C = 0.0000，不重新归一化，因此实际用到的权重合计 0.6000（hand_calc）。分数为 clip(bias + 加权特征, 0.0000, 1.0000)，其中 bias = 0.0500；指标是 25.0000 个场景上的平均成功率（越大越好）。特征噪声是标准差 sig = 0.0800 的高斯。两种情形都在首次运行前写定：in_domain 里四个均值都是 0.7500（实验室式任务，因此仅目标与混合的信息量相近；hand_calc 期望 A 与 B 都是 0.8000）；ood_new_home 是新住宅替身，mu_target = 0.3500、mu_web = 0.6000、mu_subtask = 0.6000、mu_other = 0.5500（hand_calc 期望 A = 0.4000，B = 0.5425，C = 0.4025）。
+
+<CodeSource path="examples/month-8/dataset-engineering/pi05_heterogeneous_cotrain_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic heterogeneous co-training stand-in for a pi0.5-style mixture.
+
+Stdlib only. Shared scenes, instructions and evaluation features are drawn
+once per (regime, seed) and then read by every arm (common random numbers).
+
+Arm A uses only target-robot / in-domain action features. Arm B is a
+co-training mixture stand-in: declared target-robot, web, subtask and
+other-robot weights. Arm C uses the web / subtask / other-robot features
+with no target-robot actions.
+
+This is a linear lookup stand-in, not pi0.5 weights and not a house rollout.
+It is not Knowledge Insulation, not a pi0 10-step flow-matching convention,
+not a FAST-then-flow architecture, and not RTC latency. Paper first-phase
+non-target-data percentage and house-clean figures are 以论文为准 and are
+not toy outputs. GPU / pi0.5 weights / real homes: 本页未运行.
+
+Regimes and parameters were written before the first run.
+
+Labels: tie = identical on every seed; numerically zero = |paired mean| and sd
+both < 1e-9; |m| <= sd = near-tie; |m| > sd = consistent gap (small if |m| < 20 %
+of the smaller arm mean, else clear), with a sign count. ROUND_HALF_UP output.
+"""
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+
+# Declared toy parameters (linear lookup stand-in, not paper percentages).
+N_SCENES = 25
+BIAS = 0.0500
+SIG = 0.0800
+CLIP_LO = 0.0000
+CLIP_HI = 1.0000
+W_TARGET = 0.4000
+W_WEB = 0.2000
+W_SUBTASK = 0.2500
+W_OTHER = 0.1500
+W_TARGET_A = 1.0000
+W_TARGET_C = 0.0000
+
+# In-domain lab-like: target and co-train features are similarly informative.
+# OOD / new-home stand-in: target-robot features drop; web / subtask stay useful.
+MUS = {
+    "in_domain": {"target": 0.7500, "web": 0.7500, "subtask": 0.7500, "other": 0.7500},
+    "ood_new_home": {"target": 0.3500, "web": 0.6000, "subtask": 0.6000, "other": 0.5500},
+}
+
+METRICS = ("success",)
+ARMS = ("A_target_only", "B_cotrain", "C_no_target")
+PAIRS = (("B", "A"), ("C", "B"), ("C", "A"))
+
+# name: declared expectation; written before the first run
+REGIMES = {
+    "in_domain": "A and B may near-tie on success (lab-like in-domain task) - keep",
+    "ood_new_home": "B consistently above A on success (OOD new-home stand-in) - keep",
+}
+
+REGIME_IDS = {"in_domain": 0, "ood_new_home": 1}
+
+C_EXPECT = "C loses to B on success (no target-robot actions) - keep"
+
+ALT_SIG = 0.1200
+ALT_W = {"target": 0.5000, "web": 0.2000, "subtask": 0.2000, "other": 0.1000}
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def clip(x, lo=CLIP_LO, hi=CLIP_HI):
+    return lo if x < lo else hi if x > hi else x
+
+
+def draw_features(regime, seed, sig=SIG):
+    rng = random.Random(seed + 1000 * REGIME_IDS[regime] + int(round(1000 * sig)))
+    if sig == SIG:
+        rng = random.Random(seed + 1000 * REGIME_IDS[regime])
+    mus = MUS[regime]
+    scenes = []
+    for _ in range(N_SCENES):
+        target = clip(rng.gauss(mus["target"], sig))
+        web = clip(rng.gauss(mus["web"], sig))
+        subtask = clip(rng.gauss(mus["subtask"], sig))
+        other = clip(rng.gauss(mus["other"], sig))
+        scenes.append((target, web, subtask, other))
+    return scenes
+
+
+def score_of(feat, weights):
+    target, web, subtask, other = feat
+    raw = (
+        BIAS
+        + weights["target"] * target
+        + weights["web"] * web
+        + weights["subtask"] * subtask
+        + weights["other"] * other
+    )
+    return clip(raw)
+
+
+def arm_weights():
+    return {
+        "A_target_only": {"target": W_TARGET_A, "web": 0.0, "subtask": 0.0, "other": 0.0},
+        "B_cotrain": {"target": W_TARGET, "web": W_WEB, "subtask": W_SUBTASK, "other": W_OTHER},
+        "C_no_target": {"target": W_TARGET_C, "web": W_WEB, "subtask": W_SUBTASK, "other": W_OTHER},
+    }
+
+
+def run_regime(regime, seed, sig=SIG, b_weights=None):
+    scenes = draw_features(regime, seed, sig=sig)
+    weights = arm_weights()
+    if b_weights is not None:
+        weights["B_cotrain"] = b_weights
+        weights["C_no_target"] = {
+            "target": W_TARGET_C,
+            "web": b_weights["web"],
+            "subtask": b_weights["subtask"],
+            "other": b_weights["other"],
+        }
+    out = {}
+    for arm, w in weights.items():
+        suc = sum(score_of(feat, w) for feat in scenes) / float(N_SCENES)
+        out[arm] = {"success": suc}
+    return out
+
+
+def main():
+    w_sum = W_TARGET + W_WEB + W_SUBTASK + W_OTHER
+    c_sum = W_WEB + W_SUBTASK + W_OTHER
+    print(
+        "Heterogeneous co-training toy: shared synthetic scenes / instructions / "
+        "eval under common random numbers (linear lookup stand-in, not pi0.5 "
+        "weights, not a house rollout)"
+    )
+    print(
+        "Paper first-phase non-target-data percentage and house-clean figures "
+        "以论文为准 and are not toy outputs; GPU / pi0.5 weights / real homes: "
+        "本页未运行"
+    )
+    print(
+        f"seeds={len(SEEDS)} n_scenes={num(float(N_SCENES))} bias={num(BIAS)} "
+        f"sig={num(SIG)} clip_lo={num(CLIP_LO)} clip_hi={num(CLIP_HI)} "
+        f"w_target={num(W_TARGET)} w_web={num(W_WEB)} w_subtask={num(W_SUBTASK)} "
+        f"w_other={num(W_OTHER)} w_sum={num(w_sum)} "
+        f"w_target_A={num(W_TARGET_A)} w_target_C={num(W_TARGET_C)} "
+        f"c_used_weight_sum={num(c_sum)} "
+        f"mu_in_domain_target={num(MUS['in_domain']['target'])} "
+        f"mu_in_domain_web={num(MUS['in_domain']['web'])} "
+        f"mu_in_domain_subtask={num(MUS['in_domain']['subtask'])} "
+        f"mu_in_domain_other={num(MUS['in_domain']['other'])} "
+        f"mu_ood_target={num(MUS['ood_new_home']['target'])} "
+        f"mu_ood_web={num(MUS['ood_new_home']['web'])} "
+        f"mu_ood_subtask={num(MUS['ood_new_home']['subtask'])} "
+        f"mu_ood_other={num(MUS['ood_new_home']['other'])}"
+    )
+    print("Regimes and parameters were written before the first run")
+    print(
+        "Common random numbers: the scene / instruction / eval feature draws "
+        "are shared across arms at each regime and seed"
+    )
+    print(f"hand_calc n_scenes = {num(float(N_SCENES))}")
+    print(
+        f"hand_calc B mixture weights {num(W_TARGET)} + {num(W_WEB)} + "
+        f"{num(W_SUBTASK)} + {num(W_OTHER)} = {num(w_sum)}"
+    )
+    print(
+        f"hand_calc C used-weight sum {num(W_WEB)} + {num(W_SUBTASK)} + "
+        f"{num(W_OTHER)} = {num(c_sum)} (w_target_C = {num(W_TARGET_C)}, not renormalized)"
+    )
+    print(f"hand_calc bias = {num(BIAS)} sig = {num(SIG)} clip = {num(CLIP_LO)} to {num(CLIP_HI)}")
+    print(
+        f"hand_calc in_domain mus target/web/subtask/other = "
+        f"{num(MUS['in_domain']['target'])}, {num(MUS['in_domain']['web'])}, "
+        f"{num(MUS['in_domain']['subtask'])}, {num(MUS['in_domain']['other'])}"
+    )
+    print(
+        f"hand_calc ood_new_home mus target/web/subtask/other = "
+        f"{num(MUS['ood_new_home']['target'])}, {num(MUS['ood_new_home']['web'])}, "
+        f"{num(MUS['ood_new_home']['subtask'])}, {num(MUS['ood_new_home']['other'])}"
+    )
+    print(
+        f"hand_calc in_domain expected A ~ {num(BIAS)} + {num(W_TARGET_A)} * "
+        f"{num(MUS['in_domain']['target'])} = {num(BIAS + W_TARGET_A * MUS['in_domain']['target'])}"
+    )
+    print(
+        f"hand_calc in_domain expected B ~ {num(BIAS)} + {num(w_sum)} * "
+        f"{num(MUS['in_domain']['target'])} = {num(BIAS + w_sum * MUS['in_domain']['target'])}"
+    )
+    ood = MUS["ood_new_home"]
+    b_ood = BIAS + W_TARGET * ood["target"] + W_WEB * ood["web"] + W_SUBTASK * ood["subtask"] + W_OTHER * ood["other"]
+    a_ood = BIAS + W_TARGET_A * ood["target"]
+    c_ood = BIAS + W_WEB * ood["web"] + W_SUBTASK * ood["subtask"] + W_OTHER * ood["other"]
+    print(f"hand_calc ood_new_home expected A ~ {num(a_ood)}")
+    print(f"hand_calc ood_new_home expected B ~ {num(b_ood)}")
+    print(f"hand_calc ood_new_home expected C ~ {num(c_ood)}")
+
+    for r, exp in REGIMES.items():
+        print(f"declared {r}: {exp}")
+        print(f"declared {r} C: {C_EXPECT}")
+
+    store = {r: {arm: {m: [] for m in METRICS} for arm in ARMS} for r in REGIMES}
+    alt_sig = {r: {arm: {m: [] for m in METRICS} for arm in ARMS} for r in REGIMES}
+    alt_w = {r: {arm: {m: [] for m in METRICS} for arm in ARMS} for r in REGIMES}
+    for seed in SEEDS:
+        for r in REGIMES:
+            official = run_regime(r, seed)
+            sig_run = run_regime(r, seed, sig=ALT_SIG)
+            w_run = run_regime(r, seed, b_weights=ALT_W)
+            for arm in ARMS:
+                for m in METRICS:
+                    store[r][arm][m].append(official[arm][m])
+                    alt_sig[r][arm][m].append(sig_run[arm][m])
+                    alt_w[r][arm][m].append(w_run[arm][m])
+
+    for r in REGIMES:
+        print(f"regime {r}")
+        for arm in ARMS:
+            for m in METRICS:
+                mu, sd = mean_sd(store[r][arm][m])
+                print(f"  {arm} {m}: {num(mu)}+-{num(sd)}")
+        for left, right in PAIRS:
+            la = [a for a in ARMS if a.startswith(left + "_")][0]
+            ra = [a for a in ARMS if a.startswith(right + "_")][0]
+            for m in METRICS:
+                print(f"  paired {left}-{right} {m}: {verdict(store[r][la][m], store[r][ra][m])}")
+
+    print("alternatives on the same seeds (not adopted):")
+    print(f"  alternative sig={num(ALT_SIG)}")
+    for r in REGIMES:
+        print(f"  regime {r}")
+        for left, right in (("B", "A"), ("C", "B")):
+            la = [a for a in ARMS if a.startswith(left + "_")][0]
+            ra = [a for a in ARMS if a.startswith(right + "_")][0]
+            print(
+                f"    paired {left}-{right} success: "
+                f"{verdict(alt_sig[r][la]['success'], alt_sig[r][ra]['success'])}"
+            )
+    print(
+        f"  alternative B weights target={num(ALT_W['target'])} web={num(ALT_W['web'])} "
+        f"subtask={num(ALT_W['subtask'])} other={num(ALT_W['other'])}"
+    )
+    for r in REGIMES:
+        print(f"  regime {r}")
+        for left, right in (("B", "A"), ("C", "B")):
+            la = [a for a in ARMS if a.startswith(left + "_")][0]
+            ra = [a for a in ARMS if a.startswith(right + "_")][0]
+            print(
+                f"    paired {left}-{right} success: "
+                f"{verdict(alt_w[r][la]['success'], alt_w[r][ra]['success'])}"
+            )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Heterogeneous co-training toy: shared synthetic scenes / instructions / eval under common random numbers (linear lookup stand-in, not pi0.5 weights, not a house rollout)
+Paper first-phase non-target-data percentage and house-clean figures 以论文为准 and are not toy outputs; GPU / pi0.5 weights / real homes: 本页未运行
+seeds=5 n_scenes=25.0000 bias=0.0500 sig=0.0800 clip_lo=0.0000 clip_hi=1.0000 w_target=0.4000 w_web=0.2000 w_subtask=0.2500 w_other=0.1500 w_sum=1.0000 w_target_A=1.0000 w_target_C=0.0000 c_used_weight_sum=0.6000 mu_in_domain_target=0.7500 mu_in_domain_web=0.7500 mu_in_domain_subtask=0.7500 mu_in_domain_other=0.7500 mu_ood_target=0.3500 mu_ood_web=0.6000 mu_ood_subtask=0.6000 mu_ood_other=0.5500
+Regimes and parameters were written before the first run
+Common random numbers: the scene / instruction / eval feature draws are shared across arms at each regime and seed
+hand_calc n_scenes = 25.0000
+hand_calc B mixture weights 0.4000 + 0.2000 + 0.2500 + 0.1500 = 1.0000
+hand_calc C used-weight sum 0.2000 + 0.2500 + 0.1500 = 0.6000 (w_target_C = 0.0000, not renormalized)
+hand_calc bias = 0.0500 sig = 0.0800 clip = 0.0000 to 1.0000
+hand_calc in_domain mus target/web/subtask/other = 0.7500, 0.7500, 0.7500, 0.7500
+hand_calc ood_new_home mus target/web/subtask/other = 0.3500, 0.6000, 0.6000, 0.5500
+hand_calc in_domain expected A ~ 0.0500 + 1.0000 * 0.7500 = 0.8000
+hand_calc in_domain expected B ~ 0.0500 + 1.0000 * 0.7500 = 0.8000
+hand_calc ood_new_home expected A ~ 0.4000
+hand_calc ood_new_home expected B ~ 0.5425
+hand_calc ood_new_home expected C ~ 0.4025
+declared in_domain: A and B may near-tie on success (lab-like in-domain task) - keep
+declared in_domain C: C loses to B on success (no target-robot actions) - keep
+declared ood_new_home: B consistently above A on success (OOD new-home stand-in) - keep
+declared ood_new_home C: C loses to B on success (no target-robot actions) - keep
+regime in_domain
+  A_target_only success: 0.8081+-0.0094
+  B_cotrain success: 0.7950+-0.0088
+  C_no_target success: 0.4918+-0.0064
+  paired B-A success: -0.0131+-0.0062: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: -0.3032+-0.0038: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A success: -0.3163+-0.0085: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+regime ood_new_home
+  A_target_only success: 0.3926+-0.0303
+  B_cotrain success: 0.5430+-0.0123
+  C_no_target success: 0.4059+-0.0054
+  paired B-A success: 0.1504+-0.0199: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: -0.1370+-0.0121: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A success: 0.0134+-0.0318: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+alternatives on the same seeds (not adopted):
+  alternative sig=0.1200
+  regime in_domain
+    paired B-A success: -0.0067+-0.0064: small but consistent gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+    paired C-B success: -0.3025+-0.0053: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  regime ood_new_home
+    paired B-A success: 0.1448+-0.0101: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C-B success: -0.1357+-0.0062: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  alternative B weights target=0.5000 web=0.2000 subtask=0.2000 other=0.1000
+  regime in_domain
+    paired B-A success: -0.0104+-0.0054: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C-B success: -0.3790+-0.0047: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  regime ood_new_home
+    paired B-A success: 0.1268+-0.0163: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C-B success: -0.1713+-0.0152: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+```
+
+</SimOutput>
+
+在 **in_domain** 上，A_target_only 的 success 为 0.8081±0.0094，B_cotrain 为 0.7950±0.0088。成对 B−A success 为 −0.0131±0.0062，是**小而一贯的差距，不是打平**（5 个种子全部同号）：A 略高。预先声明的“A 与 B 可能接近打平”**没有成立**。结果按原样打印并**保留**，没有重调（域内均值、混合权重、bias、sig 和场景数都保持首次运行前的声明值）。C_no_target 为 0.4918±0.0064；成对 C−B 为 −0.3032±0.0038，是**明显差距，不是打平**（5/5）。预先声明的 C 会输成立。
+
+在 **ood_new_home** 上，A 为 0.3926±0.0303，B 为 0.5430±0.0123。成对 B−A success 为 0.1504±0.0199，是**明显差距，不是打平**（5 个种子全部同号）。预先声明的“在新住宅替身上，共训练混合一贯高于仅目标”成立。C 为 0.4059±0.0054；成对 C−B 为 −0.1370±0.0121，是**明显差距，不是打平**（5/5）。预先声明的 C 会输在这一情形同样成立。
+
+**看过结果后做的选择**。 没有。首次运行之后没有改任何常数、臂、指标或情形。混合权重、域内与 OOD 均值、bias = 0.0500、sig = 0.0800 和 n_scenes = 25.0000 都在首次运行前写定。同一组种子上打印、但未采纳的替代：sig = 0.1200，以及替代的 B 权重 target = 0.5000、web = 0.2000、subtask = 0.2000、other = 0.1000，并不改变正式标签的方向（域内 B−A 仍是小而一贯的差距，不是接近打平；OOD 上 B 仍一贯高于 A；C 仍然会输）。
+
+本页**不宣布普遍赢家**。在实验室式的域内任务上，混合不必胜过、甚至不必接近打平一个已经很强的仅目标臂；在 OOD 新住宅替身上，声明的异构混合一贯好于仅目标；不含目标机器人动作的混合在两种情形的机器人任务上都会输。论文中的 97.6 % 与住宅清洁数字以论文为准。GPU / π0.5 权重 / 真实住宅均**本页未运行**。
+
+**180 分钟安排:** 30 分钟阅读 arXiv 2504.16054 v1 摘要的作者行（先 Physical Intelligence，再 35 个姓名）、PDF 的机构行呈现，以及 HTML 与 PDF 中的共训练 / 第一阶段 / 先子任务再动作等说法；25 分钟手算 0.4000 + 0.2000 + 0.2500 + 0.1500 = 1.0000 的混合、0.6000 的 C 所用权重合计，以及打印的域内与 OOD 期望分数（手算）；50 分钟运行玩具并阅读两种情形，包括没有接近打平的域内格；40 分钟固定种子对照打印的 sig = 0.1200 与替代权重；35 分钟做练习（30+25+50+40+35=180）。
+
+### 练习
+
+1. 按摘要来写作者行：先 Physical Intelligence，再按摘要顺序写出 35 位具名作者。PDF 对 “Physical Intelligence” 的处理有何不同，为什么必须披露这一差异？
+2. 根据打印的 hand_calc 行，说明 B 的权重 0.4000 + 0.2000 + 0.2500 + 0.1500 = 1.0000，以及 C 在 w_target_C = 0.0000 时所用权重合计为 0.6000。为什么 97.6 %（以论文为准）不是玩具输出？
+3. 在 in_domain 里，成对 B−A success 为 −0.0131±0.0062，是小而一贯的差距，尽管预先声明可能接近打平。为什么这一格被保留，若在看过结果之后改域内均值会有什么问题？
+4. 在 ood_new_home 里，成对 B−A 为 0.1504±0.0199，是明显差距（5/5），C−B 为 −0.1370±0.0121。利用打印的期望分数 0.4000、0.5425 和 0.4025，解释为什么混合能在新住宅替身上帮忙，而不含目标的混合仍然会输。
+5. 列出若要在真实 π0.5 栈上检验共训练，你需要准备什么（权重、留出的住宅、以及如何保留子任务头）。只作为计划；GPU / π0.5 权重 / 真实住宅均本页未运行。
+
 <Summary>
 
 写变化×重复规程（SmolVLA 起点约 50 集 / 5×10）。LeRobotDataset v3 用元数据定位集、多集共用 Parquet/MP4；需要时用 StreamingLeRobotDataset。`dataset_audit.py` 在 24 集玩具上把 `cube_C` 标成 UNDER（4 集、缺 1 帧）。20 个评估起始里留出 5 个。Open X-Embodiment（arXiv 2310.08864）说明大规模为何要共享格式。
 
 共享损坏分块玩具比较不检查、sum8 和 CRC-32/IEEE，核对检查值与突发界限，并说明碰撞和重算标签不构成认证。
+
+- π0.5 异构共训练：在共享场景的线性查找替身上，预先声明的域内接近打平没有成立（成对 B−A success −0.0131±0.0062，小而一贯，5/5，保留）；在 OOD 新住宅替身上 B 一贯高于 A（0.1504±0.0199，明显，5/5）；不含目标机器人动作的混合会输（C−B −0.3032±0.0038 与 −0.1370±0.0121，明显，5/5，保留）——不是 π0.5 权重；97.6 % 与住宅清洁数字以论文为准（本页未运行）。
 </Summary>

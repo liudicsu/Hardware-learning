@@ -1,0 +1,46 @@
+Encoder speed toy: frequency window vs period on a shared synthetic edge train (lesson stand-in 12.0000 x 120.0000 = 1440.0000 counts per output-shaft turn, not a vendor fact; not a scope capture, not an FPGA timer-resolution claim, not a re-run of one_rev)
+Wikipedia Incremental encoder speed-measurement claims 以原文为准; the cited frequency-to-RPM worked example is 以原文为准 and is not a toy output; real encoder / timer capture: 本页未运行
+seeds=5 motor_cpr=12.0000 gear=120.0000 shaft_cpr=1440.0000 pulses_per_rev=360.0000 edges_per_rev_A=720.0000 timer_tick=1.0000000000e-06 jitter_frac=0.0200 symmetry=0.3000 assumed_duty_C=0.5000 n_periods_B=4.0000 t0=0.0000 t_end=2.0000 low_speed_rpm=10.0000 low_speed_window=0.0200 high_speed_rpm=300.0000 high_speed_window=0.1000
+Regimes and parameters were written before the first run
+Common random numbers: the shaft motion, A-channel edge train and jitter draws are shared across arms at each regime and seed
+hand_calc motor_cpr * gear = 12.0000 * 120.0000 = 1440.0000
+hand_calc pulses_per_rev A-channel = 1440.0000 / 4.0000 = 360.0000
+hand_calc frequency edges per rev (A rise+fall) = 720.0000
+hand_calc timer_tick = 1.0000000000e-06
+hand_calc low_speed true_rpm=10.0000 A-period=1.6666666667e-02 window=0.0200 expected A-edges=2.4000
+hand_calc high_speed_long_window true_rpm=300.0000 A-period=5.5555555556e-04 window=0.1000 expected A-edges=360.0000
+hand_calc symmetry 0.3000 vs assumed_duty_C 0.5000; C scale factor 0.3000/0.5000 = 0.6000
+hand_calc n_periods_B = 4.0000
+declared low_speed: B consistently below A on abs_rpm_err (period has lower speed error than frequency at low speed, modest jitter) - keep
+declared low_speed C: C loses to B on abs_rpm_err (single high-pulse period with large declared symmetry 0.3000 and no averaging) - keep
+declared high_speed_long_window: A and B may near-tie on abs_rpm_err (high speed and a long window) - keep
+declared high_speed_long_window C: C loses to B on abs_rpm_err (single high-pulse period with large declared symmetry 0.3000 and no averaging) - keep
+regime low_speed
+  A_frequency abs_rpm_err: 2.6667+-1.8066
+  B_period abs_rpm_err: 0.0605+-0.0260
+  C_short_pulse abs_rpm_err: 7.5560+-1.4410
+  paired B-A abs_rpm_err: -2.6062+-1.8042: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B abs_rpm_err: 7.4955+-1.4420: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A abs_rpm_err: 4.8893+-2.2875: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+regime high_speed_long_window
+  A_frequency abs_rpm_err: 0.3333+-0.4564
+  B_period abs_rpm_err: 2.3910+-1.0786
+  C_short_pulse abs_rpm_err: 200.6720+-49.7772
+  paired B-A abs_rpm_err: 2.0576+-1.2790: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B abs_rpm_err: 198.2811+-49.3165: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A abs_rpm_err: 200.3387+-49.6204: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternatives on the same seeds (not adopted):
+  alternative jitter_frac=0.0100
+  regime low_speed
+    paired B-A abs_rpm_err: -2.6390+-1.8013: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C-B abs_rpm_err: 6.5545+-1.0607: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  regime high_speed_long_window
+    paired B-A abs_rpm_err: 1.0636+-0.6855: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C-B abs_rpm_err: 177.0142+-12.0613: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  alternative window_scale=2.0000
+  regime low_speed
+    paired B-A abs_rpm_err: -1.2918+-0.9152: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C-B abs_rpm_err: 6.0556+-0.5969: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  regime high_speed_long_window
+    paired B-A abs_rpm_err: 1.8671+-1.5873: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C-B abs_rpm_err: 187.1354+-33.6506: clear gap, not a tie (|m| > sd); same sign on all 5 seeds

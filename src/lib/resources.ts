@@ -6986,6 +6986,44 @@ export const resources: Record<string, Resource> = {
     },
     extra: true,
   },
+  "wiki-incremental-encoder": {
+    id: "wiki-incremental-encoder",
+    url: "https://en.wikipedia.org/w/index.php?title=Incremental_encoder&oldid=1357373609",
+    title: {
+      zh: "Wikipedia：增量编码器（Incremental encoder）",
+      en: "Wikipedia: Incremental encoder",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "增量编码器的速度是量化位置的导数。按频率：在固定窗口里数脉冲或边沿，speed = (C_1 − C_0)/(T_1 − T_0)，分辨率随编码器分辨率和窗口一起变细，低速受位置量化限制。按周期：测量边沿之间的时间，测量在位置上触发而不是在时钟时刻上触发，可避开位置量化，但会继承时间基准量化，并对相位 / 对称性误差更敏感。HTML 正文已核验（rev 1357373609）；以原文为准。页上所举每转 4096 个计数、每秒读一次的 RPM 算例以原文为准，不是本页玩具输出。真实编码器与定时器捕获：本页未运行。",
+      en: "Speed from an incremental encoder is a derivative of a quantized position. By frequency: count pulses or edges in a fixed window, speed = (C_1 − C_0)/(T_1 − T_0); resolution grows with encoder resolution and with the window, and low speed is limited by position quantization. By period: time the interval between edges, so measurements are triggered at positions rather than at clock instants; that avoids position quantization but inherits time-reference quantization and is more sensitive to phase / symmetry errors. HTML body checked (rev 1357373609); 以原文为准. The page's 4096 counts-per-revolution, once-per-second RPM example is 以原文为准 and is not a toy output on this page. Real encoder and timer capture: 本页未运行.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "pi05-paper": {
+    id: "pi05-paper",
+    url: "https://arxiv.org/abs/2504.16054",
+    title: {
+      zh: "π0.5 论文：带开放世界泛化的视觉-语言-动作模型",
+      en: "π0.5 paper: a vision-language-action model with open-world generalization",
+    },
+    author: "Physical Intelligence, Kevin Black, Noah Brown, James Darpinian, Karan Dhabalia, Danny Driess, Adnan Esmail, Michael Equi, Chelsea Finn, Niccolo Fusai, Manuel Y. Galliker, Dibya Ghosh, Lachy Groom, Karol Hausman, Brian Ichter, Szymon Jakubczak, Tim Jones, Liyiming Ke, Devin LeBlanc, Sergey Levine, Adrian Li-Bell, Mohith Mothukuri, Suraj Nair, Karl Pertsch, Allen Z. Ren, Lucy Xiaoyang Shi, Laura Smith, Jost Tobias Springenberg, Kyle Stachowicz, James Tanner, Quan Vuong, Homer Walke, Anna Walling, Haohuan Wang, Lili Yu, Ury Zhilinsky",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "π0.5 是 π0 家族的视觉-语言-动作模型，用多机器人、高层语义预测、网页数据和其他来源上的异构共训练，让移动操作臂推广到新的住宅。摘要把 Physical Intelligence 列为第一作者，随后是 35 位具名作者；PDF 把 Physical Intelligence 作为机构行放在同一 35 个姓名上方，姓名顺序与摘要一致。第一阶段有 97.6 % 的非目标数据；运行时先预测语义子任务，再预测低层动作块。arXiv 2504.16054 v1（摘要、HTML 与 PDF 正文已核验）；97.6 % 与住宅清洁数字以论文为准，不是本页玩具输出。GPU / 权重 / 真实住宅：本页未运行。",
+      en: "π0.5 is a π0-family vision-language-action model that uses co-training on heterogeneous tasks — multiple robots, high-level semantic prediction, web data and other sources — so a mobile manipulator can generalize to new homes. The abs lists Physical Intelligence first, then 35 named authors; the PDF places Physical Intelligence as an org line above the same 35 names, and the 35-name order matches the abs. The first training phase is reported as 97.6 % non-target data; at runtime the model first predicts a semantic subtask, then a low-level action chunk. arXiv 2504.16054 v1 (abs, HTML and PDF bodies checked); 97.6 % and house-clean figures 以论文为准 and are not toy outputs on this page. GPU / weights / real homes: 本页未运行.",
+    },
+    license: { zh: "预印本（arXiv 非独占分发许可），© 原作者；仅提供外链", en: "Preprint (arXiv non-exclusive distribution license), © the authors; external link only" },
+    extra: true,
+  },
+
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

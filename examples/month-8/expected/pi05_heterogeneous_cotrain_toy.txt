@@ -1,0 +1,49 @@
+Heterogeneous co-training toy: shared synthetic scenes / instructions / eval under common random numbers (linear lookup stand-in, not pi0.5 weights, not a house rollout)
+Paper first-phase non-target-data percentage and house-clean figures 以论文为准 and are not toy outputs; GPU / pi0.5 weights / real homes: 本页未运行
+seeds=5 n_scenes=25.0000 bias=0.0500 sig=0.0800 clip_lo=0.0000 clip_hi=1.0000 w_target=0.4000 w_web=0.2000 w_subtask=0.2500 w_other=0.1500 w_sum=1.0000 w_target_A=1.0000 w_target_C=0.0000 c_used_weight_sum=0.6000 mu_in_domain_target=0.7500 mu_in_domain_web=0.7500 mu_in_domain_subtask=0.7500 mu_in_domain_other=0.7500 mu_ood_target=0.3500 mu_ood_web=0.6000 mu_ood_subtask=0.6000 mu_ood_other=0.5500
+Regimes and parameters were written before the first run
+Common random numbers: the scene / instruction / eval feature draws are shared across arms at each regime and seed
+hand_calc n_scenes = 25.0000
+hand_calc B mixture weights 0.4000 + 0.2000 + 0.2500 + 0.1500 = 1.0000
+hand_calc C used-weight sum 0.2000 + 0.2500 + 0.1500 = 0.6000 (w_target_C = 0.0000, not renormalized)
+hand_calc bias = 0.0500 sig = 0.0800 clip = 0.0000 to 1.0000
+hand_calc in_domain mus target/web/subtask/other = 0.7500, 0.7500, 0.7500, 0.7500
+hand_calc ood_new_home mus target/web/subtask/other = 0.3500, 0.6000, 0.6000, 0.5500
+hand_calc in_domain expected A ~ 0.0500 + 1.0000 * 0.7500 = 0.8000
+hand_calc in_domain expected B ~ 0.0500 + 1.0000 * 0.7500 = 0.8000
+hand_calc ood_new_home expected A ~ 0.4000
+hand_calc ood_new_home expected B ~ 0.5425
+hand_calc ood_new_home expected C ~ 0.4025
+declared in_domain: A and B may near-tie on success (lab-like in-domain task) - keep
+declared in_domain C: C loses to B on success (no target-robot actions) - keep
+declared ood_new_home: B consistently above A on success (OOD new-home stand-in) - keep
+declared ood_new_home C: C loses to B on success (no target-robot actions) - keep
+regime in_domain
+  A_target_only success: 0.8081+-0.0094
+  B_cotrain success: 0.7950+-0.0088
+  C_no_target success: 0.4918+-0.0064
+  paired B-A success: -0.0131+-0.0062: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: -0.3032+-0.0038: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A success: -0.3163+-0.0085: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+regime ood_new_home
+  A_target_only success: 0.3926+-0.0303
+  B_cotrain success: 0.5430+-0.0123
+  C_no_target success: 0.4059+-0.0054
+  paired B-A success: 0.1504+-0.0199: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: -0.1370+-0.0121: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A success: 0.0134+-0.0318: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+alternatives on the same seeds (not adopted):
+  alternative sig=0.1200
+  regime in_domain
+    paired B-A success: -0.0067+-0.0064: small but consistent gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+    paired C-B success: -0.3025+-0.0053: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  regime ood_new_home
+    paired B-A success: 0.1448+-0.0101: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C-B success: -0.1357+-0.0062: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  alternative B weights target=0.5000 web=0.2000 subtask=0.2000 other=0.1000
+  regime in_domain
+    paired B-A success: -0.0104+-0.0054: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C-B success: -0.3790+-0.0047: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  regime ood_new_home
+    paired B-A success: 0.1268+-0.0163: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C-B success: -0.1713+-0.0152: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
