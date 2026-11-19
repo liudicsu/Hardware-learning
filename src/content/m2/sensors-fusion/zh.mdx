@@ -1747,7 +1747,7 @@ def run_regime(regime, seed, extra_arms=()):
 
 def main():
     print("Steinhart-Hart NTC sensing toy: shared temperature list, divider/ADC and resistance noise (synthetic; not a vendor curve, not a bath, not an inrush limiter, not an IMU temperature register)")
-    print("Wikipedia example coefficients and the 0.02 C claim 以原文为准; real thermistor / bath / IMU temperature register: 本页未运行")
+    print("Wikipedia example coefficients and the cited error-bound claim 以原文为准; real thermistor / bath / IMU temperature register: 本页未运行")
     print(
         f"seeds={len(SEEDS)} t0_C={num(T0_C)} t0_K={num(T0_K)} k0={num(K0)} "
         f"cal_R={CAL_R[0]:.4f},{CAL_R[1]:.4f},{CAL_R[2]:.4f} "
@@ -1832,7 +1832,7 @@ if __name__ == "__main__":
 
 ```text
 Steinhart-Hart NTC sensing toy: shared temperature list, divider/ADC and resistance noise (synthetic; not a vendor curve, not a bath, not an inrush limiter, not an IMU temperature register)
-Wikipedia example coefficients and the 0.02 C claim 以原文为准; real thermistor / bath / IMU temperature register: 本页未运行
+Wikipedia example coefficients and the cited error-bound claim 以原文为准; real thermistor / bath / IMU temperature register: 本页未运行
 seeds=5 t0_C=25.0000 t0_K=298.1500 k0=273.1500 cal_R=25000.0000,10000.0000,1500.0000 cal_C=0.0000,25.0000,80.0000 narrow_C=24.0000,25.0000,26.0000 local_C=24.0000,26.0000 mid_C=20.0000,22.0000,25.0000,28.0000,30.0000 wide_C=0.0000,10.0000,25.0000,50.0000,80.0000 far_C=-5.0000,0.0000,80.0000,90.0000 vcc=3.3000 r_div=10000.0000 adc_bits=12 adc_counts=4095 sig_R=40.0000 sh_A=1.7038685512e-03 sh_B=1.1164361508e-04 sh_C=7.9592857047e-07 beta=3182.6587 adc_p=81.0959 adc_q=-0.0274 adc_c_local=2084,2011 (declared)
 Regimes and parameters were written before the first run
 Common random numbers: the resistance noise draw is shared across arms at each regime and seed
@@ -1898,7 +1898,7 @@ alternative C_sh_narrow = Steinhart-Hart coefficients from the three narrow-C po
 
 在 **out_of_range** 上，A 为 8.1676±0.4835，B 为 0.4562±0.3558，C 为 12.1077±0.1255。成对 C−B rmse_C 为 11.6515±0.2455，属于**明显差距，不是打平**（5 个种子全部同号）。C 会输的声明成立。成对 B−A 为 −7.7114±0.8221，也是明显差距（5/5）：局部 beta 拟合在远离 25.0000 °C 后会继续偏掉。
 
-**看过结果后做的选择**。 没有。校准点、温度列表、分压器、ADC、sig_R = 40.0000 Ω 和三种情形都在首次运行前写定。同一组种子上打印、但未采纳的替代：若把 A 换成局部线性 ΔR = k ΔT 拟合，mid_range 的 B−A 会变成 −0.2426±0.0463 的**明显差距**（5 个种子全部同号），反而盖住已声明的接近打平，所以正式的 A 仍用局部 B 参数模型；窄区间 Steinhart–Hart 求解 C_sh_narrow 在每个情形都与 B **数值为零**（浮点残差），这在这条三参数曲线上是预期行为，因此不用它当失败格。
+**看过结果后做的选择**。 没有。 **首次运行后的代码改动。** Steinhart–Hart 玩具第一行关于 Wikipedia 的说明改了措辞，使 0.02 °C 这个数字（以原文为准）不再作为玩具输出出现；结果块未改。校准点、温度列表、分压器、ADC、sig_R = 40.0000 Ω 和三种情形都在首次运行前写定。同一组种子上打印、但未采纳的替代：若把 A 换成局部线性 ΔR = k ΔT 拟合，mid_range 的 B−A 会变成 −0.2426±0.0463 的**明显差距**（5 个种子全部同号），反而盖住已声明的接近打平，所以正式的 A 仍用局部 B 参数模型；窄区间 Steinhart–Hart 求解 C_sh_narrow 在每个情形都与 B **数值为零**（浮点残差），这在这条三参数曲线上是预期行为，因此不用它当失败格。
 
 本页**不宣布普遍赢家**。在中区间附近，局部 B 参数模型可以与规格正确的 Steinhart–Hart 求解接近打平；跨宽区间时，三点 Steinhart–Hart 仍然一致，局部 beta 拟合则不然；把原始 ADC 计数当成温度，一旦离开局部计数到 °C 直线就会输。真实热敏电阻、标定槽或 MPU-6050 的 TEMP_OUT 寄存器均**本页未运行**。
 
@@ -1910,7 +1910,7 @@ alternative C_sh_narrow = Steinhart-Hart coefficients from the three narrow-C po
 2. 这里的反函数是 Steinhart–Hart equation 页上的 R = exp(cbrt(y − x/2) − cbrt(y + x/2))。为什么即使正向公式属于同一族，把 Thermistor 页改写过的反函数混进来仍然是错的？
 3. 在 mid_range 里，成对 B−A rmse_C 为 −0.0064±0.0142，属于接近打平，且 5 个种子里有 3 个反号。为什么这与「B 是规格正确的映射」并不矛盾？为什么没有采纳 A_linear 替代（明显差距 −0.2426±0.0463）？
 4. 在 24.0000、25.0000、26.0000 °C 上做的窄区间 Steinhart–Hart 求解与 B 臂是数值为零的打平。为什么在这个玩具里会这样，又为什么正式的 C 臂改用原始 ADC 计数？
-5. 在做任何真实热敏电阻或标定槽实验之前（本页未运行），写出你会怎样取三个 (R, T) 点、解出 A、B、C，并在远离这些点处检查同一只器件，同时不要把 Wikipedia 的 0.02 °C 说法当成自己刚测到的结果。
+5. 在做任何真实热敏电阻或标定槽实验之前（本页未运行），写出你会怎样取三个 (R, T) 点、解出 A、B、C，并在远离这些点处检查同一只器件，同时不要把 Wikipedia 的 0.02 °C 说法（以原文为准）当成自己刚测到的结果。
 
 <Summary>
 
@@ -1936,5 +1936,5 @@ SPI 模式 / 位序 / CS 在共享合成导线上核对，错误边沿可能移�
 
 I²C 时钟拉伸：在共享字节时间表上，不拉伸时三种控制器打平；拉伸 20.0..60.0 us 时不读 SCL 的控制器出坏字节（成对 A−B bad_rate 0.8681±0.0111，明显，5/5），等待则多花总线时间（成对 B−A bus_ms 12.0501±0.1307）；拉伸超过 200.0 us 超时时，带超时的控制器中止（成对 C−B bad_rate 0.9375±0.0000，明显，5/5，保留）——合成模型，不是逻辑分析仪抓取。
 
-Steinhart–Hart NTC 测温：在共享温度列表、分压器/ADC 和电阻噪声下，中区间 A 与 B 在 rmse_C 上接近打平（成对 B−A −0.0064±0.0142，5 个种子里 3 个反号）；宽区间上 B 明显好于局部 B 参数拟合（成对 B−A −4.1852±0.4341，5/5）；把原始 ADC 计数当成温度时，远离局部计数到 °C 直线会输（成对 C−B 11.6515±0.2455，5/5，保留）——合成替身，不是标定槽，也不是 IMU TEMP_OUT 读数。
+Steinhart–Hart NTC 测温：在共享温度列表、分压器/ADC 和电阻噪声下，中区间 A 与 B 在 rmse_C 上接近打平（成对 B−A −0.0064±0.0142，5 个种子里 3 个反号）；宽区间上 B 明显好于局部 B 参数拟合（成对 B−A −4.1852±0.4341，5/5）；把原始 ADC 计数当成温度时，远离局部计数到 °C 直线会输（成对 C−B 11.6515±0.2455，5/5，保留）——合成替身，不是标定槽，也不是 IMU TEMP_OUT 读数（本页未运行）。
 </Summary>

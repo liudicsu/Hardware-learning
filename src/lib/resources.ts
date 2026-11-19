@@ -6928,7 +6928,7 @@ export const resources: Record<string, Resource> = {
   },
   "wiki-steinhart-hart": {
     id: "wiki-steinhart-hart",
-    url: "https://en.wikipedia.org/w/index.php?title=Steinhart%E2%80%93Hart_equation&oldid=1291894974",
+    url: "https://en.wikipedia.org/w/index.php?oldid=1291894974",
     title: {
       zh: "Wikipedia：Steinhart–Hart 方程",
       en: "Wikipedia: Steinhart–Hart equation",

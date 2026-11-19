@@ -1,5 +1,5 @@
 Steinhart-Hart NTC sensing toy: shared temperature list, divider/ADC and resistance noise (synthetic; not a vendor curve, not a bath, not an inrush limiter, not an IMU temperature register)
-Wikipedia example coefficients and the 0.02 C claim 以原文为准; real thermistor / bath / IMU temperature register: 本页未运行
+Wikipedia example coefficients and the cited error-bound claim 以原文为准; real thermistor / bath / IMU temperature register: 本页未运行
 seeds=5 t0_C=25.0000 t0_K=298.1500 k0=273.1500 cal_R=25000.0000,10000.0000,1500.0000 cal_C=0.0000,25.0000,80.0000 narrow_C=24.0000,25.0000,26.0000 local_C=24.0000,26.0000 mid_C=20.0000,22.0000,25.0000,28.0000,30.0000 wide_C=0.0000,10.0000,25.0000,50.0000,80.0000 far_C=-5.0000,0.0000,80.0000,90.0000 vcc=3.3000 r_div=10000.0000 adc_bits=12 adc_counts=4095 sig_R=40.0000 sh_A=1.7038685512e-03 sh_B=1.1164361508e-04 sh_C=7.9592857047e-07 beta=3182.6587 adc_p=81.0959 adc_q=-0.0274 adc_c_local=2084,2011 (declared)
 Regimes and parameters were written before the first run
 Common random numbers: the resistance noise draw is shared across arms at each regime and seed

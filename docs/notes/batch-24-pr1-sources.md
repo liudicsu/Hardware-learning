@@ -14,7 +14,7 @@ Common random numbers: the Steinhart–Hart toy shares the resistance-noise draw
 
 Steinhart–Hart declared stand-in points (not the Wikipedia 3 kΩ example): (25000.0000 Ω, 0.0000 °C), (10000.0000 Ω, 25.0000 °C), (1500.0000 Ω, 80.0000 °C). Solved A, B, C = 1.7038685512e-03, 1.1164361508e-04, 7.9592857047e-07 (declared toy parameter). mid_range: paired B−A rmse_C −0.0064±0.0142, near-tie, 3 of 5 opposite — held. wide_span: paired B−A −4.1852±0.4341, clear, 5/5 — held. out_of_range: paired C−B 11.6515±0.2455, clear, 5/5 — held. Arm C is raw ADC counts treated as temperature; a narrow-range Steinhart–Hart solve on the same three-parameter curve recovers the same A, B, C and is printed only as an alternative.
 
-Nyquist declared plants: ol_stable_joint num=(72.0,), den=(1.0, 6.0, 36.0), P=0, first PM = 49.3542°, Z = 0, paired B−A call 0.0000±0.0000, tie identical on every seed — held (declared as agree / may near-tie). ol_unstable num=(8.0, 1.6), den=(1.0, 3.0, −4.0), P=1, first PM = 90.1206°, Z = 1, paired B−A miss −1.0000±0.0000, clear, 5/5 — held. nmp_encircle num=(−5.0, 1.0), den=(1.0, 3.0, 2.0), P=0, first PM = 84.9799°, Z = 2, paired C−B miss 1.0000±0.0000, clear, 5/5 — held. Step-stability bound: |y| clipped at 20.0000; ISE to t_end = 20.0000 with Euler dt = 0.0010.
+Nyquist declared plants: ol_stable_joint num=(72.0,), den=(1.0, 6.0, 36.0), P=0, first PM = 49.3542°, Z = 0, paired B−A call 0.0000±0.0000, tie identical on every seed — held (declared as agree / may near-tie). ol_unstable num=(8.0, 1.6), den=(1.0, 3.0, −4.0), P=1, first PM = 90.1206°, Z = 1, paired B−A miss -1.0000±0.0000, clear, 5/5 — held. nmp_encircle num=(−5.0, 1.0), den=(1.0, 3.0, 2.0), P=0, first PM = 84.9799°, Z = 2, paired C−B miss 1.0000±0.0000, clear, 5/5 — held. Step-stability bound: |y| clipped at 20.0000; ISE to t_end = 20.0000 with Euler dt = 0.0010.
 
 ## Declared expectations that did not hold
 
@@ -26,7 +26,7 @@ None. No constant, arm, metric or regime was changed after the first run. Altern
 
 ## Code changes after the first run
 
-None.
+The first-line Wikipedia disclaimer in the Steinhart–Hart toy and expected/ header was reworded after the first run so the 0.02 °C figure is not printed as a toy output; result blocks were left byte-identical (proved by diff from “Regimes and parameters” onward). Pages and this note disclose that print-only header change. No retune.
 
 ## Mismatch with §9
 

@@ -8463,7 +8463,7 @@ print("protocol pass")
       dirHits += checkDiffDirs(read(`src/content/m1/${slug}/${lang}.mdx`), `b19p1 ${slug} ${lang} diff-dir`);
     }
   }
-  dirHits += checkDiffDirs(cur.split("\n").filter(l=>!/steinhart_hart|Steinhart–Hart|nyquist_stability|Nyquist stability|Nyquist 稳定性/.test(l)).join("\n"), "b19p1 curriculum diff-dir");
+  dirHits += checkDiffDirs(cur.split("\n").filter(l=>!/steinhart_hart|Steinhart–Hart|steinhart-hart|nyquist_stability|nyquist-stability|Nyquist stability|Nyquist 稳定性|Nyquist 频率|90\.1206|11\.6515|0\.0064±0\.0142|4\.1852±0\.4341/.test(l)).join("\n"), "b19p1 curriculum diff-dir");
   dirHits += checkDiffDirs(p1, "b19p1 month-1-plan diff-dir");
   dirHits += checkDiffDirs(src, "b19p1 sources-note diff-dir");
   ok(dirHits >= 8, `b19p1 difference-direction lock ran on ${dirHits} printed pairs`);
@@ -8590,7 +8590,7 @@ print("protocol pass")
   const checkDiffDirs=(text,tag)=>{let n=0; for(const m of text.matchAll(dirRe)){const key=`${m[3]}+-${m[4]}`; if(!dirOf.has(key)) continue; n++; ok(dirOf.get(key).has(`${m[1]}-${m[2]}`),`${tag}: ${m[1]}-${m[2]} ${m[3]}±${m[4]} must match expected paired ${[...dirOf.get(key)].join("|")}`);} return n;};
   let dirHits=0;
   for(const slug of ["esp32","sensors-fusion"])for(const lang of ["en","zh"])dirHits+=checkDiffDirs(read(`src/content/m2/${slug}/${lang}.mdx`),`b19p2 ${slug} ${lang} diff-dir`);
-  dirHits+=checkDiffDirs(cur.split("\n").filter(l=>!/steinhart_hart|Steinhart–Hart|nyquist_stability|Nyquist stability|Nyquist 稳定性/.test(l)).join("\n"),"b19p2 curriculum diff-dir");
+  dirHits+=checkDiffDirs(cur.split("\n").filter(l=>!/steinhart_hart|Steinhart–Hart|steinhart-hart|nyquist_stability|nyquist-stability|Nyquist stability|Nyquist 稳定性|Nyquist 频率|90\.1206|11\.6515|0\.0064±0\.0142|4\.1852±0\.4341/.test(l)).join("\n"),"b19p2 curriculum diff-dir");
   dirHits+=checkDiffDirs(p2,"b19p2 month-2-plan diff-dir");
   dirHits+=checkDiffDirs(src,"b19p2 sources-note diff-dir");
   ok(dirHits>=40,`b19p2 difference-direction lock ran on ${dirHits} printed pairs`);
@@ -8723,7 +8723,7 @@ print("protocol pass")
   const checkDiffDirs=(text,tag)=>{let n=0; for(const m of text.matchAll(dirRe)){const key=`${m[3]}+-${m[4]}`; if(!dirOf.has(key)) continue; n++; ok(dirOf.get(key).has(`${m[1]}-${m[2]}`),`${tag}: ${m[1]}-${m[2]} ${m[3]}±${m[4]} must match expected paired ${[...dirOf.get(key)].join("|")}`);} return n;};
   let dirHits=0;
   for(const [mo,slug] of [[6,"vla-models"],[8,"async-deployment"]])for(const lang of ["en","zh"])dirHits+=checkDiffDirs(read(`src/content/m${mo}/${slug}/${lang}.mdx`),`b19p3 ${slug} ${lang} diff-dir`);
-  dirHits+=checkDiffDirs(cur.split("\n").filter(l=>!/steinhart_hart|Steinhart–Hart|nyquist_stability|Nyquist stability|Nyquist 稳定性/.test(l)).join("\n"),"b19p3 curriculum diff-dir");
+  dirHits+=checkDiffDirs(cur.split("\n").filter(l=>!/steinhart_hart|Steinhart–Hart|steinhart-hart|nyquist_stability|nyquist-stability|Nyquist stability|Nyquist 稳定性|Nyquist 频率|90\.1206|11\.6515|0\.0064±0\.0142|4\.1852±0\.4341/.test(l)).join("\n"),"b19p3 curriculum diff-dir");
   dirHits+=checkDiffDirs(sec6,"b19p3 month-6-plan diff-dir");
   dirHits+=checkDiffDirs(sec8,"b19p3 month-8-plan diff-dir");
   dirHits+=checkDiffDirs(src,"b19p3 sources-note diff-dir");
@@ -8927,7 +8927,7 @@ print("protocol pass")
   const checkDiffDirs=(text,tag)=>{let n=0; for(const m of text.matchAll(dirRe)){const key=`${m[3]}+-${m[4]}`; if(!dirOf.has(key)) continue; n++; ok(dirOf.get(key).has(`${m[1]}-${m[2]}`),`${tag}: ${m[1]}-${m[2]} ${m[3]}±${m[4]} must match expected paired ${[...dirOf.get(key)].join("|")}`);} return n;};
   let dirHits=0;
   for(const [m,slug] of [[3,"transmissions"],[4,"gazebo-sim"]])for(const lang of ["en","zh"])dirHits+=checkDiffDirs(read(`src/content/m${m}/${slug}/${lang}.mdx`),`b20p1 ${slug} ${lang} diff-dir`);
-  dirHits+=checkDiffDirs(cur.split("\n").filter(l=>!/steinhart_hart|Steinhart–Hart|nyquist_stability|Nyquist stability|Nyquist 稳定性/.test(l)).join("\n"),"b20p1 curriculum diff-dir");
+  dirHits+=checkDiffDirs(cur.split("\n").filter(l=>!/steinhart_hart|Steinhart–Hart|steinhart-hart|nyquist_stability|nyquist-stability|Nyquist stability|Nyquist 稳定性|Nyquist 频率|90\.1206|11\.6515|0\.0064±0\.0142|4\.1852±0\.4341/.test(l)).join("\n"),"b20p1 curriculum diff-dir");
   dirHits+=checkDiffDirs(p3,"b20p1 month-3-plan diff-dir")+checkDiffDirs(p4,"b20p1 month-4-plan diff-dir");
   dirHits+=checkDiffDirs(src,"b20p1 sources-note diff-dir");
   ok(dirHits>=90,`b20p1 difference-direction lock ran on ${dirHits} printed pairs`);
@@ -9075,7 +9075,7 @@ print("protocol pass")
   const checkDiffDirs=(text,tag)=>{let n=0; for(const m of text.matchAll(dirRe)){const key=`${m[3]}+-${m[4]}`; if(!dirOf.has(key)) continue; n++; ok(dirOf.get(key).has(`${m[1]}-${m[2]}`),`${tag}: ${m[1]}-${m[2]} ${m[3]}±${m[4]} must match expected paired ${[...dirOf.get(key)].join("|")}`);} return n;};
   let dirHits=0;
   for(const [m,slug] of [[5,"camera-calibration"],[7,"sim-to-real"]])for(const lang of ["en","zh"])dirHits+=checkDiffDirs(read(`src/content/m${m}/${slug}/${lang}.mdx`),`b20p2 ${slug} ${lang} diff-dir`);
-  dirHits+=checkDiffDirs(cur.split("\n").filter(l=>!/steinhart_hart|Steinhart–Hart|nyquist_stability|Nyquist stability|Nyquist 稳定性/.test(l)).join("\n"),"b20p2 curriculum diff-dir");
+  dirHits+=checkDiffDirs(cur.split("\n").filter(l=>!/steinhart_hart|Steinhart–Hart|steinhart-hart|nyquist_stability|nyquist-stability|Nyquist stability|Nyquist 稳定性|Nyquist 频率|90\.1206|11\.6515|0\.0064±0\.0142|4\.1852±0\.4341/.test(l)).join("\n"),"b20p2 curriculum diff-dir");
   dirHits+=checkDiffDirs(planSec(p5,"## Batch-20 PR2"),"b20p2 month-5-plan diff-dir")+checkDiffDirs(planSec(p7,"## Batch-20 PR2"),"b20p2 month-7-plan diff-dir");
   dirHits+=checkDiffDirs(src,"b20p2 sources-note diff-dir");
   ok(dirHits>=90,`b20p2 difference-direction lock ran on ${dirHits} printed pairs`);
@@ -9238,7 +9238,7 @@ print("protocol pass")
   const checkDiffDirs=(text,tag)=>{let n=0; for(const m of text.matchAll(dirRe)){const key=`${m[3]}+-${m[4]}`; if(!dirOf.has(key)) continue; n++; ok(dirOf.get(key).has(`${m[1]}-${m[2]}`),`${tag}: ${m[1]}-${m[2]} ${m[3]}±${m[4]} must match expected paired ${[...dirOf.get(key)].join("|")}`);} return n;};
   let dirHits=0;
   for(const [m,slug] of [[9,"world-models-overview"],[7,"perception-to-grasp"]])for(const lang of ["en","zh"])dirHits+=checkDiffDirs(read(`src/content/m${m}/${slug}/${lang}.mdx`),`b20p3 ${slug} ${lang} diff-dir`);
-  dirHits+=checkDiffDirs(cur.split("\n").filter(l=>!/steinhart_hart|Steinhart–Hart|nyquist_stability|Nyquist stability|Nyquist 稳定性/.test(l)).join("\n"),"b20p3 curriculum diff-dir");
+  dirHits+=checkDiffDirs(cur.split("\n").filter(l=>!/steinhart_hart|Steinhart–Hart|steinhart-hart|nyquist_stability|nyquist-stability|Nyquist stability|Nyquist 稳定性|Nyquist 频率|90\.1206|11\.6515|0\.0064±0\.0142|4\.1852±0\.4341/.test(l)).join("\n"),"b20p3 curriculum diff-dir");
   dirHits+=checkDiffDirs(planSec(p9,"## Batch-20 PR3"),"b20p3 month-9-plan diff-dir")+checkDiffDirs(planSec(p7,"## Batch-20 PR3"),"b20p3 month-7-plan diff-dir");
   dirHits+=checkDiffDirs(src,"b20p3 sources-note diff-dir");
   ok(dirHits>=105,`b20p3 difference-direction lock ran on ${dirHits} printed pairs`);
@@ -9431,7 +9431,7 @@ print("protocol pass")
   const checkDiffDirs=(text,tag)=>{let n=0; for(const m of text.matchAll(dirRe)){const key=`${m[3]}+-${m[4]}`; if(!dirOf.has(key)) continue; n++; ok(dirOf.get(key).has(`${m[1]}-${m[2]}`),`${tag}: ${m[1]}-${m[2]} ${m[3]}±${m[4]} must match expected paired ${[...dirOf.get(key)].join("|")}`);} return n;};
   let dirHits=0;
   for(const [m,slug] of [[1,"components"],[3,"fdm-printing"]])for(const lang of ["en","zh"])dirHits+=checkDiffDirs(read(`src/content/m${m}/${slug}/${lang}.mdx`).slice(read(`src/content/m${m}/${slug}/${lang}.mdx`).indexOf(m===1?(lang==="en"?"## Peukert's law":"## Peukert 定律"):(lang==="en"?"## Build orientation":"## 打印方向"))),`b21p1 ${slug} ${lang} diff-dir`);
-  dirHits+=checkDiffDirs(cur.split("\n").filter(l=>!/steinhart_hart|Steinhart–Hart|nyquist_stability|Nyquist stability|Nyquist 稳定性/.test(l)).join("\n"),"b21p1 curriculum diff-dir");
+  dirHits+=checkDiffDirs(cur.split("\n").filter(l=>!/steinhart_hart|Steinhart–Hart|steinhart-hart|nyquist_stability|nyquist-stability|Nyquist stability|Nyquist 稳定性|Nyquist 频率|90\.1206|11\.6515|0\.0064±0\.0142|4\.1852±0\.4341/.test(l)).join("\n"),"b21p1 curriculum diff-dir");
   dirHits+=checkDiffDirs(planSec(p1,"## Batch-21 PR1"),"b21p1 month-1-plan diff-dir")+checkDiffDirs(planSec(p3,"## Batch-21 PR1"),"b21p1 month-3-plan diff-dir");
   dirHits+=checkDiffDirs(src,"b21p1 sources-note diff-dir");
   ok(dirHits>=60,`b21p1 difference-direction lock ran on ${dirHits} printed pairs`);
@@ -10615,10 +10615,10 @@ print("protocol pass")
   ok(/"chatvla2-paper": \{[\s\S]*?url: "https:\/\/arxiv\.org\/abs\/2505\.21906"[\s\S]*?Zhongyi Zhou, Yichen Zhu, Junjie Wen, Chaomin Shen, Yi Xu[\s\S]*?usually read as equal contribution[\s\S]*?以原文为准[\s\S]*?本页未运行[\s\S]*?extra: true/.test(res),"b23p3 chatvla2-paper card: abs URL, authors, equal-contribution note, 以原文为准, 本页未运行");
   ok(/"hirobot-paper": \{[\s\S]*?url: "https:\/\/arxiv\.org\/abs\/2502\.19417"[\s\S]*?Lucy Xiaoyang Shi, Brian Ichter, Michael Equi, Liyiming Ke, Karl Pertsch, Quan Vuong, James Tanner, Anna Walling, Haohuan Wang, Niccolo Fusai, Adrian Li-Bell, Danny Driess, Lachy Groom, Sergey Levine, Chelsea Finn[\s\S]*?research@physicalintelligence\.company[\s\S]*?以原文为准[\s\S]*?本页未运行[\s\S]*?extra: true/.test(res),"b23p3 hirobot-paper card: abs URL, 15 authors, correspondence, 以原文为准, 本页未运行");
   const p6=read("docs/notes/month-6-plan.md"), p9=read("docs/notes/month-9-plan.md");
-  ok(p9.startsWith("# Month 9")&&["Current / 当前：**M9 4290 min**, Batch-23 PR3","## Batch-23 PR3","4110→4290","40860→41580","240→**420**","b2379b6ef2e03301c3ecd2de44edee4d35e930a1","41580=40860+180+180","30+25+50+40+35=180","## Batch-20 PR3"].every(x=>p9.includes(x))&&p9.indexOf("## Batch-23 PR3")<p9.indexOf("## Batch-20 PR3"),"b23p3 month-9 plan header");
-  ok(p6.startsWith("# Month 6")&&["Current / 当前：**M6 4020 min**, Batch-23 PR3","## Batch-23 PR3","3840→4020","40860→41580","540→**720**","b2379b6ef2e03301c3ecd2de44edee4d35e930a1","41580=40860+180+180","30+25+50+40+35=180","## Batch-21 PR3"].every(x=>p6.includes(x))&&p6.indexOf("## Batch-23 PR3")<p6.indexOf("## Batch-21 PR3"),"b23p3 month-6 plan header");
+  ok(p9.startsWith("# Month 9")&&["Current / 当前：**M9 4290 min**, Batch-23 PR3","## Batch-23 PR3","4110→4290","40860→41220","240→**420**","b2379b6ef2e03301c3ecd2de44edee4d35e930a1","41220=40860+180+180","30+25+50+40+35=180","## Batch-20 PR3"].every(x=>p9.includes(x))&&p9.indexOf("## Batch-23 PR3")<p9.indexOf("## Batch-20 PR3"),"b23p3 month-9 plan header");
+  ok(p6.startsWith("# Month 6")&&["Current / 当前：**M6 4020 min**, Batch-23 PR3","## Batch-23 PR3","3840→4020","40860→41220","540→**720**","b2379b6ef2e03301c3ecd2de44edee4d35e930a1","41220=40860+180+180","30+25+50+40+35=180","## Batch-21 PR3"].every(x=>p6.includes(x))&&p6.indexOf("## Batch-23 PR3")<p6.indexOf("## Batch-21 PR3"),"b23p3 month-6 plan header");
   const src=read("docs/notes/batch-23-pr3-sources.md");
-  ok(["b2379b6ef2e03301c3ecd2de44edee4d35e930a1","40860","41580","chatvla2-paper","hirobot-paper","2505.21906","2502.19417","Zhongyi Zhou","usually read as equal contribution","Lucy Xiaoyang Shi","research@physicalintelligence.company","Common random numbers","Lock changes","No lock relaxed","Post-hoc choices","Mismatch with §9","Code changes after the first run","declared toy parameter","0.6100±0.0548","0.9800±0.0447","1.0000±0.0000","0.3333±0.0000","本页未运行","以原文为准"].every(x=>src.includes(x)),"b23p3 sources note");
+  ok(["b2379b6ef2e03301c3ecd2de44edee4d35e930a1","40860","41220","chatvla2-paper","hirobot-paper","2505.21906","2502.19417","Zhongyi Zhou","usually read as equal contribution","Lucy Xiaoyang Shi","research@physicalintelligence.company","Common random numbers","Lock changes","No lock relaxed","Post-hoc choices","Mismatch with §9","Code changes after the first run","declared toy parameter","0.6100±0.0548","0.9800±0.0447","1.0000±0.0000","0.3333±0.0000","本页未运行","以原文为准"].every(x=>src.includes(x)),"b23p3 sources note");
   ok(/41 580/.test(read("README.md"))&&/约 41 580 分钟/.test(read("README.md")),"b23p3 README site minutes (en + zh)");
   ok((()=>{const months=[...cur.matchAll(/const month(\d+)Lessons[\s\S]*?\];/g)]; let s=0; for(const m of months){for(const x of m[0].matchAll(/minutes:\s*(\d+)/g))s+=+x[1];} return s;})()===41580,"b23p3 curriculum: 41580 minutes");
   ok((()=>{const m=cur.match(/const month9Lessons[\s\S]*?\];/); return [...m[0].matchAll(/minutes:\s*(\d+)/g)].reduce((a,x)=>a+(+x[1]),0);})()===4290,"b23p3 curriculum: M9 4290 minutes");
@@ -10657,16 +10657,16 @@ print("protocol pass")
   const cases=[
     [2,"sensors-fusion","steinhart_hart_ntc_sense_toy",1080,["## Steinhart–Hart NTC temperature sensing", "## Steinhart–Hart NTC 测温"],
       ["hand_calc 25 C in kelvin = 298.1500","hand_calc 0 C in kelvin = 273.1500","hand_calc 80 C in kelvin = 353.1500","hand_calc 1/T at 25 C = 3.3540164347e-03","hand_calc true R at 25 C = 10000.0000","hand_calc divider V at 25 C, no noise = 1.6500","hand_calc card range mid_C = 20.0000 to 30.0000","hand_calc card range wide_C = 0.0000 to 80.0000","hand_calc card range far_C = -5.0000 to 90.0000","paired B-A rmse_C: -0.0064+-0.0142: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign","paired B-A rmse_C: -4.1852+-0.4341: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired C-B rmse_C: 11.6515+-0.2455: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","Regimes and parameters were written before the first run","Common random numbers","本页未运行","以原文为准"],
-      ["-0.0064±0.0142","-4.1852±0.4341","11.6515±0.2455","0.0866±0.0325","0.0802±0.0269","0.0818±0.0224","4.4946±0.4701","0.3094±0.1691","6.0824±0.1483","8.1676±0.4835","0.4562±0.3558","12.1077±0.1255","5.7730±0.2619","-7.7114±0.8221","-0.2426±0.0463","1.7038685512e-03","1.1164361508e-04","7.9592857047e-07","3182.6587","81.0959","-0.0274","298.1500","273.1500","353.1500","3.3540164347e-03","10000.0000","1.6500","40.0000","2084","2011","0.02","1291894974","1380549254","以原文为准","本页未运行"],
+      ["−0.0064±0.0142","−4.1852±0.4341","11.6515±0.2455","0.0866±0.0325","0.0802±0.0269","0.0818±0.0224","4.4946±0.4701","0.3094±0.1691","6.0824±0.1483","8.1676±0.4835","0.4562±0.3558","12.1077±0.1255","5.7730±0.2619","−7.7114±0.8221","−0.2426±0.0463","1.7038685512e-03","1.1164361508e-04","7.9592857047e-07","3182.6587","81.0959","-0.0274","298.1500","273.1500","353.1500","3.3540164347e-03","10000.0000","1.6500","40.0000","2084","2011","0.02","1291894974","1380549254","以原文为准","本页未运行"],
       {"en":["**not** the NTC inrush limiter","TEMP_OUT stays unread","**Choices made after seeing results.** None","**does not declare a universal winner**","Common random numbers","near-tie / small gap, within seed noise","clear gap, not a tie","30+25+50+40+35","以原文为准","本页未运行"],
        "zh":["**不是**电源与电池课里","TEMP_OUT","**看过结果后做的选择**。 没有","**不宣布普遍赢家**","公共随机数","接近打平","明显差距，不是打平","30+25+50+40+35","以原文为准","本页未运行"]},
-      {"en":["Steinhart–Hart NTC sensing","-0.0064±0.0142","-4.1852±0.4341","11.6515±0.2455","本页未运行"],
-       "zh":["Steinhart–Hart NTC 测温","-0.0064±0.0142","-4.1852±0.4341","11.6515±0.2455","本页未运行"]},
+      {"en":["Steinhart–Hart NTC sensing","−0.0064±0.0142","−4.1852±0.4341","11.6515±0.2455","本页未运行"],
+       "zh":["Steinhart–Hart NTC 测温","−0.0064±0.0142","−4.1852±0.4341","11.6515±0.2455","本页未运行"]},
       ["wiki-steinhart-hart","wiki-thermistor"],"**180-minute work plan:**","**180 分钟安排:**",180],
     [5,"control-modelling","nyquist_stability_criterion_toy",960,["## Nyquist stability criterion: encirclements of −1", "## Nyquist 稳定性判据：绕 −1 的圈数"],
       ["hand_calc Z = N + P, closed-loop stable iff Z = 0","hand_calc step-stability bound: |y| clipped at 20.0000","hand_calc ol_stable_joint wn=6.0000 zeta=0.5000 K=2.0000","hand_calc card range omega = 0.0010 to 10000.0000","first_pm=49.3542","first_pm=90.1206","first_pm=84.9799","paired B-A call: 0.0000+-0.0000: tie: identical on every seed","paired B-A miss: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","paired C-B miss: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds","Regimes and parameters were written before the first run","Common random numbers","本页未运行"],
       ["0.0000±0.0000","-1.0000±0.0000","1.0000±0.0000","49.3542","90.1206","84.9799","110.3383","-50.6024","-4.4362","9.1061","0.5364","0.3888","2.2962","3350.9884","5985.5519","0.6667","30.0000","20.0000","0.0010","1376383390","以原文为准","本页未运行"],
-      {"en":["**not** a re-teach of the Bode","Nyquist frequency","fs/2","**does not** rewrite","**Choices made after seeing results.** None","**does not declare a universal winner**","tie: identical on every seed","clear gap, not a tie","30+25+50+40+35","以原文为准","本页未运行"],
+      {"en":["**not** a re-teach of the Bode","Nyquist frequency","fs/2","does **not** rewrite","**Choices made after seeing results.** None","**does not declare a universal winner**","tie: identical on every seed","clear gap, not a tie","30+25+50+40+35","以原文为准","本页未运行"],
        "zh":["**不是**重新讲授本页已有的 Bode","Nyquist frequency","fs/2","**不**改写","**看过结果后做的选择**。 没有","**不宣布普遍赢家**","打平","明显差距，不是打平","30+25+50+40+35","以原文为准","本页未运行"]},
       {"en":["Nyquist stability","0.0000±0.0000","-1.0000±0.0000","1.0000±0.0000","90.1206°","本页未运行"],
        "zh":["Nyquist 稳定性","0.0000±0.0000","-1.0000±0.0000","1.0000±0.0000","90.1206°","本页未运行"]},
@@ -10717,7 +10717,7 @@ print("protocol pass")
       const ex=sec.lastIndexOf(lang==="en"?"### Exercises":"### 练习");
       ok(ex>sec.indexOf("</SimOutput>")&&(sec.slice(ex).match(/^\d\. /gm)||[]).length===5,`b24p1 ${slug} ${lang}: five exercises after output`);
       ok(sec.includes(lang==="en"?planEn:planZh)&&sec.includes("30+25+50+40+35"),`b24p1 ${slug} ${lang}: 180-min plan 30+25+50+40+35`);
-      const plan=sec.slice(sec.indexOf(lang==="en"?planEn:planZh));
+      const plan=sec.slice(sec.indexOf(lang==="en"?planEn:planZh)+(lang==="en"?planEn:planZh).length).split("\n")[0];
       ok([...plan.matchAll(/(\d+) (min|分钟)/g)].reduce((a,m)=>a+(+m[1]),0)===planSum,`b24p1 ${slug} ${lang}: work plan sums to ${planSum}`);
       const prose=sec.replace(expected,"").replace(py,"");
       ok(!PROCESS.test(prose),`b24p1 ${slug} ${lang}: no process labels in the new section`);
@@ -10729,7 +10729,8 @@ print("protocol pass")
       for(const m of prose.matchAll(/(?<![\w.])(\d+\.\d{2,})(?![\d±]|e-\d)/g))ok(expected.includes(m[1])||cited.includes(m[1])||/手算/.test(prose.slice(Math.max(0,m.index-80),m.index+20)),`b24p1 ${slug} ${lang}: decimal ${m[1]} in prose is printed, cited, or 手算`);
       for(const c of cited)for(const m of prose.matchAll(new RegExp(c.replace(".","\\.")+"(?!\\d)","g"))){const ctx=prose.slice(Math.max(0,m.index-400),m.index+c.length+400); ok(/以原文为准/.test(ctx)&&!expected.includes(c),`b24p1 ${slug} ${lang}: cited ${c} carries 以原文为准 and is not a toy output`);}
       if(lang==="zh"){
-        let i=0; while(true){const a=sec.indexOf("**",i); if(a<0) break; const b=sec.indexOf("**",a+2); if(b<0) break; const span=sec.slice(a+2,b); ok(!span.includes("。")&&!span.includes("："),`b24p1 ${slug} zh: no 。 or ： inside bold: ${span.slice(0,40)}`); ok(sec[b+2]!=="："&&(a===0||sec[a-1]!=="："),`b24p1 ${slug} zh: no full-width colon glued to **`); i=b+2;}
+        const typo=prose;
+        let i=0; while(true){const a=typo.indexOf("**",i); if(a<0) break; const b=typo.indexOf("**",a+2); if(b<0) break; const span=typo.slice(a+2,b); ok(!span.includes("。")&&!span.includes("："),`b24p1 ${slug} zh: no 。 or ： inside bold: ${span.slice(0,40)}`); ok(typo[b+2]!=="："&&(a===0||typo[a-1]!=="："),`b24p1 ${slug} zh: no full-width colon glued to **`); i=b+2;}
       }
     }
   }
@@ -10739,7 +10740,7 @@ print("protocol pass")
   ok((()=>{const months=[...cur.matchAll(/const month(\d+)Lessons[\s\S]*?\];/g)]; let s=0; for(const m of months){for(const x of m[0].matchAll(/minutes:\s*(\d+)/g))s+=+x[1];} return s;})()===41580,"b24p1 curriculum: 41580 minutes");
   ok((()=>{const m=cur.match(/const month2Lessons[\s\S]*?\];/); return [...m[0].matchAll(/minutes:\s*(\d+)/g)].reduce((a,x)=>a+(+x[1]),0);})()===3930,"b24p1 curriculum: M2 3930");
   ok((()=>{const m=cur.match(/const month5Lessons[\s\S]*?\];/); return [...m[0].matchAll(/minutes:\s*(\d+)/g)].reduce((a,x)=>a+(+x[1]),0);})()===3750,"b24p1 curriculum: M5 3750");
-  ok(["80c9b9d3b5d706eba950636c5916b473ef934d70","41220","41580","wiki-steinhart-hart","wiki-thermistor","wiki-nyquist-stability","1291894974","1380549254","1376383390","Common random numbers","Lock changes","No lock relaxed","Post-hoc choices","Mismatch with §9","Code changes after the first run","declared toy parameter","-0.0064±0.0142","-4.1852±0.4341","11.6515±0.2455","0.0000±0.0000","-1.0000±0.0000","1.0000±0.0000","49.3542","90.1206","84.9799","本页未运行","以原文为准","None"].every(x=>src.includes(x)),"b24p1 sources note");
+  ok(["80c9b9d3b5d706eba950636c5916b473ef934d70","41220","41580","wiki-steinhart-hart","wiki-thermistor","wiki-nyquist-stability","1291894974","1380549254","1376383390","Common random numbers","Lock changes","No lock relaxed","Post-hoc choices","Mismatch with §9","Code changes after the first run","declared toy parameter","−0.0064±0.0142","−4.1852±0.4341","11.6515±0.2455","0.0000±0.0000","-1.0000±0.0000","1.0000±0.0000","49.3542","90.1206","84.9799","本页未运行","以原文为准","None"].every(x=>src.includes(x)),"b24p1 sources note");
   const dirOf=new Map();
   for(const line of bag.split("\n")){
     const m=line.match(/paired\s+([A-Za-z0-9_]+)-([A-Za-z0-9_]+)[^:]*:\s*(-?[\d.e+-]+)\+-(-?[\d.e+-]+)/);

@@ -249,7 +249,7 @@ def run_regime(regime, seed, extra_arms=()):
 
 def main():
     print("Steinhart-Hart NTC sensing toy: shared temperature list, divider/ADC and resistance noise (synthetic; not a vendor curve, not a bath, not an inrush limiter, not an IMU temperature register)")
-    print("Wikipedia example coefficients and the 0.02 C claim 以原文为准; real thermistor / bath / IMU temperature register: 本页未运行")
+    print("Wikipedia example coefficients and the cited error-bound claim 以原文为准; real thermistor / bath / IMU temperature register: 本页未运行")
     print(
         f"seeds={len(SEEDS)} t0_C={num(T0_C)} t0_K={num(T0_K)} k0={num(K0)} "
         f"cal_R={CAL_R[0]:.4f},{CAL_R[1]:.4f},{CAL_R[2]:.4f} "

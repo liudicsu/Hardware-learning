@@ -103,7 +103,8 @@ class SteinhartHart(unittest.TestCase):
         self.assertIn("Common random numbers: the resistance noise draw is shared across arms", out)
         self.assertIn("Regimes and parameters were written before the first run", out)
         self.assertIn("本页未运行", out)
-        self.assertIn("0.02 C claim 以原文为准", out)
+        self.assertIn("cited error-bound claim 以原文为准", out)
+        self.assertNotIn("0.02 C", out)
 
 
 class Nyquist(unittest.TestCase):
