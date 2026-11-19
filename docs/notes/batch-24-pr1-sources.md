@@ -8,6 +8,8 @@ Base `80c9b9d3b5d706eba950636c5916b473ef934d70` (batch-23 polish #196 merged; 71
 - Wikipedia, Thermistor, oldid 1380549254, https://en.wikipedia.org/w/index.php?title=Thermistor&oldid=1380549254 action=raw, HTTP 200. Last modified 2026-10-16 12:03:39 UTC = 2026-10-16 20:03 Asia/Shanghai. Same-family forward map with a, b, c; B-parameter reduction; linear ΔR = k ΔT only over a limited range; example a = 1.40e-3, b = 2.37e-4, c = 9.90e-8 for a typical 3 kΩ-at-25 °C part; “error generally less than 0.02 °C over a 200 °C range”. Those example coefficients and the 0.02 °C claim are 以原文为准 and are not toy outputs. The Thermistor page's rearranged inverse was not mixed in.
 - Wikipedia, Nyquist stability criterion, oldid 1376383390, https://en.wikipedia.org/w/index.php?title=Nyquist_stability_criterion&oldid=1376383390 action=raw, HTTP 200. Last modified 2026-09-23 21:20:30 UTC = 2026-09-24 05:20 Asia/Shanghai. N = Z − P; clockwise encirclements of −1; Z = N + P; closed-loop stable iff Z = 0; an open-loop-unstable plant needs one counter-clockwise encirclement per open-loop right-half-plane pole; Bode is less general. The title “Nyquist plot” is only a redirect, not a second body, and is not cited as one.
 
+Resource cards: wiki-steinhart-hart, wiki-thermistor, wiki-nyquist-stability. A real thermistor, calibration bath, MPU-6050 TEMP_OUT reading, real plant or analyser: 本页未运行.
+
 ## Declared headers and first-run results
 
 Common random numbers: the Steinhart–Hart toy shares the resistance-noise draw across arms at each regime and seed (five seeds). The Nyquist toy is a deterministic contour; every seed sees the same plants and the same omega grid (five seeds still printed).
@@ -26,7 +28,7 @@ None. No constant, arm, metric or regime was changed after the first run. Altern
 
 ## Code changes after the first run
 
-The first-line Wikipedia disclaimer in the Steinhart–Hart toy and expected/ header was reworded after the first run so the 0.02 °C figure is not printed as a toy output; result blocks were left byte-identical (proved by diff from “Regimes and parameters” onward). Pages and this note disclose that print-only header change. No retune.
+The first-line Wikipedia disclaimer in the Steinhart–Hart toy and expected/ header was reworded after the first run so the 0.02 °C figure is not printed as a toy output; result blocks were left byte-identical (proved by diff from “Regimes and parameters” onward). Pages and this note disclose that print-only header change. After local checks, the English disclosure of that header change was placed in the Steinhart–Hart section (it had been inserted into the previous I²C clock-stretching paragraph by mistake, and that paragraph was restored); the Chinese disclosure sentence was adjusted so the full stop sits outside the bold span. No retune.
 
 ## Mismatch with §9
 
@@ -34,7 +36,7 @@ None on the pre-declared cells. The ol_stable_joint “may near-tie” cell came
 
 ## Lock changes
 
-New batch-24 PR1 block in `tools/check_diagrams.mjs` (toys, expected, CRN, label order, difference directions, sources, plans, README, declared regimes, post-first-run none) plus `tools/test_b24p1_steinhart_nyquist_toys.py`. Tipped site-total, host-minute, month-total and Current-header locks only (41220→41580, M2 3750→3930, M5 3570→3750, sensors-fusion 900→1080, control-modelling 780→960). No lock relaxed. The unused laterSum deletion is left in place; laterOft and laterHi stay.
+New batch-24 PR1 block in `tools/check_diagrams.mjs` (toys, expected, CRN, label order, difference directions, sources, plans, README, declared regimes, post-first-run none) plus `tools/test_b24p1_steinhart_nyquist_toys.py`. Tipped site-total, host-minute, month-total and Current-header locks only (41220→41580, M2 3750→3930, M5 3570→3750, sensors-fusion 900→1080, control-modelling 780→960). The cited 0.02 check uses the same digit-boundary as the prose matcher so a later digit in an expected/ figure such as 0.0224 is not treated as the Wikipedia 0.02 °C claim. An accidental ASCII hyphen on the existing Diffusion Forcing curriculum “div −1.0000±0.0000” line was restored to the unicode minus so an earlier difference-direction lock does not see a new token. No lock relaxed. The unused laterSum deletion is left in place; laterOft and laterHi stay.
 
 - README `/41 220/` and `约 41 220 分钟` → `/41 580/` and `约 41 580 分钟`.
 - Curriculum sum checks `41220` → `41580`; the current month-total table and the live M2/M5 sum checks 3750→3930 and 3570→3750; live host-minute checks 900→1080 on sensors-fusion and 780→960 on control-modelling.

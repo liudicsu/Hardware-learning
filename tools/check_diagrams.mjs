@@ -10727,7 +10727,7 @@ print("protocol pass")
       for(const mk of markers)ok(prose.includes(mk)||expected.includes(mk)||md.slice(summary,end).includes(mk),`b24p1 ${slug} ${lang}: marker present ${mk}`);
       const cited=CITEDBY[slug]||[];
       for(const m of prose.matchAll(/(?<![\w.])(\d+\.\d{2,})(?![\d±]|e-\d)/g))ok(expected.includes(m[1])||cited.includes(m[1])||/手算/.test(prose.slice(Math.max(0,m.index-80),m.index+20)),`b24p1 ${slug} ${lang}: decimal ${m[1]} in prose is printed, cited, or 手算`);
-      for(const c of cited)for(const m of prose.matchAll(new RegExp(c.replace(".","\\.")+"(?!\\d)","g"))){const ctx=prose.slice(Math.max(0,m.index-400),m.index+c.length+400); ok(/以原文为准/.test(ctx)&&!expected.includes(c),`b24p1 ${slug} ${lang}: cited ${c} carries 以原文为准 and is not a toy output`);}
+      for(const c of cited)for(const m of prose.matchAll(new RegExp(c.replace(".","\\.")+"(?!\\d)","g"))){const ctx=prose.slice(Math.max(0,m.index-400),m.index+c.length+400); ok(/以原文为准/.test(ctx)&&!new RegExp(c.replace(".","\\.")+"(?!\\d)").test(expected),`b24p1 ${slug} ${lang}: cited ${c} carries 以原文为准 and is not a toy output`);}
       if(lang==="zh"){
         const typo=prose;
         let i=0; while(true){const a=typo.indexOf("**",i); if(a<0) break; const b=typo.indexOf("**",a+2); if(b<0) break; const span=typo.slice(a+2,b); ok(!span.includes("。")&&!span.includes("："),`b24p1 ${slug} zh: no 。 or ： inside bold: ${span.slice(0,40)}`); ok(typo[b+2]!=="："&&(a===0||typo[a-1]!=="："),`b24p1 ${slug} zh: no full-width colon glued to **`); i=b+2;}
