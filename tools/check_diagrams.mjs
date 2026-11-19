@@ -7973,7 +7973,6 @@ print("protocol pass")
       // A later bullet in the same Summary that names its own toy is checked against that toy's expected/; every other Summary line still against this toy's.
       const laterOft=summ.split("\n").filter(l=>l.includes("OpenVLA-OFT")&&l.includes("openvla_oft_parallel_l1_toy"));
       const laterHi=summ.split("\n").filter(l=>l.includes("Hi Robot")&&l.includes("hi_robot_hierarchical_feedback_toy"));
-      const laterSum=[...laterOft,...laterHi];
       const ownSum=summ.split("\n").filter(l=>!laterOft.includes(l)&&!laterHi.includes(l)).join("\n");
       const oftExp=read("examples/month-8/expected/openvla_oft_parallel_l1_toy.txt");
       const hiExp=read("examples/month-6/expected/hi_robot_hierarchical_feedback_toy.txt");
