@@ -5,6 +5,7 @@ Regimes and parameters were written before the first run
 hand_calc 7+5 = 12.0000
 hand_calc untrained_y = -100.0000
 hand_calc n_add_pairs = 81
+hand_calc card range = 2 to 18
 declared in_domain: A and B may near-tie on pick_acc - keep
 declared ood: B consistently higher reason_then_pick and pick_acc than A - keep; C loses on OOD vs B - keep
 hand_calc mean of in-domain train_mean over seeds = 9.8500

@@ -534,6 +534,7 @@ def main():
     print(f"hand_calc {HAND_A}+{HAND_B} = {num(float(HAND_A + HAND_B))}")
     print(f"hand_calc untrained_y = {num(UNTRAINED_Y)}")
     print(f"hand_calc n_add_pairs = {n_pairs}")
+    print(f"hand_calc card range = {A_MIN + B_MIN} to {A_MAX + B_MAX}")
     for r in REGIMES:
         print(f"declared {r}: {DECLARED[r]}")
 
@@ -590,6 +591,7 @@ Regimes and parameters were written before the first run
 hand_calc 7+5 = 12.0000
 hand_calc untrained_y = -100.0000
 hand_calc n_add_pairs = 81
+hand_calc card range = 2 to 18
 declared in_domain: A and B may near-tie on pick_acc - keep
 declared ood: B consistently higher reason_then_pick and pick_acc than A - keep; C loses on OOD vs B - keep
 hand_calc mean of in-domain train_mean over seeds = 9.8500
@@ -656,7 +658,7 @@ alternative untrained_y = first addend (printed, not adopted)
 
 **看到结果后做的选择。** 无。首次运行之后，没有改过常数、支、指标或工况，上表就是那一次运行。
 
-**首次运行后的代码改动。** 无。
+**首次运行后的代码改动。** 首次运行之后，只改了 SimOutput 的围栏和 source="model" 标签，并增加了一行仅用于打印的 `hand_calc card range = 2 to 18`；结果块没有改动。
 
 本页**不宣布通用的赢家**:域内记住的选牌并不能把两阶段这一支和稠密覆盖分开，甚至单看 pick_acc 也不能把它和「只做第二阶段」的动作头分开；差距出现在未见算式上，以及这次选牌是不是跟着一个仍然会做加法的推理器走的。论文里的 43/52 以论文为准，不是玩具输出。
 

@@ -44,7 +44,7 @@ None. No constant, arm, metric or regime was changed after the first run.
 
 ## Code changes after the first run
 
-None.
+After the first run, only the SimOutput fence and the source="model" label were changed, and a print-only line `hand_calc card range = 2 to 18` was added to the ChatVLA-2 toy and expected/ header; result blocks were not changed. No retune.
 
 ## Mismatch with §9
 

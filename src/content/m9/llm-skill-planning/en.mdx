@@ -534,6 +534,7 @@ def main():
     print(f"hand_calc {HAND_A}+{HAND_B} = {num(float(HAND_A + HAND_B))}")
     print(f"hand_calc untrained_y = {num(UNTRAINED_Y)}")
     print(f"hand_calc n_add_pairs = {n_pairs}")
+    print(f"hand_calc card range = {A_MIN + B_MIN} to {A_MAX + B_MAX}")
     for r in REGIMES:
         print(f"declared {r}: {DECLARED[r]}")
 
@@ -590,6 +591,7 @@ Regimes and parameters were written before the first run
 hand_calc 7+5 = 12.0000
 hand_calc untrained_y = -100.0000
 hand_calc n_add_pairs = 81
+hand_calc card range = 2 to 18
 declared in_domain: A and B may near-tie on pick_acc - keep
 declared ood: B consistently higher reason_then_pick and pick_acc than A - keep; C loses on OOD vs B - keep
 hand_calc mean of in-domain train_mean over seeds = 9.8500
@@ -656,7 +658,7 @@ The alternative `untrained_y = first addend`, printed and not adopted, leaves th
 
 **Choices made after seeing results.** None. No constant, arm, metric or regime was changed after the first run, and the table above is that first run.
 
-**Code change after the first run.** None.
+**Code change after the first run.** After the first run, only the SimOutput fence and the source="model" label were changed, and a print-only line `hand_calc card range = 2 to 18` was added; the result blocks were not changed.
 
 The page **does not declare a universal winner**: in-domain memorised picks do not separate the two-stage arm from a dense overwrite, and they do not even separate it from a stage-2-only action head on pick_acc alone; the gap shows up on unseen equations, and on whether the pick was reached by following a reasoner that still does the sum. Paper 43/52 is 以论文为准, not a toy output.
 

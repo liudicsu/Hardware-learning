@@ -226,6 +226,7 @@ def main():
     print(f"hand_calc {HAND_A}+{HAND_B} = {num(float(HAND_A + HAND_B))}")
     print(f"hand_calc untrained_y = {num(UNTRAINED_Y)}")
     print(f"hand_calc n_add_pairs = {n_pairs}")
+    print(f"hand_calc card range = {A_MIN + B_MIN} to {A_MAX + B_MAX}")
     for r in REGIMES:
         print(f"declared {r}: {DECLARED[r]}")
 

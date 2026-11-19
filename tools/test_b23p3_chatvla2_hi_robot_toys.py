@@ -63,6 +63,7 @@ class ChatVLA2(unittest.TestCase):
             "hand_calc 7+5 = 12.0000",
             "hand_calc untrained_y = -100.0000",
             "hand_calc n_add_pairs = 81",
+            "hand_calc card range = 2 to 18",
             "hand_calc mean of in-domain train_mean over seeds = 9.8500",
             "n_id_eq=12 n_ood_eq=20 n_cards=5 n_arith=40 n_add_pairs=81 untrained_y=-100.0000 hand_a=7 hand_b=5",
             "paired B-A pick_acc: 0.6100+-0.0548: clear gap",
