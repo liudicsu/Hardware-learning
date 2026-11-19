@@ -58,13 +58,13 @@ PLANTS = {
         "expect": "A and B agree on call and may near-tie - keep",
     },
     "ol_unstable": {
-        "num": (8.0, 1.6),        # 8*(s + 0.2)
+        "num": (8.0, 1.6),        # 8*(s + 0.2000)
         "den": (1.0, 3.0, -4.0),  # (s - 1)*(s + 4)
         "P": 1,
         "expect": "A's single-margin stable call loses; B flags the missing encirclement (Z = N + P != 0) - keep",
     },
     "nmp_encircle": {
-        "num": (-5.0, 1.0),       # 1 - s/0.2
+        "num": (-5.0, 1.0),       # 1 - s/0.2000
         "den": (1.0, 3.0, 2.0),   # (s + 1)*(s + 2)
         "P": 0,
         "expect": "C loses (one healthy phase margin, but the plot encircles -1) - keep",
@@ -341,6 +341,8 @@ def main():
     print(f"hand_calc step-stability bound: |y| clipped at {num(Y_CLIP)}; ISE integrated to t_end={num(T_END)} with Euler step dt={num(DT)}")
     print(f"hand_calc ol_stable_joint wn=6.0000 zeta=0.5000 K=2.0000")
     print(f"hand_calc card range omega = {10 ** LOG_W_MIN:.4f} to {10 ** LOG_W_MAX:.4f}")
+    print("hand_calc ol_unstable factor 0.2000")
+    print("hand_calc nmp_encircle factor 0.2000")
     for name, plant in PLANTS.items():
         print(
             f"declared {name}: num={plant['num']} den={plant['den']} P={plant['P']}: {plant['expect']}"

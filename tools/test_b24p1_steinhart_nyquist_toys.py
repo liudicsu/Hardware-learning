@@ -140,6 +140,8 @@ class Nyquist(unittest.TestCase):
             "hand_calc Z = N + P, closed-loop stable iff Z = 0",
             "hand_calc step-stability bound: |y| clipped at 20.0000",
             "hand_calc ol_stable_joint wn=6.0000 zeta=0.5000 K=2.0000",
+            "hand_calc ol_unstable factor 0.2000",
+            "hand_calc nmp_encircle factor 0.2000",
             "first_pm=49.3542",
             "first_pm=90.1206",
             "first_pm=84.9799",

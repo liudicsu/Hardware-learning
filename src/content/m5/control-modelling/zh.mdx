@@ -1391,7 +1391,7 @@ payload_mismatch FC=0
 
 玩具是只用标准库、只在 CPU 上跑的模型：三个声明的线性对象、已经吸进每个开环 G 的回路增益 K，以及共享的 ω 网格。围线是确定性的：每个种子看到的是同一组对象和同一张网格（公共随机数 Common random numbers：无，因为围线是确定性的；仍然打印种子 0 到 4 共五个，以便判定辅助函数保持一致；输出用 ROUND_HALF_UP）。正式网格是每十倍频 80 个点，从 0.0010 到 10000.0000 rad/s（n_grid = 561）。A 臂（A_bode_first）在第一个增益穿越处的相位裕度至少为 pm_min_deg = 30.0000° 时接受回路，并忽略其他穿越和开环右半平面极点。B 臂（B_nyquist）当且仅当 Z = N + P 等于 0 时接受，其中 N 是 G + 1 绕原点顺时针绕数的最接近整数。C 臂（C_bode_any）只要有一个相位裕度看起来健康就接受，并把 P 当成 0。指标是 call（臂判定为稳定则为 1.0000）和 miss（该判定是误接受，也就是臂说稳定但 Z 不是 0，则为 1.0000）。对象层的阶跃也用显式欧拉积分：声明的阶跃稳定性界限是 |y| 在 y_clip = 20.0000 处截断，ISE 积分到 t_end = 20.0000 s，欧拉步长 dt = 0.0010 s（手算）。这些阶跃数字是对象的诊断，不是臂的指标。
 
-三个对象都在首次运行前写定，并予保留。**ol_stable_joint** 是开环稳定的二阶、关节式对象 G(s) = 2 × 6^2 / (s^2 + 2 × 0.5000 × 6 s + 6^2)，因此 num = (72.0,)，den = (1.0, 6.0, 36.0)，wn = 6.0000，zeta = 0.5000，K = 2.0000，P = 0；声明 A 与 B 在 call 上一致，并可能接近打平。**ol_unstable** 是 G(s) = 8(s + 0.2)/((s − 1)(s + 4))，因此 num = (8.0, 1.6)，den = (1.0, 3.0, −4.0)，P = 1；声明 A 只看单一裕度的稳定判定会输，B 会标出缺失的绕行（Z = N + P 不是 0）。**nmp_encircle** 是非最小相位回路 G(s) = (1 − s/0.2)/((s + 1)(s + 2))，因此 num = (−5.0, 1.0)，den = (1.0, 3.0, 2.0)，P = 0；声明 C 会输，因为一个看起来健康的相位裕度仍然伴随着对 −1 的绕行。
+三个对象都在首次运行前写定，并予保留。**ol_stable_joint** 是开环稳定的二阶、关节式对象 G(s) = 2 × 6^2 / (s^2 + 2 × 0.5000 × 6 s + 6^2)，因此 num = (72.0,)，den = (1.0, 6.0, 36.0)，wn = 6.0000，zeta = 0.5000，K = 2.0000，P = 0；声明 A 与 B 在 call 上一致，并可能接近打平。**ol_unstable** 是 G(s) = 8(s + 0.2000)/((s − 1)(s + 4))，因此 num = (8.0, 1.6)，den = (1.0, 3.0, −4.0)，P = 1；声明 A 只看单一裕度的稳定判定会输，B 会标出缺失的绕行（Z = N + P 不是 0）。**nmp_encircle** 是非最小相位回路 G(s) = (1 − s/0.2000)/((s + 1)(s + 2))，因此 num = (−5.0, 1.0)，den = (1.0, 3.0, 2.0)，P = 0；声明 C 会输，因为一个看起来健康的相位裕度仍然伴随着对 −1 的绕行。
 
 <CodeSource path="examples/month-5/control-modelling/nyquist_stability_criterion_toy.py" />
 
@@ -1456,13 +1456,13 @@ PLANTS = {
         "expect": "A and B agree on call and may near-tie - keep",
     },
     "ol_unstable": {
-        "num": (8.0, 1.6),        # 8*(s + 0.2)
+        "num": (8.0, 1.6),        # 8*(s + 0.2000)
         "den": (1.0, 3.0, -4.0),  # (s - 1)*(s + 4)
         "P": 1,
         "expect": "A's single-margin stable call loses; B flags the missing encirclement (Z = N + P != 0) - keep",
     },
     "nmp_encircle": {
-        "num": (-5.0, 1.0),       # 1 - s/0.2
+        "num": (-5.0, 1.0),       # 1 - s/0.2000
         "den": (1.0, 3.0, 2.0),   # (s + 1)*(s + 2)
         "P": 0,
         "expect": "C loses (one healthy phase margin, but the plot encircles -1) - keep",
@@ -1739,6 +1739,8 @@ def main():
     print(f"hand_calc step-stability bound: |y| clipped at {num(Y_CLIP)}; ISE integrated to t_end={num(T_END)} with Euler step dt={num(DT)}")
     print(f"hand_calc ol_stable_joint wn=6.0000 zeta=0.5000 K=2.0000")
     print(f"hand_calc card range omega = {10 ** LOG_W_MIN:.4f} to {10 ** LOG_W_MAX:.4f}")
+    print("hand_calc ol_unstable factor 0.2000")
+    print("hand_calc nmp_encircle factor 0.2000")
     for name, plant in PLANTS.items():
         print(
             f"declared {name}: num={plant['num']} den={plant['den']} P={plant['P']}: {plant['expect']}"
@@ -1802,6 +1804,8 @@ hand_calc Z = N + P, closed-loop stable iff Z = 0
 hand_calc step-stability bound: |y| clipped at 20.0000; ISE integrated to t_end=20.0000 with Euler step dt=0.0010
 hand_calc ol_stable_joint wn=6.0000 zeta=0.5000 K=2.0000
 hand_calc card range omega = 0.0010 to 10000.0000
+hand_calc ol_unstable factor 0.2000
+hand_calc nmp_encircle factor 0.2000
 declared ol_stable_joint: num=(72.0,) den=(1.0, 6.0, 36.0) P=0: A and B agree on call and may near-tie - keep
 declared ol_unstable: num=(8.0, 1.6) den=(1.0, 3.0, -4.0) P=1: A's single-margin stable call loses; B flags the missing encirclement (Z = N + P != 0) - keep
 declared nmp_encircle: num=(-5.0, 1.0) den=(1.0, 3.0, 2.0) P=0: C loses (one healthy phase margin, but the plot encircles -1) - keep
@@ -1870,7 +1874,7 @@ alternative pts_per_dec=20 (printed, not adopted)
 
 在 **nmp_encircle** 上，N_raw = 2.0000，所以 N = 2，P = 0，Z = 2。第一个相位裕度是 84.9799°，位于 ω = 0.3888 rad/s，看起来健康，但第二次穿越是 −50.6024°，位于 ω = 4.4553 rad/s，增益裕度是 −4.4362 dB，位于 ω = 1.6125 rad/s。阶跃再次碰到界限（clipped = 1，y_end = 20.0000，step_ise = 5985.5519）。C_bode_any（以及只看第一次穿越的 A）是 call 1.0000、miss 1.0000；B 是 call 0.0000。成对 C−B 的 call 与 miss 都是 1.0000±0.0000，属于**明显差距，不是打平**（5 个种子全部同号）。C 会输的声明成立。
 
-**看过结果后做的选择**。 没有。三个对象、pm_min_deg = 30.0000°、正式的每十倍频 80 点网格、阶跃稳定性界限和三种情形都在首次运行前写定。同一组对象上打印、但未采纳的替代是每十倍频 20 个点的更疏网格：每臂的 call 与 miss 标签都不变（first_pm 只移动千分之几度：49.3542° 到 49.3549°，90.1206° 到 90.0879°，84.9799° 到 85.0077°；N 与 Z 不变）。
+**看过结果后做的选择**。 首次运行之后，本课结果正文、Summary 以及新的课程目标里，正式成对记号 −1.0000 改成了 ASCII 的 -1.0000，以便方向锁与 expected/ 一致；结果数字和情形未改。三个对象、pm_min_deg = 30.0000°、正式的每十倍频 80 点网格、阶跃稳定性界限和三种情形都在首次运行前写定。同一组对象上打印、但未采纳的替代是每十倍频 20 个点的更疏网格：每臂的 call 与 miss 标签都不变（first_pm 只移动千分之几度：49.3542° 到 49.3549°，90.1206° 到 90.0879°，84.9799° 到 85.0077°；N 与 Z 不变）。
 
 本页**不宣布普遍赢家**。在开环稳定的二阶关节式对象上，健康的第一个相位裕度与 Nyquist 计数 Z = 0 是一致的；在开环不稳定对象上，或在一次健康穿越之后仍绕过 −1 的回路上，只看单一裕度的「稳定」判定是误接受，与 Z 相符的是绕数。真实对象或分析仪均**本页未运行**。
 

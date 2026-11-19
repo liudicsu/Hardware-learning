@@ -7,6 +7,8 @@ hand_calc Z = N + P, closed-loop stable iff Z = 0
 hand_calc step-stability bound: |y| clipped at 20.0000; ISE integrated to t_end=20.0000 with Euler step dt=0.0010
 hand_calc ol_stable_joint wn=6.0000 zeta=0.5000 K=2.0000
 hand_calc card range omega = 0.0010 to 10000.0000
+hand_calc ol_unstable factor 0.2000
+hand_calc nmp_encircle factor 0.2000
 declared ol_stable_joint: num=(72.0,) den=(1.0, 6.0, 36.0) P=0: A and B agree on call and may near-tie - keep
 declared ol_unstable: num=(8.0, 1.6) den=(1.0, 3.0, -4.0) P=1: A's single-margin stable call loses; B flags the missing encirclement (Z = N + P != 0) - keep
 declared nmp_encircle: num=(-5.0, 1.0) den=(1.0, 3.0, 2.0) P=0: C loses (one healthy phase margin, but the plot encircles -1) - keep

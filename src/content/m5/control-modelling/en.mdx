@@ -1391,7 +1391,7 @@ This section is **not** a re-teach of the Bode gain and phase margins already on
 
 The toy is a standard-library, CPU-only model of three declared linear plants, a shared loop gain already absorbed as K in each open-loop G, and a shared omega grid. The contour is deterministic: every seed sees the same plants and the same grid (Common random numbers: none, because the contour is deterministic; five seeds 0 through 4 are still printed so the verdict helpers stay uniform; ROUND_HALF_UP output). The official grid uses 80 points per decade from 0.0010 to 10000.0000 rad/s (n_grid = 561). Arm A (A_bode_first) accepts the loop if the first gain-crossover phase margin is at least pm_min_deg = 30.0000°, and ignores other crossings and open-loop right-half-plane poles. Arm B (B_nyquist) accepts if and only if Z = N + P equals 0, with N the nearest integer to the clockwise winding of G + 1 about the origin. Arm C (C_bode_any) accepts if any one phase margin looks healthy and treats P as 0. Metrics are call (1.0000 if the arm says stable) and miss (1.0000 if that call is a false accept, i.e. the arm says stable while Z is not 0). A plant-level step is also integrated with explicit Euler: the declared step-stability bound is that |y| is clipped at y_clip = 20.0000, ISE is integrated to t_end = 20.0000 s, and the Euler step is dt = 0.0010 s (hand_calc). The step figures are diagnostics for the plant, not an arm metric.
 
-Three plants were written before the first run and are kept. **ol_stable_joint** is an open-loop-stable second-order joint-like plant G(s) = 2 × 6^2 / (s^2 + 2 × 0.5000 × 6 s + 6^2), so num = (72.0,), den = (1.0, 6.0, 36.0), wn = 6.0000, zeta = 0.5000, K = 2.0000, P = 0; A and B are declared to agree on call and may near-tie. **ol_unstable** is G(s) = 8(s + 0.2)/((s − 1)(s + 4)), so num = (8.0, 1.6), den = (1.0, 3.0, −4.0), P = 1; A's single-margin stable call is declared to lose, and B is declared to flag the missing encirclement (Z = N + P is not 0). **nmp_encircle** is the non-minimum-phase loop G(s) = (1 − s/0.2)/((s + 1)(s + 2)), so num = (−5.0, 1.0), den = (1.0, 3.0, 2.0), P = 0; C is declared to lose because one healthy phase margin still comes with an encirclement of −1.
+Three plants were written before the first run and are kept. **ol_stable_joint** is an open-loop-stable second-order joint-like plant G(s) = 2 × 6^2 / (s^2 + 2 × 0.5000 × 6 s + 6^2), so num = (72.0,), den = (1.0, 6.0, 36.0), wn = 6.0000, zeta = 0.5000, K = 2.0000, P = 0; A and B are declared to agree on call and may near-tie. **ol_unstable** is G(s) = 8(s + 0.2000)/((s − 1)(s + 4)), so num = (8.0, 1.6), den = (1.0, 3.0, −4.0), P = 1; A's single-margin stable call is declared to lose, and B is declared to flag the missing encirclement (Z = N + P is not 0). **nmp_encircle** is the non-minimum-phase loop G(s) = (1 − s/0.2000)/((s + 1)(s + 2)), so num = (−5.0, 1.0), den = (1.0, 3.0, 2.0), P = 0; C is declared to lose because one healthy phase margin still comes with an encirclement of −1.
 
 <CodeSource path="examples/month-5/control-modelling/nyquist_stability_criterion_toy.py" />
 
@@ -1456,13 +1456,13 @@ PLANTS = {
         "expect": "A and B agree on call and may near-tie - keep",
     },
     "ol_unstable": {
-        "num": (8.0, 1.6),        # 8*(s + 0.2)
+        "num": (8.0, 1.6),        # 8*(s + 0.2000)
         "den": (1.0, 3.0, -4.0),  # (s - 1)*(s + 4)
         "P": 1,
         "expect": "A's single-margin stable call loses; B flags the missing encirclement (Z = N + P != 0) - keep",
     },
     "nmp_encircle": {
-        "num": (-5.0, 1.0),       # 1 - s/0.2
+        "num": (-5.0, 1.0),       # 1 - s/0.2000
         "den": (1.0, 3.0, 2.0),   # (s + 1)*(s + 2)
         "P": 0,
         "expect": "C loses (one healthy phase margin, but the plot encircles -1) - keep",
@@ -1739,6 +1739,8 @@ def main():
     print(f"hand_calc step-stability bound: |y| clipped at {num(Y_CLIP)}; ISE integrated to t_end={num(T_END)} with Euler step dt={num(DT)}")
     print(f"hand_calc ol_stable_joint wn=6.0000 zeta=0.5000 K=2.0000")
     print(f"hand_calc card range omega = {10 ** LOG_W_MIN:.4f} to {10 ** LOG_W_MAX:.4f}")
+    print("hand_calc ol_unstable factor 0.2000")
+    print("hand_calc nmp_encircle factor 0.2000")
     for name, plant in PLANTS.items():
         print(
             f"declared {name}: num={plant['num']} den={plant['den']} P={plant['P']}: {plant['expect']}"
@@ -1802,6 +1804,8 @@ hand_calc Z = N + P, closed-loop stable iff Z = 0
 hand_calc step-stability bound: |y| clipped at 20.0000; ISE integrated to t_end=20.0000 with Euler step dt=0.0010
 hand_calc ol_stable_joint wn=6.0000 zeta=0.5000 K=2.0000
 hand_calc card range omega = 0.0010 to 10000.0000
+hand_calc ol_unstable factor 0.2000
+hand_calc nmp_encircle factor 0.2000
 declared ol_stable_joint: num=(72.0,) den=(1.0, 6.0, 36.0) P=0: A and B agree on call and may near-tie - keep
 declared ol_unstable: num=(8.0, 1.6) den=(1.0, 3.0, -4.0) P=1: A's single-margin stable call loses; B flags the missing encirclement (Z = N + P != 0) - keep
 declared nmp_encircle: num=(-5.0, 1.0) den=(1.0, 3.0, 2.0) P=0: C loses (one healthy phase margin, but the plot encircles -1) - keep
@@ -1870,7 +1874,7 @@ On **ol_unstable**, N_raw = 6.019e-17 so N = 0, P = 1, Z = 1. The loop is closed
 
 On **nmp_encircle**, N_raw = 2.0000 so N = 2, P = 0, Z = 2. The first phase margin is 84.9799° at ω = 0.3888 rad/s and looks healthy, but a second crossing is −50.6024° at ω = 4.4553 rad/s, and the gain margin is −4.4362 dB at ω = 1.6125 rad/s. The step again hits the bound (clipped = 1, y_end = 20.0000, step_ise = 5985.5519). C_bode_any (and A, which looks only at the first margin) call 1.0000 and miss 1.0000; B calls 0.0000. Paired C−B call and miss are both 1.0000±0.0000, a **clear gap, not a tie** (same sign on all 5 seeds). The declaration that C loses held.
 
-**Choices made after seeing results.** None. The three plants, pm_min_deg = 30.0000°, the official 80-point-per-decade grid, the step-stability bound and the three regimes were written before the first run. An alternative coarser grid of 20 points per decade, printed on the same plants and not adopted, leaves every arm's call and miss labels unchanged (first_pm moves by a few thousandths of a degree: 49.3542° to 49.3549°, 90.1206° to 90.0879°, 84.9799° to 85.0077°; N and Z are unchanged).
+**Choices made after seeing results.** After the first run, the official paired token −1.0000 in this section, the Summary, and the new curriculum objective was changed to ASCII -1.0000 so a difference-direction lock would match expected/; result numbers and regimes were not changed. The three plants, pm_min_deg = 30.0000°, the official 80-point-per-decade grid, the step-stability bound and the three regimes were written before the first run. An alternative coarser grid of 20 points per decade, printed on the same plants and not adopted, leaves every arm's call and miss labels unchanged (first_pm moves by a few thousandths of a degree: 49.3542° to 49.3549°, 90.1206° to 90.0879°, 84.9799° to 85.0077°; N and Z are unchanged).
 
 The page **does not declare a universal winner**: on an open-loop-stable second-order joint-like plant a healthy first phase margin and a Nyquist count of Z = 0 agree; on an open-loop-unstable plant, or on a loop that encircles −1 after one healthy crossing, a single-margin “stable” call is the wrong accept and the encirclement count is the one that matches Z. A real plant or analyser: **本页未运行**.
 
