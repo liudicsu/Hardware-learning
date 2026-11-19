@@ -862,7 +862,7 @@ MuJoCo / Gym / SB3 / GPU training: 本页未运行; paper numbers 以论文为�
 
 <Formula label="GAE(γ, λ)，在一个回合内倒序计算">δ_t = r_t + γ V(t+1) − V(t),   V(H) = 0;   Â_t = δ_t + γλ Â_(t+1),   Â_H = 0;   λ = 0 → Â_t = δ_t;   λ = 1 → Â_t = Σ_l γ^l r_(t+l) − V(t)</Formula>
 
-**算例（手算，玩具也会打印）。** 往后第 `l` 步残差的权重是 `(γλ)^l`，所以估计器大约看向未来 `1 / (1 − γλ)` 步。取 `γ = 0.9900`、λ = 0.95，是 `16.8067` 步；λ = 1 时是 `100.0000` 步，比 50 步的回合还长，所以 λ = 1 的求和一直加到回合结束。只有一步（`H = 1`）且 `V(1) = 0` 时，每个 λ 都给出同样的 `Â_0 = r_0 − V(0)`，三个估计器必然相同。对下面用的策略，真实梯度是 `Σ_t γ^t · P1(1 − P1)`，`P1 = 0.5000`；50 步时玩具打印 `9.8748`。
+**算例（手算，玩具也会打印）。** 往后第 `l` 步残差的权重是 `(γλ)^l`，所以估计器大约看向未来 `1 / (1 − γλ)` 步。取 `γ = 0.9900`、λ = 0.95，是 `16.8067` 步；λ = 1 时是 `100.0000` 步，比 50 步的回合（`long_noisy_H=50`）还长，所以 λ = 1 的求和一直加到回合结束。只有一步（`H = 1`）且 `V(1) = 0` 时，每个 λ 都给出同样的 `Â_0 = r_0 − V(0)`，三个估计器必然相同。对下面用的策略，真实梯度是 `Σ_t γ^t · P1(1 − P1)`，`P1 = 0.5000`；50 步（`long_noisy_H=50`）时玩具打印 `9.8748`。
 
 **积分步长。** 无：每个回合是一次倒序遍历算出的有限和；没有时间常数，也没有学习率，因为策略不更新。
 
@@ -880,9 +880,9 @@ MuJoCo / Gym / SB3 / GPU training: 本页未运行; paper numbers 以论文为�
 
 | 工况 | 回合 | 预先声明 |
 |---|---|---|
-| long_noisy | 即时奖励，`H = 50`，价值误差小 | B 的 grad_var **一致**低于 A，**保留**；C 如实给出 |
+| long_noisy | 即时奖励，`H = 50`（`long_noisy_H=50`），价值误差小 | B 的 grad_var **一致**低于 A，**保留**；C 如实给出 |
 | one_step | 即时奖励，`H = 1` | 三个 λ **打平**或近似平局，**保留** |
-| delayed_coarse | 全部奖励在最后一步，`H = 30`，粗糙的常数价值 | C（λ = 0）在 grad_mse 上**输**给 B 和 A，**保留** |
+| delayed_coarse | 全部奖励在最后一步，`H = 30`（`delayed_coarse_H=30`），粗糙的常数价值 | C（λ = 0）在 grad_mse 上**输**给 B 和 A，**保留** |
 
 ### 运行标准库玩具
 
@@ -1129,7 +1129,9 @@ def main():
     print("not a neural net; not MuJoCo or SB3; paper locomotion results 以论文为准; "
           "GPU / SB3: 本页未运行")
     print(f"seeds={len(SEEDS)} gamma={num(GAMMA)} p1={num(P1)} c_r={num(C_R)} "
-          f"sig_r={num(SIG_R)} n_ep={N_EP} m_draw={M_DRAW} (declared)")
+          f"sig_r={num(SIG_R)} n_ep={N_EP} m_draw={M_DRAW} "
+          f"long_noisy_H={REGIMES['long_noisy']['H']} "
+          f"delayed_coarse_H={REGIMES['delayed_coarse']['H']} (declared)")
     print("score d log pi(a)/d theta = a - P1; terminal value V(H) = 0")
     print("Regimes and parameters were written before the first run")
     for name in ("long_noisy", "one_step", "delayed_coarse"):
@@ -1172,7 +1174,7 @@ if __name__ == "__main__":
 ```text
 GAE lambda toy: synthetic policy-gradient estimate for lambda = 1, 0.95, 0
 not a neural net; not MuJoCo or SB3; paper locomotion results 以论文为准; GPU / SB3: 本页未运行
-seeds=5 gamma=0.9900 p1=0.5000 c_r=1.0000 sig_r=1.0000 n_ep=16 m_draw=40 (declared)
+seeds=5 gamma=0.9900 p1=0.5000 c_r=1.0000 sig_r=1.0000 n_ep=16 m_draw=40 long_noisy_H=50 delayed_coarse_H=30 (declared)
 score d log pi(a)/d theta = a - P1; terminal value V(H) = 0
 Regimes and parameters were written before the first run
 hand_calc g_true long_noisy = 9.8748
@@ -1234,7 +1236,7 @@ Paper biped / quadruped results 以论文为准; GPU / SB3 / MuJoCo: 本页未�
 
 **没有成立的预先声明。** 这个玩具里没有：长回合上 B 方差更低、一步时打平、延迟奖励下 λ = 0 的输都成立。有两个结果没有预先声明：long_noisy 上 λ = 0 赢了另外两个臂；delayed_coarse 上 λ = 0.95 在 `grad_mse` 上没有赢 λ = 1。
 
-**首次运行后的代码改动。** 无。玩具按写好的样子运行了一次，首次输出与 `expected/` 文件逐字节相同。
+**首次运行后的代码改动。** 仅打印：首次运行之后，声明参数那一行补上了 `long_noisy_H=50` 和 `delayed_coarse_H=30`，好让课页上的这些数出现在 `expected/` 里。模型、指标和参数都没有改；结果块与首次运行逐字节相同。
 
 **看到结果后做的选择。** 无。λ = 0.95、回合长度、噪声水平和三个打印的备选都在首次运行前写定，并在相同种子上运行。long_noisy 上 λ = 0.9 给出 X−A `grad_var` -8.4984±1.0608，λ = 0.98 给出 -4.2012±0.4197，都是 5 个种子全部同号的 clear；在 delayed_coarse 上给 C 换成按步序号的真实价值加误差，X−C `grad_mse` 为 0.2929±0.5736，近似平局，5 个中有 1 个种子反号。最后这一行很重要：这个玩具里状态只有步序号，所以即使 `V(t)` 完全准确，也分不出最后的奖励是前面哪些动作挣来的，λ = 0 依旧看不见它。它们都没有替换默认设置。
 

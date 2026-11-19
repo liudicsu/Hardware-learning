@@ -233,7 +233,9 @@ def main():
     print("not a neural net; not MuJoCo or SB3; paper locomotion results 以论文为准; "
           "GPU / SB3: 本页未运行")
     print(f"seeds={len(SEEDS)} gamma={num(GAMMA)} p1={num(P1)} c_r={num(C_R)} "
-          f"sig_r={num(SIG_R)} n_ep={N_EP} m_draw={M_DRAW} (declared)")
+          f"sig_r={num(SIG_R)} n_ep={N_EP} m_draw={M_DRAW} "
+          f"long_noisy_H={REGIMES['long_noisy']['H']} "
+          f"delayed_coarse_H={REGIMES['delayed_coarse']['H']} (declared)")
     print("score d log pi(a)/d theta = a - P1; terminal value V(H) = 0")
     print("Regimes and parameters were written before the first run")
     for name in ("long_noisy", "one_step", "delayed_coarse"):

@@ -2475,13 +2475,13 @@ This section is **not** the ICP section above: ICP aligns two scans locally from
 
 <Formula label="One filter step (declared toy model)">x_i ← x_i + u_t;   w_i = Π_beams [Z_HIT · N(z_b; r̂_b(x_i), SIG_L) + Z_RAND / R_MAX],   w_i = 0 inside an obstacle;   estimate = Σ w_i x_i / Σ w_i;   low-variance resampling;   n_next = clamp(KLD(k), N_MIN, N_MAX)</Formula>
 
-**Worked example — a labelled hand calculation, also printed by the toy.** The KLD-style rule turns the number `k` of occupied 0.5 m bins into a particle count: `k = 2` gives `65.8404`, which the toy clamps up to `100.0000`; `k = 10` gives `216.9395`, inside the range; `k = 50` gives `749.3302`, clamped down to `600.0000`. A converged cloud therefore runs on far fewer particles than a spread one. Each beam's likelihood never drops below `Z_RAND / R_MAX = 0.0125`, so one bad beam cannot zero a particle on its own. Dead reckoning with the declared motion noise drifts by about `0.1250 m` per axis after 25 steps, so odometry alone is good for a short known-start move and useless from a wrong start.
+**Worked example — a labelled hand calculation, also printed by the toy.** The KLD-style rule turns the number `k` of occupied 0.5 m bins (`bin_size=0.5000`) into a particle count: `k = 2` gives `65.8404`, which the toy clamps up to `100.0000`; `k = 10` gives `216.9395`, inside the range; `k = 50` gives `749.3302`, clamped down to `600.0000`. A converged cloud therefore runs on far fewer particles than a spread one. Each beam's likelihood never drops below `Z_RAND / R_MAX = 0.0125`, so one bad beam cannot zero a particle on its own. Dead reckoning with the declared motion noise drifts by about `0.1250 m` per axis after 25 steps, so odometry alone is good for a short known-start move and useless from a wrong start.
 
 **Integration step.** None: each step is one discrete predict–weight–resample cycle; there is no continuous-time model.
 
 ### Fair setup
 
-`amcl_particle_filter_localization_toy.py` is **synthetic** and stdlib only. **Model assumptions:** axis-aligned rectangular rooms in metres (a 10 by 6 room with three boxes, and a 12 by 2 corridor with none); the heading is known and fixed, standing in for an IMU, so the filter tracks x and y only; four axis-aligned beams return the exact range to the nearest edge plus noise (sd 0.1 m), capped at 8 m; each step commands a 0.3 m move, the true move scales it by `1 + N(0, 0.05)` per axis and adds `N(0, 0.02)` per axis, and odometry reports the command. Particles move by the odometry command without added noise; new particles enter only when the KLD rule asks for more (uniform draws) and through recovery. The commanded endpoint, not the noisy true endpoint, is checked against the boxes. Every value is a **declared toy parameter**: the particle range 100 to 600 and the recovery rates 0.05 / 0.5 are the toy's own, not the ROS defaults quoted above.
+`amcl_particle_filter_localization_toy.py` is **synthetic** and stdlib only. **Model assumptions:** axis-aligned rectangular rooms in metres (a 10 by 6 room, `room=10.0000x6.0000`, with three boxes, and a 12 by 2 corridor, `corridor=12.0000x2.0000`, with none); the heading is known and fixed, standing in for an IMU, so the filter tracks x and y only; four axis-aligned beams return the exact range to the nearest edge plus noise (sd 0.1 m), capped at 8 m; each step commands a 0.3 m move, the true move scales it by `1 + N(0, 0.05)` per axis and adds `N(0, 0.02)` per axis, and odometry reports the command. Particles move by the odometry command without added noise; new particles enter only when the KLD rule asks for more (uniform draws) and through recovery. The commanded endpoint, not the noisy true endpoint, is checked against the boxes. Every value is a **declared toy parameter**: the particle range 100 to 600 and the recovery rates 0.05 / 0.5 are the toy's own, not the ROS defaults quoted above.
 
 | Arm | What it is | Particles | Recovery |
 |---|---|---|---|
@@ -2489,14 +2489,14 @@ This section is **not** the ICP section above: ICP aligns two scans locally from
 | B_amcl | KLD-style adaptive filter | 100 to 600 | on |
 | C_few | the same filter with a fixed small budget | 30 | off |
 
-**Common random numbers:** for each (regime, seed), one stream draws the true start, every candidate motion direction, every motion noise, every beam noise and the kidnap pose, before any arm runs; the true path and the measured ranges are computed once and shared by all three arms. B and C draw their own filter randomness from one stream string per (regime, seed). Five seeds. Metrics: `err` (mean position error over the last 5 steps, metres) and `success` (1 when that error is under 0.5 m), each as mean±sd over seeds.
+**Common random numbers:** for each (regime, seed), one stream draws the true start, every candidate motion direction, every motion noise, every beam noise and the kidnap pose, before any arm runs; the true path and the measured ranges are computed once and shared by all three arms. B and C draw their own filter randomness from one stream string per (regime, seed). Five seeds. Metrics: `err` (mean position error over the last 5 steps, `tail_steps=5`, metres) and `success` (1 when that error is under 0.5 m), each as mean±sd over seeds.
 
 | Regime | Map and start | What was pre-declared |
 |---|---|---|
-| distinctive_unknown | room, unknown start, 25 steps | B **consistent** below A on err, **keep**; C as it comes |
-| known_short | room, known start, 6 steps | A and B **may** near-tie on err, **keep** |
-| kidnapped | room, known start, moved without notice after step 10 | C **loses** to B on err and success, **keep**; A loses too |
-| corridor_multimodal | corridor, unknown start, 25 steps | B **may** fail too, as it comes; C as it comes |
+| distinctive_unknown | room, unknown start, 25 steps (`n_steps=25`) | B **consistent** below A on err, **keep**; C as it comes |
+| known_short | room, known start, 6 steps (`n_steps_short=6`) | A and B **may** near-tie on err, **keep** |
+| kidnapped | room, known start, moved without notice after step 10 (`kidnap_after=10`) | C **loses** to B on err and success, **keep**; A loses too |
+| corridor_multimodal | corridor, unknown start, 25 steps (`n_steps=25`) | B **may** fail too, as it comes; C as it comes |
 
 ### Run the stdlib toy
 
@@ -3049,11 +3049,17 @@ def main():
           "(min_particles 100, max_particles 5000, kld_err 0.01, "
           "recovery_alpha_slow 0.001, recovery_alpha_fast 0.1) are 以原文为准 "
           "and are not what this toy uses")
+    rx0, ry0, rx1, ry1 = ROOMS["distinctive"][0]
+    cx0, cy0, cx1, cy1 = ROOMS["corridor"][0]
     print(f"seeds={len(SEEDS)} n_min={N_MIN} n_max={N_MAX} n_c={N_C} "
           f"eps={num(EPS)} z_q={num(Z_Q)} a_slow={num(A_SLOW)} "
           f"a_fast={num(A_FAST)} sig_z={num(SIG_Z)} sig_l={num(SIG_L)} "
           f"r_max={num(R_MAX)} step_len={num(STEP_LEN)} "
-          f"err_tol={num(ERR_TOL)} (declared)")
+          f"err_tol={num(ERR_TOL)} bin_size={num(BIN_SIZE)} "
+          f"n_steps={N_STEPS} n_steps_short={N_STEPS_SHORT} "
+          f"kidnap_after={KIDNAP_AFTER} tail_steps={TAIL_STEPS} "
+          f"room={num(rx1 - rx0)}x{num(ry1 - ry0)} "
+          f"corridor={num(cx1 - cx0)}x{num(cy1 - cy0)} (declared)")
     print("Regimes and parameters were written before the first run")
     for k in (2, 10, 50):
         raw = kld_count(k)
@@ -3098,7 +3104,7 @@ if __name__ == "__main__":
 ```text
 AMCL-style particle filter localization toy against a known 2-D map (synthetic; not Nav2, not a bag playback, not a real robot run)
 every constant is a declared toy parameter; ROS amcl defaults (min_particles 100, max_particles 5000, kld_err 0.01, recovery_alpha_slow 0.001, recovery_alpha_fast 0.1) are 以原文为准 and are not what this toy uses
-seeds=5 n_min=100 n_max=600 n_c=30 eps=0.0500 z_q=2.3260 a_slow=0.0500 a_fast=0.5000 sig_z=0.1000 sig_l=0.2000 r_max=8.0000 step_len=0.3000 err_tol=0.5000 (declared)
+seeds=5 n_min=100 n_max=600 n_c=30 eps=0.0500 z_q=2.3260 a_slow=0.0500 a_fast=0.5000 sig_z=0.1000 sig_l=0.2000 r_max=8.0000 step_len=0.3000 err_tol=0.5000 bin_size=0.5000 n_steps=25 n_steps_short=6 kidnap_after=10 tail_steps=5 room=10.0000x6.0000 corridor=12.0000x2.0000 (declared)
 Regimes and parameters were written before the first run
 hand_calc kld n at k=2: raw 65.8404, clamped to [100, 600] = 100.0000
 hand_calc kld n at k=10: raw 216.9395, clamped to [100, 600] = 216.9395
@@ -3174,7 +3180,7 @@ How the labels are used on this page, in this order: **tie: identical on every s
 
 **Declared expectations that did not hold.** One: in known_short the declared A–B near-tie did not hold; the filter was slightly but consistently more accurate. The corridor's declared possible failure for B also did not occur, because the corridor in this toy is short enough for the end walls to be seen.
 
-**Code change after the first run.** None. The toy ran once as written, and its first output is byte-identical to the `expected/` file.
+**Code change after the first run.** Print-only: after the first run the declared-parameter line was extended to print `bin_size=0.5000`, `n_steps=25`, `n_steps_short=6`, `kidnap_after=10`, `tail_steps=5`, `room=10.0000x6.0000` and `corridor=12.0000x2.0000`, so those lesson numbers are in `expected/`. No model, metric or parameter was changed; the result blocks stay byte-identical to the first run.
 
 **Choices made after seeing results.** None. The particle range, the recovery rates, the maps and the three printed alternatives were written before the first run and run on the same seeds. Turning recovery off for B in kidnapped gives X−B `err` 4.4964±1.9985 (clear, 5/5): recovery, not the particle count, is what brings B back. Halving `N_MAX` to 300 on distinctive_unknown gives X−B `err` -0.0115±0.0566, a near-tie with 3 of 5 seeds of the opposite sign. Giving C recovery in kidnapped gives X−C `err` -2.7986±1.3081 (clear, 5/5), so even 30 particles partly recover once random poses are injected. None of them replaced the defaults.
 

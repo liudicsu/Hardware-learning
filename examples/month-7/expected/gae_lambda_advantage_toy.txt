@@ -1,6 +1,6 @@
 GAE lambda toy: synthetic policy-gradient estimate for lambda = 1, 0.95, 0
 not a neural net; not MuJoCo or SB3; paper locomotion results 以论文为准; GPU / SB3: 本页未运行
-seeds=5 gamma=0.9900 p1=0.5000 c_r=1.0000 sig_r=1.0000 n_ep=16 m_draw=40 (declared)
+seeds=5 gamma=0.9900 p1=0.5000 c_r=1.0000 sig_r=1.0000 n_ep=16 m_draw=40 long_noisy_H=50 delayed_coarse_H=30 (declared)
 score d log pi(a)/d theta = a - P1; terminal value V(H) = 0
 Regimes and parameters were written before the first run
 hand_calc g_true long_noisy = 9.8748

@@ -75,7 +75,8 @@ class AMCL(unittest.TestCase):
         self.assertAlmostEqual(am.Z_RAND / am.R_MAX, 0.0125, places=12)
         out = (ROOT / AM_EXP).read_text()
         for s in ("raw 65.8404, clamped to [100, 600] = 100.0000", "raw 216.9395", "raw 749.3302, clamped to [100, 600] = 600.0000",
-                  "Z_RAND/R_MAX = 0.0125", "= 0.1250 m"):
+                  "Z_RAND/R_MAX = 0.0125", "= 0.1250 m",
+                  "bin_size=0.5000 n_steps=25 n_steps_short=6 kidnap_after=10 tail_steps=5 room=10.0000x6.0000 corridor=12.0000x2.0000"):
             self.assertIn(s, out)
 
     def test_map_geometry(self):
@@ -121,7 +122,8 @@ class GAE(unittest.TestCase):
         self.assertAlmostEqual(gae.true_grad("delayed_coarse"), 30 * 0.99 ** 29 * 0.25, places=9)
         out = (ROOT / GAE_EXP).read_text()
         for s in ("hand_calc g_true long_noisy = 9.8748", "hand_calc g_true one_step = 0.2500",
-                  "hand_calc g_true delayed_coarse = 5.6038", "for LAM = 0.95 = 16.8067", "for LAM = 1 = 100.0000"):
+                  "hand_calc g_true delayed_coarse = 5.6038", "for LAM = 0.95 = 16.8067", "for LAM = 1 = 100.0000",
+                  "long_noisy_H=50 delayed_coarse_H=30"):
             self.assertIn(s, out)
 
     def test_recursion_special_cases(self):

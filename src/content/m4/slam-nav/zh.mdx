@@ -2475,13 +2475,13 @@ Real lidar / Open3D / octomap_server: 本页未运行; OctoMap homepage and Curl
 
 <Formula label="滤波的一步（声明的玩具模型）">x_i ← x_i + u_t;   w_i = Π_beams [Z_HIT · N(z_b; r̂_b(x_i), SIG_L) + Z_RAND / R_MAX],   w_i = 0 inside an obstacle;   estimate = Σ w_i x_i / Σ w_i;   low-variance resampling;   n_next = clamp(KLD(k), N_MIN, N_MAX)</Formula>
 
-**算例（手算，玩具也会打印）。** KLD 式规则把被占用的 0.5 m 网格数 `k` 换成粒子数：`k = 2` 得 `65.8404`，玩具把它抬到下限 `100.0000`；`k = 10` 得 `216.9395`，在范围之内；`k = 50` 得 `749.3302`，压到上限 `600.0000`。所以收敛的粒子云用的粒子远少于散开的粒子云。每束光的似然不会低于 `Z_RAND / R_MAX = 0.0125`，一束坏读数不能单独把一个粒子的权重打成零。按声明的运动噪声，航位推算走 25 步后每个轴大约漂移 `0.1250 m`，所以只靠里程计，对已知起点的短距离移动够用，从错误的起点出发就没用。
+**算例（手算，玩具也会打印）。** KLD 式规则把被占用的 0.5 m 网格（`bin_size=0.5000`）数 `k` 换成粒子数：`k = 2` 得 `65.8404`，玩具把它抬到下限 `100.0000`；`k = 10` 得 `216.9395`，在范围之内；`k = 50` 得 `749.3302`，压到上限 `600.0000`。所以收敛的粒子云用的粒子远少于散开的粒子云。每束光的似然不会低于 `Z_RAND / R_MAX = 0.0125`，一束坏读数不能单独把一个粒子的权重打成零。按声明的运动噪声，航位推算走 25 步后每个轴大约漂移 `0.1250 m`，所以只靠里程计，对已知起点的短距离移动够用，从错误的起点出发就没用。
 
 **积分步长。** 无：每一步是一次离散的预测–加权–重采样循环，没有连续时间模型。
 
 ### 公平设置
 
-`amcl_particle_filter_localization_toy.py` 是**合成**的，只用标准库。**模型假设:** 以米为单位、边与坐标轴平行的矩形房间（一个 10 乘 6 的房间，里面三个箱子；一条 12 乘 2 的走廊，没有箱子）；朝向已知且固定，代替 IMU，所以滤波只跟踪 x 和 y；四束与坐标轴平行的光束返回到最近边的精确距离加噪声（sd 0.1 m），上限 8 m；每一步指令移动 0.3 m，真实移动在每个轴上乘以 `1 + N(0, 0.05)` 并加上 `N(0, 0.02)`，里程计报告的是指令值。粒子按里程计指令移动，不另加噪声；新粒子只在 KLD 规则要求更多粒子时（均匀抽取）和恢复机制中加入。检查是否撞箱子用的是指令终点，不是带噪声的真实终点。所有数值都是**声明的玩具参数**，其中粒子数范围 100 到 600 和恢复速率 0.05 / 0.5 是玩具自己的，不是上面引用的 ROS 默认值。
+`amcl_particle_filter_localization_toy.py` 是**合成**的，只用标准库。**模型假设:** 以米为单位、边与坐标轴平行的矩形房间（一个 10 乘 6 的房间，`room=10.0000x6.0000`，里面三个箱子；一条 12 乘 2 的走廊，`corridor=12.0000x2.0000`，没有箱子）；朝向已知且固定，代替 IMU，所以滤波只跟踪 x 和 y；四束与坐标轴平行的光束返回到最近边的精确距离加噪声（sd 0.1 m），上限 8 m；每一步指令移动 0.3 m，真实移动在每个轴上乘以 `1 + N(0, 0.05)` 并加上 `N(0, 0.02)`，里程计报告的是指令值。粒子按里程计指令移动，不另加噪声；新粒子只在 KLD 规则要求更多粒子时（均匀抽取）和恢复机制中加入。检查是否撞箱子用的是指令终点，不是带噪声的真实终点。所有数值都是**声明的玩具参数**，其中粒子数范围 100 到 600 和恢复速率 0.05 / 0.5 是玩具自己的，不是上面引用的 ROS 默认值。
 
 | 臂 | 是什么 | 粒子数 | 恢复 |
 |---|---|---|---|
@@ -2489,14 +2489,14 @@ Real lidar / Open3D / octomap_server: 本页未运行; OctoMap homepage and Curl
 | B_amcl | KLD 式自适应滤波 | 100 到 600 | 开 |
 | C_few | 同一个滤波，固定的小预算 | 30 | 关 |
 
-**共用随机数:** 每个（工况，种子）用一个随机流抽出真实起点、每个候选运动方向、每个运动噪声、每个光束噪声和绑架位姿，全部在任何臂运行之前抽好；真实路径和测得的距离只算一次，三个臂共用。B 和 C 的滤波内部随机性来自每个（工况，种子）同一个随机流名称。五个种子。指标：`err`（最后 5 步的平均位置误差，米）和 `success`（该误差小于 0.5 m 时为 1），都按种子给出均值±sd。
+**共用随机数:** 每个（工况，种子）用一个随机流抽出真实起点、每个候选运动方向、每个运动噪声、每个光束噪声和绑架位姿，全部在任何臂运行之前抽好；真实路径和测得的距离只算一次，三个臂共用。B 和 C 的滤波内部随机性来自每个（工况，种子）同一个随机流名称。五个种子。指标：`err`（最后 5 步的平均位置误差，`tail_steps=5`，米）和 `success`（该误差小于 0.5 m 时为 1），都按种子给出均值±sd。
 
 | 工况 | 地图与起点 | 预先声明 |
 |---|---|---|
-| distinctive_unknown | 房间，起点未知，25 步 | B 的 err **一致**低于 A，**保留**；C 如实给出 |
-| known_short | 房间，起点已知，6 步 | A 与 B 的 err **可能**近似平局，**保留** |
-| kidnapped | 房间，起点已知，第 10 步后被悄悄搬走 | C 在 err 和 success 上**输**给 B，**保留**；A 也输 |
-| corridor_multimodal | 走廊，起点未知，25 步 | B **可能**也失败，如实给出；C 如实给出 |
+| distinctive_unknown | 房间，起点未知，25 步（`n_steps=25`） | B 的 err **一致**低于 A，**保留**；C 如实给出 |
+| known_short | 房间，起点已知，6 步（`n_steps_short=6`） | A 与 B 的 err **可能**近似平局，**保留** |
+| kidnapped | 房间，起点已知，第 10 步后被悄悄搬走（`kidnap_after=10`） | C 在 err 和 success 上**输**给 B，**保留**；A 也输 |
+| corridor_multimodal | 走廊，起点未知，25 步（`n_steps=25`） | B **可能**也失败，如实给出；C 如实给出 |
 
 ### 运行标准库玩具
 
@@ -3049,11 +3049,17 @@ def main():
           "(min_particles 100, max_particles 5000, kld_err 0.01, "
           "recovery_alpha_slow 0.001, recovery_alpha_fast 0.1) are 以原文为准 "
           "and are not what this toy uses")
+    rx0, ry0, rx1, ry1 = ROOMS["distinctive"][0]
+    cx0, cy0, cx1, cy1 = ROOMS["corridor"][0]
     print(f"seeds={len(SEEDS)} n_min={N_MIN} n_max={N_MAX} n_c={N_C} "
           f"eps={num(EPS)} z_q={num(Z_Q)} a_slow={num(A_SLOW)} "
           f"a_fast={num(A_FAST)} sig_z={num(SIG_Z)} sig_l={num(SIG_L)} "
           f"r_max={num(R_MAX)} step_len={num(STEP_LEN)} "
-          f"err_tol={num(ERR_TOL)} (declared)")
+          f"err_tol={num(ERR_TOL)} bin_size={num(BIN_SIZE)} "
+          f"n_steps={N_STEPS} n_steps_short={N_STEPS_SHORT} "
+          f"kidnap_after={KIDNAP_AFTER} tail_steps={TAIL_STEPS} "
+          f"room={num(rx1 - rx0)}x{num(ry1 - ry0)} "
+          f"corridor={num(cx1 - cx0)}x{num(cy1 - cy0)} (declared)")
     print("Regimes and parameters were written before the first run")
     for k in (2, 10, 50):
         raw = kld_count(k)
@@ -3098,7 +3104,7 @@ if __name__ == "__main__":
 ```text
 AMCL-style particle filter localization toy against a known 2-D map (synthetic; not Nav2, not a bag playback, not a real robot run)
 every constant is a declared toy parameter; ROS amcl defaults (min_particles 100, max_particles 5000, kld_err 0.01, recovery_alpha_slow 0.001, recovery_alpha_fast 0.1) are 以原文为准 and are not what this toy uses
-seeds=5 n_min=100 n_max=600 n_c=30 eps=0.0500 z_q=2.3260 a_slow=0.0500 a_fast=0.5000 sig_z=0.1000 sig_l=0.2000 r_max=8.0000 step_len=0.3000 err_tol=0.5000 (declared)
+seeds=5 n_min=100 n_max=600 n_c=30 eps=0.0500 z_q=2.3260 a_slow=0.0500 a_fast=0.5000 sig_z=0.1000 sig_l=0.2000 r_max=8.0000 step_len=0.3000 err_tol=0.5000 bin_size=0.5000 n_steps=25 n_steps_short=6 kidnap_after=10 tail_steps=5 room=10.0000x6.0000 corridor=12.0000x2.0000 (declared)
 Regimes and parameters were written before the first run
 hand_calc kld n at k=2: raw 65.8404, clamped to [100, 600] = 100.0000
 hand_calc kld n at k=10: raw 216.9395, clamped to [100, 600] = 216.9395
@@ -3174,7 +3180,7 @@ Real robot / Nav2 AMCL / live ROS wiki: 本页未运行; Wikipedia and archived 
 
 **没有成立的预先声明。** 一条：known_short 里声明的 A–B 近似平局没有成立，滤波略微但一致地更准。走廊里声明的 B 可能失败也没有出现，因为这个玩具里的走廊足够短，看得到两端的墙。
 
-**首次运行后的代码改动。** 无。玩具按写好的样子运行了一次，首次输出与 `expected/` 文件逐字节相同。
+**首次运行后的代码改动。** 仅打印：首次运行之后，声明参数那一行补上了 `bin_size=0.5000`、`n_steps=25`、`n_steps_short=6`、`kidnap_after=10`、`tail_steps=5`、`room=10.0000x6.0000` 和 `corridor=12.0000x2.0000`，好让课页上的这些数出现在 `expected/` 里。模型、指标和参数都没有改；结果块与首次运行逐字节相同。
 
 **看到结果后做的选择。** 无。粒子数范围、恢复速率、地图和三个打印的备选都在首次运行前写定，并在相同种子上运行。在 kidnapped 中关掉 B 的恢复，X−B `err` 为 4.4964±1.9985（clear，5/5）：让 B 回来的是恢复机制，不是粒子数。在 distinctive_unknown 中把 `N_MAX` 减半到 300，X−B `err` 为 -0.0115±0.0566，近似平局，5 个中有 3 个种子反号。在 kidnapped 中给 C 打开恢复，X−C `err` 为 -2.7986±1.3081（clear，5/5），所以注入随机位姿后，即使 30 个粒子也能部分恢复。它们都没有替换默认设置。
 

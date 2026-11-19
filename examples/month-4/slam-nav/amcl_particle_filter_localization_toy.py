@@ -539,11 +539,17 @@ def main():
           "(min_particles 100, max_particles 5000, kld_err 0.01, "
           "recovery_alpha_slow 0.001, recovery_alpha_fast 0.1) are 以原文为准 "
           "and are not what this toy uses")
+    rx0, ry0, rx1, ry1 = ROOMS["distinctive"][0]
+    cx0, cy0, cx1, cy1 = ROOMS["corridor"][0]
     print(f"seeds={len(SEEDS)} n_min={N_MIN} n_max={N_MAX} n_c={N_C} "
           f"eps={num(EPS)} z_q={num(Z_Q)} a_slow={num(A_SLOW)} "
           f"a_fast={num(A_FAST)} sig_z={num(SIG_Z)} sig_l={num(SIG_L)} "
           f"r_max={num(R_MAX)} step_len={num(STEP_LEN)} "
-          f"err_tol={num(ERR_TOL)} (declared)")
+          f"err_tol={num(ERR_TOL)} bin_size={num(BIN_SIZE)} "
+          f"n_steps={N_STEPS} n_steps_short={N_STEPS_SHORT} "
+          f"kidnap_after={KIDNAP_AFTER} tail_steps={TAIL_STEPS} "
+          f"room={num(rx1 - rx0)}x{num(ry1 - ry0)} "
+          f"corridor={num(cx1 - cx0)}x{num(cy1 - cy0)} (declared)")
     print("Regimes and parameters were written before the first run")
     for k in (2, 10, 50):
         raw = kld_count(k)

@@ -49,7 +49,7 @@ None for either toy; every parameter, regime and printed alternative was written
 
 ## Code changes after the first run
 
-None. Both toys ran once as written; each first output is byte-identical to its `expected/` file.
+Print-only, after the first run, no retune: both declared-parameter lines were extended so the lesson-prose values are printed into `expected/`. AMCL now also prints `bin_size=0.5000 n_steps=25 n_steps_short=6 kidnap_after=10 tail_steps=5 room=10.0000x6.0000 corridor=12.0000x2.0000`; GAE now also prints `long_noisy_H=50 delayed_coarse_H=30`. Result blocks are byte-identical to the first run; no model, metric or parameter was changed.
 
 ## Mismatch with §9
 

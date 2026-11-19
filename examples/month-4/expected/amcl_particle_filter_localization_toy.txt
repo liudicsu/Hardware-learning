@@ -1,6 +1,6 @@
 AMCL-style particle filter localization toy against a known 2-D map (synthetic; not Nav2, not a bag playback, not a real robot run)
 every constant is a declared toy parameter; ROS amcl defaults (min_particles 100, max_particles 5000, kld_err 0.01, recovery_alpha_slow 0.001, recovery_alpha_fast 0.1) are 以原文为准 and are not what this toy uses
-seeds=5 n_min=100 n_max=600 n_c=30 eps=0.0500 z_q=2.3260 a_slow=0.0500 a_fast=0.5000 sig_z=0.1000 sig_l=0.2000 r_max=8.0000 step_len=0.3000 err_tol=0.5000 (declared)
+seeds=5 n_min=100 n_max=600 n_c=30 eps=0.0500 z_q=2.3260 a_slow=0.0500 a_fast=0.5000 sig_z=0.1000 sig_l=0.2000 r_max=8.0000 step_len=0.3000 err_tol=0.5000 bin_size=0.5000 n_steps=25 n_steps_short=6 kidnap_after=10 tail_steps=5 room=10.0000x6.0000 corridor=12.0000x2.0000 (declared)
 Regimes and parameters were written before the first run
 hand_calc kld n at k=2: raw 65.8404, clamped to [100, 600] = 100.0000
 hand_calc kld n at k=10: raw 216.9395, clamped to [100, 600] = 216.9395

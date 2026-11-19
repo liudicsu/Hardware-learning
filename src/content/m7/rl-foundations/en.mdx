@@ -862,7 +862,7 @@ This section is **not** a second PPO derivation: the clipped ratio stays as it i
 
 <Formula label="GAE(γ, λ), computed backwards over one episode">δ_t = r_t + γ V(t+1) − V(t),   V(H) = 0;   Â_t = δ_t + γλ Â_(t+1),   Â_H = 0;   λ = 0 → Â_t = δ_t;   λ = 1 → Â_t = Σ_l γ^l r_(t+l) − V(t)</Formula>
 
-**Worked example — a labelled hand calculation, also printed by the toy.** The weight on a residual `l` steps ahead is `(γλ)^l`, so the estimator looks about `1 / (1 − γλ)` steps into the future. With `γ = 0.9900` and λ = 0.95 that is `16.8067` steps; with λ = 1 it is `100.0000` steps, longer than the 50-step episode, so the λ = 1 sum runs to the end. With a single step (`H = 1`) and `V(1) = 0`, every λ gives the same `Â_0 = r_0 − V(0)`, so the three estimators must coincide. For the policy used below, the true gradient is `Σ_t γ^t · P1(1 − P1)` with `P1 = 0.5000`; over 50 steps the toy prints `9.8748`.
+**Worked example — a labelled hand calculation, also printed by the toy.** The weight on a residual `l` steps ahead is `(γλ)^l`, so the estimator looks about `1 / (1 − γλ)` steps into the future. With `γ = 0.9900` and λ = 0.95 that is `16.8067` steps; with λ = 1 it is `100.0000` steps, longer than the 50-step episode (`long_noisy_H=50`), so the λ = 1 sum runs to the end. With a single step (`H = 1`) and `V(1) = 0`, every λ gives the same `Â_0 = r_0 − V(0)`, so the three estimators must coincide. For the policy used below, the true gradient is `Σ_t γ^t · P1(1 − P1)` with `P1 = 0.5000`; over 50 steps (`long_noisy_H=50`) the toy prints `9.8748`.
 
 **Integration step.** None: each episode is a finite sum computed by one backward pass; there is no time constant and no learning rate, because the policy is not updated.
 
@@ -880,9 +880,9 @@ This section is **not** a second PPO derivation: the clipped ratio stays as it i
 
 | Regime | Episode | What was pre-declared |
 |---|---|---|
-| long_noisy | immediate reward, `H = 50`, value with small errors | B **consistent** below A on grad_var, **keep**; C as it comes |
+| long_noisy | immediate reward, `H = 50` (`long_noisy_H=50`), value with small errors | B **consistent** below A on grad_var, **keep**; C as it comes |
 | one_step | immediate reward, `H = 1` | all three λ **tie** or near-tie, **keep** |
-| delayed_coarse | all reward at the last step, `H = 30`, coarse constant value | C (λ = 0) **loses** to B and to A on grad_mse, **keep** |
+| delayed_coarse | all reward at the last step, `H = 30` (`delayed_coarse_H=30`), coarse constant value | C (λ = 0) **loses** to B and to A on grad_mse, **keep** |
 
 ### Run the stdlib toy
 
@@ -1129,7 +1129,9 @@ def main():
     print("not a neural net; not MuJoCo or SB3; paper locomotion results 以论文为准; "
           "GPU / SB3: 本页未运行")
     print(f"seeds={len(SEEDS)} gamma={num(GAMMA)} p1={num(P1)} c_r={num(C_R)} "
-          f"sig_r={num(SIG_R)} n_ep={N_EP} m_draw={M_DRAW} (declared)")
+          f"sig_r={num(SIG_R)} n_ep={N_EP} m_draw={M_DRAW} "
+          f"long_noisy_H={REGIMES['long_noisy']['H']} "
+          f"delayed_coarse_H={REGIMES['delayed_coarse']['H']} (declared)")
     print("score d log pi(a)/d theta = a - P1; terminal value V(H) = 0")
     print("Regimes and parameters were written before the first run")
     for name in ("long_noisy", "one_step", "delayed_coarse"):
@@ -1172,7 +1174,7 @@ if __name__ == "__main__":
 ```text
 GAE lambda toy: synthetic policy-gradient estimate for lambda = 1, 0.95, 0
 not a neural net; not MuJoCo or SB3; paper locomotion results 以论文为准; GPU / SB3: 本页未运行
-seeds=5 gamma=0.9900 p1=0.5000 c_r=1.0000 sig_r=1.0000 n_ep=16 m_draw=40 (declared)
+seeds=5 gamma=0.9900 p1=0.5000 c_r=1.0000 sig_r=1.0000 n_ep=16 m_draw=40 long_noisy_H=50 delayed_coarse_H=30 (declared)
 score d log pi(a)/d theta = a - P1; terminal value V(H) = 0
 Regimes and parameters were written before the first run
 hand_calc g_true long_noisy = 9.8748
@@ -1234,7 +1236,7 @@ How the labels are used on this page, in this order: **tie: identical on every s
 
 **Declared expectations that did not hold.** None in this toy: B's lower variance on the long horizon, the one-step tie and λ = 0's delayed-reward loss all held. Two results were not declared: on long_noisy λ = 0 beat both other arms, and on delayed_coarse λ = 0.95 did not beat λ = 1 on `grad_mse`.
 
-**Code change after the first run.** None. The toy ran once as written, and its first output is byte-identical to the `expected/` file.
+**Code change after the first run.** Print-only: after the first run the declared-parameter line was extended to print `long_noisy_H=50` and `delayed_coarse_H=30`, so those lesson numbers are in `expected/`. No model, metric or parameter was changed; the result blocks stay byte-identical to the first run.
 
 **Choices made after seeing results.** None. λ = 0.95, the episode lengths, the noise levels and the three printed alternatives were written before the first run and run on the same seeds. λ = 0.9 on long_noisy gives X−A `grad_var` -8.4984±1.0608 and λ = 0.98 gives -4.2012±0.4197, both clear on all 5 seeds; giving C the step-indexed true value plus errors on delayed_coarse leaves X−C `grad_mse` at 0.2929±0.5736, a near-tie with 1 of 5 seeds of the opposite sign. That last line matters: in this toy the state is only the step index, so even an exact `V(t)` cannot tell which earlier actions earned the final reward, and λ = 0 stays blind to it. None of them replaced the defaults.
 
