@@ -28,6 +28,7 @@ FULL = [
     "fdm_build_orientation_anisotropy_toy.txt",
     "so101_shared_rail_sag_toy.txt",
     "ziegler_nichols_ultimate_gain_toy.txt",
+    "jamming_gripper_holding_force_toy.txt",
 ]
 CAD = {name for name in FULL if name.startswith(("cad-bracket", "fdm-case")) or name == "grip-finger.txt"}
 script = (ROOT / "examples/month-3/check.sh").read_text()
