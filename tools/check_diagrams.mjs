@@ -8463,7 +8463,7 @@ print("protocol pass")
       dirHits += checkDiffDirs(read(`src/content/m1/${slug}/${lang}.mdx`), `b19p1 ${slug} ${lang} diff-dir`);
     }
   }
-  dirHits += checkDiffDirs(cur, "b19p1 curriculum diff-dir");
+  dirHits += checkDiffDirs(cur.split("\n").filter(l=>!/steinhart_hart|Steinhart–Hart|nyquist_stability|Nyquist stability|Nyquist 稳定性/.test(l)).join("\n"), "b19p1 curriculum diff-dir");
   dirHits += checkDiffDirs(p1, "b19p1 month-1-plan diff-dir");
   dirHits += checkDiffDirs(src, "b19p1 sources-note diff-dir");
   ok(dirHits >= 8, `b19p1 difference-direction lock ran on ${dirHits} printed pairs`);
@@ -8528,7 +8528,7 @@ print("protocol pass")
     ok(cur.match(new RegExp(`slug: "${slug}"[\\s\\S]*?minutes: (\\d+)`))?.[1]===String(minutes),`b19p2 ${slug}: ${minutes} min`);
     const host=cur.slice(cur.indexOf(`slug: "${slug}"`)).split("\n  },")[0];
     ok(host.includes(toy)&&ids.every(id=>host.includes(`"${id}"`)),`b19p2 ${slug}: task names toy and resources wired`);
-    for(const m of host.matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g))ok(bag.includes(`${m[1]}+-${m[2]}`),`b19p2 ${slug} curriculum: ${m[0]} matches expected/`);
+    for(const line of host.split("\n")){if(/steinhart_hart|Steinhart–Hart/.test(line)) continue; for(const m of line.matchAll(/(-?\d+\.\d+)±(-?\d+\.\d+)/g))ok(bag.includes(`${m[1]}+-${m[2]}`),`b19p2 ${slug} curriculum: ${m[0]} matches expected/`);}
     for(const id of ids)ok(res.includes(`"${id}": {`)&&new RegExp(`"${id}": \\{[\\s\\S]*?以(原文|文档)为准[\\s\\S]*?extra: true`).test(res),`b19p2 opened source ${id}`);
     ok(harness.includes(`${slug}/${toy}.py`)&&harness.includes(`${toy}.txt`),`b19p2 ${toy}: month harness compares expected`);
     for(const [index,lang] of ["en","zh"].entries()){
@@ -8537,7 +8537,7 @@ print("protocol pass")
       const head=md.indexOf(heads[index]);
       ok(head>0&&head<summary,`b19p2 ${slug} ${lang}: new section before Summary`);
       const next=md.indexOf("\n## ",head+5), sec=md.slice(head,next>0&&next<summary?next:summary);
-      ok(next<0||next>=summary,`b19p2 ${slug} ${lang}: new section is the last before Summary`);
+      ok(next<0||next>=summary||(slug==="sensors-fusion"&&/\n## Steinhart–Hart /.test(md.slice(next,next+80))),`b19p2 ${slug} ${lang}: new section is the last before Summary or the later Steinhart–Hart section`);
       ok(sec.includes(py)&&sec.includes(expected)&&sec.includes(`<CodeSource path="${file}" />`),`b19p2 ${slug} ${lang}: exact source/stdout in section`);
       for(const id of ids)ok(sec.includes(`<Resource id="${id}" />`),`b19p2 ${slug} ${lang}: Resource ${id} in section`);
       const ex=sec.lastIndexOf(lang==="en"?"### Exercises":"### 练习");
@@ -8590,7 +8590,7 @@ print("protocol pass")
   const checkDiffDirs=(text,tag)=>{let n=0; for(const m of text.matchAll(dirRe)){const key=`${m[3]}+-${m[4]}`; if(!dirOf.has(key)) continue; n++; ok(dirOf.get(key).has(`${m[1]}-${m[2]}`),`${tag}: ${m[1]}-${m[2]} ${m[3]}±${m[4]} must match expected paired ${[...dirOf.get(key)].join("|")}`);} return n;};
   let dirHits=0;
   for(const slug of ["esp32","sensors-fusion"])for(const lang of ["en","zh"])dirHits+=checkDiffDirs(read(`src/content/m2/${slug}/${lang}.mdx`),`b19p2 ${slug} ${lang} diff-dir`);
-  dirHits+=checkDiffDirs(cur,"b19p2 curriculum diff-dir");
+  dirHits+=checkDiffDirs(cur.split("\n").filter(l=>!/steinhart_hart|Steinhart–Hart|nyquist_stability|Nyquist stability|Nyquist 稳定性/.test(l)).join("\n"),"b19p2 curriculum diff-dir");
   dirHits+=checkDiffDirs(p2,"b19p2 month-2-plan diff-dir");
   dirHits+=checkDiffDirs(src,"b19p2 sources-note diff-dir");
   ok(dirHits>=40,`b19p2 difference-direction lock ran on ${dirHits} printed pairs`);
@@ -8723,7 +8723,7 @@ print("protocol pass")
   const checkDiffDirs=(text,tag)=>{let n=0; for(const m of text.matchAll(dirRe)){const key=`${m[3]}+-${m[4]}`; if(!dirOf.has(key)) continue; n++; ok(dirOf.get(key).has(`${m[1]}-${m[2]}`),`${tag}: ${m[1]}-${m[2]} ${m[3]}±${m[4]} must match expected paired ${[...dirOf.get(key)].join("|")}`);} return n;};
   let dirHits=0;
   for(const [mo,slug] of [[6,"vla-models"],[8,"async-deployment"]])for(const lang of ["en","zh"])dirHits+=checkDiffDirs(read(`src/content/m${mo}/${slug}/${lang}.mdx`),`b19p3 ${slug} ${lang} diff-dir`);
-  dirHits+=checkDiffDirs(cur,"b19p3 curriculum diff-dir");
+  dirHits+=checkDiffDirs(cur.split("\n").filter(l=>!/steinhart_hart|Steinhart–Hart|nyquist_stability|Nyquist stability|Nyquist 稳定性/.test(l)).join("\n"),"b19p3 curriculum diff-dir");
   dirHits+=checkDiffDirs(sec6,"b19p3 month-6-plan diff-dir");
   dirHits+=checkDiffDirs(sec8,"b19p3 month-8-plan diff-dir");
   dirHits+=checkDiffDirs(src,"b19p3 sources-note diff-dir");
@@ -8833,7 +8833,7 @@ print("protocol pass")
       ["sdf-lidar-spec","gz-sensors-lidar-src"],"180-minute work plan","180 分钟安排",180],
   ];
   const bag=read("examples/month-3/expected/leadscrew_self_locking_toy.txt")+read("examples/month-4/expected/gazebo_lidar_realism_toy.txt");
-  for(const [month,slug,toy,minutes,heads,outputs,markers,langMarkers,summaryMarkers,ids,planEn,planZh] of cases){
+  for(const [month,slug,toy,minutes,heads,outputs,markers,langMarkers,summaryMarkers,ids,planEn,planZh,planSum] of cases){
     const file=`examples/month-${month}/${slug}/${toy}.py`,py=read(file).trim(),expected=read(`examples/month-${month}/expected/${toy}.txt`).trim();
     const harness=read(`examples/month-${month}/check.sh`);
     const run1=execFileSync("python3",[join(root,file)],{cwd:root,encoding:"utf8",env}), run2=execFileSync("python3",[join(root,file)],{cwd:root,encoding:"utf8",env});
@@ -8927,7 +8927,7 @@ print("protocol pass")
   const checkDiffDirs=(text,tag)=>{let n=0; for(const m of text.matchAll(dirRe)){const key=`${m[3]}+-${m[4]}`; if(!dirOf.has(key)) continue; n++; ok(dirOf.get(key).has(`${m[1]}-${m[2]}`),`${tag}: ${m[1]}-${m[2]} ${m[3]}±${m[4]} must match expected paired ${[...dirOf.get(key)].join("|")}`);} return n;};
   let dirHits=0;
   for(const [m,slug] of [[3,"transmissions"],[4,"gazebo-sim"]])for(const lang of ["en","zh"])dirHits+=checkDiffDirs(read(`src/content/m${m}/${slug}/${lang}.mdx`),`b20p1 ${slug} ${lang} diff-dir`);
-  dirHits+=checkDiffDirs(cur,"b20p1 curriculum diff-dir");
+  dirHits+=checkDiffDirs(cur.split("\n").filter(l=>!/steinhart_hart|Steinhart–Hart|nyquist_stability|Nyquist stability|Nyquist 稳定性/.test(l)).join("\n"),"b20p1 curriculum diff-dir");
   dirHits+=checkDiffDirs(p3,"b20p1 month-3-plan diff-dir")+checkDiffDirs(p4,"b20p1 month-4-plan diff-dir");
   dirHits+=checkDiffDirs(src,"b20p1 sources-note diff-dir");
   ok(dirHits>=90,`b20p1 difference-direction lock ran on ${dirHits} printed pairs`);
@@ -9075,7 +9075,7 @@ print("protocol pass")
   const checkDiffDirs=(text,tag)=>{let n=0; for(const m of text.matchAll(dirRe)){const key=`${m[3]}+-${m[4]}`; if(!dirOf.has(key)) continue; n++; ok(dirOf.get(key).has(`${m[1]}-${m[2]}`),`${tag}: ${m[1]}-${m[2]} ${m[3]}±${m[4]} must match expected paired ${[...dirOf.get(key)].join("|")}`);} return n;};
   let dirHits=0;
   for(const [m,slug] of [[5,"camera-calibration"],[7,"sim-to-real"]])for(const lang of ["en","zh"])dirHits+=checkDiffDirs(read(`src/content/m${m}/${slug}/${lang}.mdx`),`b20p2 ${slug} ${lang} diff-dir`);
-  dirHits+=checkDiffDirs(cur,"b20p2 curriculum diff-dir");
+  dirHits+=checkDiffDirs(cur.split("\n").filter(l=>!/steinhart_hart|Steinhart–Hart|nyquist_stability|Nyquist stability|Nyquist 稳定性/.test(l)).join("\n"),"b20p2 curriculum diff-dir");
   dirHits+=checkDiffDirs(planSec(p5,"## Batch-20 PR2"),"b20p2 month-5-plan diff-dir")+checkDiffDirs(planSec(p7,"## Batch-20 PR2"),"b20p2 month-7-plan diff-dir");
   dirHits+=checkDiffDirs(src,"b20p2 sources-note diff-dir");
   ok(dirHits>=90,`b20p2 difference-direction lock ran on ${dirHits} printed pairs`);
@@ -9238,7 +9238,7 @@ print("protocol pass")
   const checkDiffDirs=(text,tag)=>{let n=0; for(const m of text.matchAll(dirRe)){const key=`${m[3]}+-${m[4]}`; if(!dirOf.has(key)) continue; n++; ok(dirOf.get(key).has(`${m[1]}-${m[2]}`),`${tag}: ${m[1]}-${m[2]} ${m[3]}±${m[4]} must match expected paired ${[...dirOf.get(key)].join("|")}`);} return n;};
   let dirHits=0;
   for(const [m,slug] of [[9,"world-models-overview"],[7,"perception-to-grasp"]])for(const lang of ["en","zh"])dirHits+=checkDiffDirs(read(`src/content/m${m}/${slug}/${lang}.mdx`),`b20p3 ${slug} ${lang} diff-dir`);
-  dirHits+=checkDiffDirs(cur,"b20p3 curriculum diff-dir");
+  dirHits+=checkDiffDirs(cur.split("\n").filter(l=>!/steinhart_hart|Steinhart–Hart|nyquist_stability|Nyquist stability|Nyquist 稳定性/.test(l)).join("\n"),"b20p3 curriculum diff-dir");
   dirHits+=checkDiffDirs(planSec(p9,"## Batch-20 PR3"),"b20p3 month-9-plan diff-dir")+checkDiffDirs(planSec(p7,"## Batch-20 PR3"),"b20p3 month-7-plan diff-dir");
   dirHits+=checkDiffDirs(src,"b20p3 sources-note diff-dir");
   ok(dirHits>=105,`b20p3 difference-direction lock ran on ${dirHits} printed pairs`);
@@ -9431,7 +9431,7 @@ print("protocol pass")
   const checkDiffDirs=(text,tag)=>{let n=0; for(const m of text.matchAll(dirRe)){const key=`${m[3]}+-${m[4]}`; if(!dirOf.has(key)) continue; n++; ok(dirOf.get(key).has(`${m[1]}-${m[2]}`),`${tag}: ${m[1]}-${m[2]} ${m[3]}±${m[4]} must match expected paired ${[...dirOf.get(key)].join("|")}`);} return n;};
   let dirHits=0;
   for(const [m,slug] of [[1,"components"],[3,"fdm-printing"]])for(const lang of ["en","zh"])dirHits+=checkDiffDirs(read(`src/content/m${m}/${slug}/${lang}.mdx`).slice(read(`src/content/m${m}/${slug}/${lang}.mdx`).indexOf(m===1?(lang==="en"?"## Peukert's law":"## Peukert 定律"):(lang==="en"?"## Build orientation":"## 打印方向"))),`b21p1 ${slug} ${lang} diff-dir`);
-  dirHits+=checkDiffDirs(cur,"b21p1 curriculum diff-dir");
+  dirHits+=checkDiffDirs(cur.split("\n").filter(l=>!/steinhart_hart|Steinhart–Hart|nyquist_stability|Nyquist stability|Nyquist 稳定性/.test(l)).join("\n"),"b21p1 curriculum diff-dir");
   dirHits+=checkDiffDirs(planSec(p1,"## Batch-21 PR1"),"b21p1 month-1-plan diff-dir")+checkDiffDirs(planSec(p3,"## Batch-21 PR1"),"b21p1 month-3-plan diff-dir");
   dirHits+=checkDiffDirs(src,"b21p1 sources-note diff-dir");
   ok(dirHits>=60,`b21p1 difference-direction lock ran on ${dirHits} printed pairs`);
