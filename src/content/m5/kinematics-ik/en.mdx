@@ -1266,7 +1266,7 @@ At the mid-workspace start (which is already the preferred posture) the toy prin
 | mid_workspace | preferred posture | `(0.0300, -0.0200)` m | A and B may near-tie on primary error (secondary already satisfied) — keep |
 | near_joint_limit | last joint at `2.0000` rad | `(0.0200, 0.0250)` m | B consistent better secondary cost at comparable primary error — keep |
 
-C is declared to lose on primary error in both official regimes, and that comparison is printed. **Choices made after seeing results.** None of the official parameters were changed after the first run. After that official run, lesson typography was adjusted so Chinese bold spans do not contain or sit against a full-width colon, the new Summary sentence includes 本页未运行, and paired labels in this section use the official ASCII `B-A` typography. One alternative, `KS=0.5000`, was run on the same seeds and **not adopted**.
+C is declared to lose on primary error in both official regimes, and that comparison is printed. **Choices made after seeing results.** None of the official parameters were changed after the first run. After that official run, lesson typography was adjusted so Chinese bold spans do not contain or sit against a full-width colon, the new Summary sentence includes 本页未运行, and paired labels in this section use the official ASCII `B-A` typography. A later wording fix corrected the mid-workspace orders-of-magnitude comparison to a hand-calc “about four to five orders of magnitude,” and labelled the exercise-1 remaining lengths as hand calc. One alternative, `KS=0.5000`, was run on the same seeds and **not adopted**.
 
 ### Run the stdlib toy
 
@@ -1784,7 +1784,7 @@ No winner is universal: mid-workspace primary error can tie; the projector is wh
 
 How the labels are used on this page, in this order: **tie: identical on every seed** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when `|paired mean|` and its sd are both below 1e-9 (no sign count is printed on such a line); **near-tie / small gap, within seed noise** when `|paired mean| <= sd`; otherwise a **consistent** gap (`|paired mean| > sd`), called **small** if `|m|` is under 20 % of the smaller arm mean and **clear** otherwise; the 20 % rule only chooses between those two words. Every consistent line carries a same-sign count over the 5 seeds. Gaps are computed from unrounded values. Paired differences are B-A, C-A and C−B.
 
-- **mid_workspace:** A and B finish at primary error 0.0793+-0.0292 mm and 0.0793+-0.0292 mm. The declared A/B near-tie on primary error **did not hold** as a near-tie and is **kept**: B-A `primary_mm` is a **small but consistent** gap, -2.175e-6+-2.755e-7 mm, same sign on all 5 seeds. That difference is six orders of magnitude smaller than the 0.0793 mm primary error itself; it is a discrete-step residue of the projected secondary motion, not a reason to retune. C loses clearly on primary error: C-A `primary_mm` 11.9447+-0.0078 mm, same sign on all 5 seeds.
+- **mid_workspace:** A and B finish at primary error 0.0793+-0.0292 mm and 0.0793+-0.0292 mm. The declared A/B near-tie on primary error **did not hold** as a near-tie and is **kept**: B-A `primary_mm` is a **small but consistent** gap, -2.175e-6+-2.755e-7 mm, same sign on all 5 seeds. That difference is about four to five orders of magnitude smaller than the 0.0793 mm primary error itself (hand calc); it is a discrete-step residue of the projected secondary motion, not a reason to retune. C loses clearly on primary error: C-A `primary_mm` 11.9447+-0.0078 mm, same sign on all 5 seeds.
 - **near_joint_limit:** B-A `primary_mm` is a **near-tie**, -0.0016+-0.0031 mm (2 of 5 seeds have the opposite sign), so the primary errors stay comparable (A 0.0857+-0.0409 mm, B 0.0841+-0.0426 mm). B-A `secondary_cost` is a **clear** gap, -0.7757+-4.637e-5, same sign on all 5 seeds (A 1.1597+-0.0004, B 0.3840+-0.0003), so B has a consistently better secondary cost, as declared. C loses clearly on primary error: C-A `primary_mm` 42.6440+-0.0731 mm, same sign on all 5 seeds.
 - **rank-deficient stretched configuration:** printed separately, `rank=1`, `det(JJt)=0.0000`. No secondary-task win is declared there.
 
@@ -1796,7 +1796,7 @@ The page **does not declare a universal winner**. Mid-workspace primary error ca
 
 ### Exercises
 
-1. At the stretched configuration, write `J` by hand from the four remaining lengths `0.4000, 0.3000, 0.2000, 0.1000` m and show that its rank is 1. Compare with the printed `det(JJt)=0.0000`.
+1. At the stretched configuration, write `J` by hand from the four remaining lengths `0.4000, 0.3000, 0.2000, 0.1000` m (hand calc) and show that its rank is 1. Compare with the printed `det(JJt)=0.0000`.
 2. Show from `shared_noise` and `simulate` that A, B and C see the same tip-noise sequence for a given seed, and that B applies `z` only through `I − J⁺ J`.
 3. From `J (I − J⁺ J)` at the mid-workspace start, explain why the printed projector residual `1.007e-16` is expected, and why C can still pollute the primary.
 4. With seeds fixed, predict whether lowering `KS` to 0.5000 should keep B's secondary-cost advantage near the joint limit, then check the alternative block.
