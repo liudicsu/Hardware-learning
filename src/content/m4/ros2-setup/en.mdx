@@ -817,11 +817,440 @@ No crypto, DDS handshake, QoS or lifecycle simulation; no certification claim.
 3. **45 min:** grant `/debug` only to `operator` in a local copy, rerun and account for every changed metric. Change the domain in all arms together; explain why guessing it is not authentication.
 4. **40 min:** design a missing-enclave negative test and a denied-topic negative test for a ROS-enabled follow-up lab, including per-terminal exports, CLI override and expected startup failures. Real DDS tests remain 本页未运行 here; do not substitute the table for a security assessment.
 
+## rmw_zenoh versus the default Fast DDS
+
+This course still starts on Jazzy; this section does not change that recommendation. Both the Jazzy and Kilted *About different middleware vendors* pages name `rmw_fastrtps_cpp` (eProsima Fast DDS) as the **default** RMW, packaged with binary releases. Eclipse Zenoh, used through `rmw_zenoh_cpp`, is a documented non-DDS RMW: set `RMW_IMPLEMENTATION=rmw_zenoh_cpp`, install the distro-qualified package `ros-<distro>-rmw-zenoh-cpp`, and start the router with `ros2 run rmw_zenoh_cpp rmw_zenohd`. Without the Zenoh router, nodes will not be able to discover each other, because multicast discovery is disabled by default in the node's session config; instead, nodes receive discovery information about other peers via the Zenoh router's gossip functionality. That wording is identical on the Jazzy and Kilted *Working with Zenoh* pages (以文档为准).
+
+Beginning with ROS 2 Kilted Kaiju, `rmw_zenoh_cpp` is listed as **Tier 1** and “Packaged with binary releases starting with Kilted Kaiju.” The Kilted release notes' middleware table marks `rmw_fastrtps_cpp*` as the default, Tier 1, and lists `rmw_zenoh_cpp` (Eclipse Zenoh) as Tier 1 on all platforms and architectures; the asterisk is the default RMW. The same Kilted vendors page says “Beginning with ROS 2 Kilted Kaiju, this also includes Eclipse Zenoh,” while the default remains Fast DDS. The **Jazzy** vendors page does **not** list Zenoh among the RMWs packaged with that distro's binary releases — not listed on the Jazzy vendors packaged table; those listed are Fast DDS, RTI Connext Pro, Eclipse Cyclone DDS and GurumNetworks GurumDDS. Do not read this section as “Jazzy ships Zenoh as Tier 1.” The Jazzy *Working with Zenoh* page does exist and uses the same distro-substituted apt line; whether the package is installable on a given Jazzy snapshot is 以该发行版文档 / 软件源为准, not a CI fact.
+
+As an RMW, “Zenoh offers a more lightweight alternative to DDS and maintains Quality of Service features (in Zenoh, there are essentially no ‘incompatible’ QoS settings)” (Kilted vendors page; 以文档为准). That is the contrast with the DDS QoS-mismatch lesson already on [Lesson 2, Nodes, topics, services and actions](/en/month/month-4/ros2-graph), where a topic can publish and nothing receives. This section cites that lesson and does not rewrite its Deadline or Lifespan discussion. It is also not a redo of SROS2, and it does not retell DDS domain or discovery-range environment variables already covered above.
+
+<Resource id="ros2-zenoh-kilted" />
+
+<Resource id="ros2-zenoh-jazzy" />
+
+<Resource id="ros2-vendors-kilted" />
+
+<Resource id="ros2-vendors-jazzy" />
+
+<Resource id="ros2-kilted-release" />
+
+### Fair setup
+
+`rmw_zenoh_qos_discovery_toy.py` is a **synthetic, discrete-event stand-in**. It is not Fast DDS, not a real Zenoh session, not a QoS compatibility matrix copied from an unread DDS specification, and it does not start any `rmw_*` or `rmw_zenohd` process. **Common random numbers:** for each (regime, seed) a shared publication timeline of `N_PUB = 40` messages, a shared payload sequence and a shared Bernoulli drop sequence at `P_DROP = 0.0500` are drawn once and fed to every arm; five seeds `0,1,2,3,4`. After discovery and a deliverable QoS pairing, a dropped packet is not received. `hand_calc` full-delivery count if discovered and delivered with `P_DROP=0` is 40.0000; expected received if discovered at the official drop rate is 38.0000. The 20 percent small-versus-clear factor is printed as 0.2000.
+
+| Arm | Stand-in rule |
+|---|---|
+| A_dds_like | multicast discovery works on the same LAN without a router; a reliable publisher with a best-effort subscriber is treated as incompatible, yielding publishes-but-nothing-receives |
+| B_zenoh_like | discovery requires a router; QoS pairings that would be incompatible under A still deliver |
+| C_zenoh_no_router | the same Zenoh-like stand-in with the router not started; multicast discovery is not available in this session config, so nodes do not discover each other |
+
+The stand-in QoS rule is an assumption of this toy, not a table from the DDS specification. The Kilted vendors wording “essentially no incompatible QoS” is 以文档为准 and is not a measured toy result.
+
+| Regime | Publisher / subscriber | Router for B | Declared before the first run |
+|---|---|---|---|
+| compatible_qos | reliable / reliable | present | A and B may near-tie on delivery, including an exact tie if the shared network draws apply equally after discovery — keep |
+| incompatible_qos | reliable / best-effort | present | B consistent delivery, A loses — keep |
+| no_router | reliable / reliable | present for B; C has no router | C loses discovery — keep |
+
+**Choices made after seeing results.** None of the official parameters were changed after the first run. After that official run, lesson typography was adjusted so Chinese bold spans do not contain or sit against a full-width colon, the English body includes the exact wording “not listed on the Jazzy vendors packaged table,” the new Summary sentence includes 本页未运行, and the run block names `examples/month-4/ros2-setup` in prose before the `python3` command. Two alternatives were run on the same seeds and **not adopted**: `P_DROP=0.2000`, and the swapped pairing with a best-effort publisher and a reliable subscriber. Under this stand-in's rule that swapped pairing is compatible, so A and B tie; that is a named assumption, not a DDS specification claim.
+
+### Run the stdlib toy
+
+From `examples/month-4/ros2-setup` run:
+
+```bash
+cd ~/Hardware-learning/examples/month-4/ros2-setup
+python3 rmw_zenoh_qos_discovery_toy.py
+```
+
+<CodeSource path="examples/month-4/ros2-setup/rmw_zenoh_qos_discovery_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic RMW discovery and QoS stand-in.
+
+Stdlib only. Discrete event stand-in: not Fast DDS, not a real Zenoh session,
+not a QoS compatibility matrix copied from an unread DDS specification, and
+not a real rmw_* or rmw_zenohd process.
+
+A shared publication timeline, a shared payload sequence and shared network
+draws are generated once per (regime, seed) and then read by every arm
+(common random numbers).
+
+Arms:
+  A_dds_like -- multicast discovery works without a router; in this stand-in
+    a reliability mismatch (reliable publisher, best-effort subscriber)
+    yields publishes-but-nothing-receives.
+  B_zenoh_like -- discovery requires a router; QoS pairings that would be
+    incompatible under A still deliver in this stand-in. The Kilted vendors
+    wording "essentially no incompatible QoS" is 以文档为准 and is not a
+    measured toy result.
+  C_zenoh_no_router -- the same Zenoh-like stand-in with the router not
+    started; multicast discovery is not available in this session config,
+    so nodes do not discover each other.
+
+Regimes and parameters were written before the first run.
+
+Labels: tie = identical on every seed; numerically zero = |paired mean| and sd
+both < 1e-9; |m| <= sd = near-tie; |m| > sd = consistent gap (small if |m| < 20 %
+of the smaller arm mean, else clear), with a sign count. ROUND_HALF_UP output.
+
+Real ros2 run / rmw_zenohd / multi-machine multicast: 本页未运行.
+"""
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+SMALL_FRAC = 0.2000  # 20 % of the smaller-arm mean; printed as 0.2000
+
+# Declared stand-in parameters (not a vendor default, not a DDS spec table).
+N_PUB = 40
+P_DROP = 0.0500  # shared Bernoulli drop after a successful discover+deliver path
+RELIABLE = "reliable"
+BEST_EFFORT = "best_effort"
+
+ARMS = ("A_dds_like", "B_zenoh_like", "C_zenoh_no_router")
+METRICS = ("received", "delivery_rate")
+PAIRS = (("B", "A"), ("C", "B"), ("C", "A"))
+
+# name: (pub QoS, sub QoS, router_for_B, declared expectation); written before the first run
+REGIMES = {
+    "compatible_qos": (
+        RELIABLE,
+        RELIABLE,
+        True,
+        "A and B may near-tie on delivery (including an exact tie if the shared network draws apply equally after discovery) - keep",
+    ),
+    "incompatible_qos": (
+        RELIABLE,
+        BEST_EFFORT,
+        True,
+        "B consistent delivery, A loses (classic reliable-vs-best-effort mismatch under the DDS-like arm) - keep",
+    ),
+    "no_router": (
+        RELIABLE,
+        RELIABLE,
+        True,
+        "C loses discovery (Zenoh-like session has no multicast fallback; the router is not started for C) - keep",
+    ),
+}
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < SMALL_FRAC * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def qos_compatible_dds(pub_qos, sub_qos):
+    """Stand-in rule, not a DDS specification table.
+
+    This toy treats a reliable publisher with a best-effort subscriber as
+    incompatible under the DDS-like arm (the classic mismatch that can yield
+    publishes-but-nothing-receives). Other pairings in this toy are treated
+    as compatible.
+    """
+    return not (pub_qos == RELIABLE and sub_qos == BEST_EFFORT)
+
+
+def rng_for(*parts):
+    h = 20261119
+    for p in parts:
+        if isinstance(p, str):
+            for ch in p:
+                h = (h * 131 + ord(ch)) & 0xFFFFFFFFFFFFFFFF
+        else:
+            h = (h * 131 + int(p)) & 0xFFFFFFFFFFFFFFFF
+    return random.Random(h)
+
+
+def shared_draws(seed, p_drop=P_DROP, tag="official"):
+    """Common random numbers: payload and drop sequence shared across arms."""
+    rng = rng_for("rmw-draws", tag, seed, int(round(p_drop * 1e6)))
+    payloads = [rng.randrange(1, 10 ** 6) for _ in range(N_PUB)]
+    drops = [rng.random() < p_drop for _ in range(N_PUB)]
+    return payloads, drops
+
+
+def evaluate(arm, pub_qos, sub_qos, router_for_b, draws):
+    payloads, drops = draws
+    if arm == "A_dds_like":
+        discovered = True  # multicast on the same LAN, no router required
+        qos_ok = qos_compatible_dds(pub_qos, sub_qos)
+    elif arm == "B_zenoh_like":
+        discovered = bool(router_for_b)
+        qos_ok = True  # stand-in: pairings that fail under A still deliver
+    elif arm == "C_zenoh_no_router":
+        discovered = False  # router not started; no multicast in this session
+        qos_ok = True
+    else:
+        raise ValueError(arm)
+    received = 0
+    for payload, dropped in zip(payloads, drops):
+        del payload  # shared payload is part of the CRN record, not a filter
+        if discovered and qos_ok and not dropped:
+            received += 1
+    return {
+        "discovered": 1.0 if discovered else 0.0,
+        "received": float(received),
+        "delivery_rate": received / float(N_PUB),
+        "published": float(N_PUB),
+    }
+
+
+def run_regime(name, seed, p_drop=P_DROP, pub_qos=None, sub_qos=None, router_for_b=None):
+    pub, sub, router, _decl = REGIMES[name]
+    if pub_qos is None:
+        pub_qos = pub
+    if sub_qos is None:
+        sub_qos = sub
+    if router_for_b is None:
+        router_for_b = router
+    draws = shared_draws(seed, p_drop, tag=name)
+    return {arm: evaluate(arm, pub_qos, sub_qos, router_for_b, draws) for arm in ARMS}
+
+
+def print_regime(title, rows):
+    print(f"regime {title}  (mean+-sd over seeds)")
+    for arm in ARMS:
+        rec = [r[arm]["received"] for r in rows]
+        rate = [r[arm]["delivery_rate"] for r in rows]
+        disc = [r[arm]["discovered"] for r in rows]
+        print(
+            f"  {arm} received {num(mean_sd(rec)[0])}+-{num(mean_sd(rec)[1])} "
+            f"delivery_rate {num(mean_sd(rate)[0])}+-{num(mean_sd(rate)[1])} "
+            f"discovered {num(mean_sd(disc)[0])}+-{num(mean_sd(disc)[1])}"
+        )
+    for left, right in PAIRS:
+        la = [a for a in ARMS if a.startswith(left)][0]
+        ra = [a for a in ARMS if a.startswith(right)][0]
+        for key in METRICS:
+            xa = [r[la][key] for r in rows]
+            xb = [r[ra][key] for r in rows]
+            print(f"  paired {left}-{right} {key}: {verdict(xa, xb)}")
+
+
+def official_rows(name, p_drop=P_DROP, **kwargs):
+    return [run_regime(name, seed, p_drop=p_drop, **kwargs) for seed in SEEDS]
+
+
+def main():
+    print("Synthetic RMW discovery and QoS stand-in; not Fast DDS, not a real Zenoh session")
+    print(
+        f"declared N_PUB={N_PUB} P_DROP={num(P_DROP)} SMALL_FRAC={num(SMALL_FRAC)} "
+        f"seeds={','.join(str(s) for s in SEEDS)}"
+    )
+    print("declared arms: A_dds_like multicast no-router; B_zenoh_like router required; C_zenoh_no_router no router and no multicast")
+    print("declared stand-in QoS rule: reliable publisher + best-effort subscriber is incompatible under A only")
+    print("hand_calc full-delivery count if discovered and delivered with P_DROP=0 = 40.0000")
+    print(f"hand_calc expected received if discovered and P_DROP={num(P_DROP)} = {num(N_PUB * (1.0 - P_DROP))}")
+    print(f"hand_calc 20 percent small-vs-clear factor = {num(SMALL_FRAC)}")
+    print("Regimes and parameters were written before the first run")
+    print("Common random numbers: the payload and drop sequence is shared across arms at each regime and seed")
+    print("Assumptions: discrete event stand-in, not Fast DDS, not a real Zenoh session, not a QoS matrix from an unread DDS spec")
+    print("Documentation claims (router, default Fast DDS, Kilted packaging, no incompatible QoS wording) 以文档为准")
+    print("Real ros2 run / rmw_zenohd / multi-machine multicast: 本页未运行")
+    print("declared compatible_qos: A and B may near-tie on delivery - keep")
+    print("declared incompatible_qos: B consistent delivery, A loses - keep")
+    print("declared no_router: C loses discovery - keep")
+
+    official = {name: official_rows(name) for name in REGIMES}
+    for name, (_pub, _sub, _router, decl) in REGIMES.items():
+        print(f"declared expectation {name}: {decl}")
+        print_regime(name, official[name])
+
+    # Alternatives on the same seeds; not adopted.
+    print("alternative same seeds P_DROP=0.2000 (not adopted)")
+    print(f"hand_calc expected received if discovered and P_DROP=0.2000 = {num(N_PUB * (1.0 - 0.2000))}")
+    for name in REGIMES:
+        print_regime(f"{name} alt_p_drop=0.2000", official_rows(name, p_drop=0.2000))
+
+    print("alternative same seeds incompatible_qos with publisher best_effort and subscriber reliable (not adopted)")
+    print_regime(
+        "incompatible_qos alt_qos=best_effort_pub_reliable_sub",
+        official_rows("incompatible_qos", pub_qos=BEST_EFFORT, sub_qos=RELIABLE),
+    )
+
+    print("No real rmw_* process was started")
+    print("No winner is universal: compatible same-LAN delivery can tie; the stand-in difference is the mismatch and the router")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic RMW discovery and QoS stand-in; not Fast DDS, not a real Zenoh session
+declared N_PUB=40 P_DROP=0.0500 SMALL_FRAC=0.2000 seeds=0,1,2,3,4
+declared arms: A_dds_like multicast no-router; B_zenoh_like router required; C_zenoh_no_router no router and no multicast
+declared stand-in QoS rule: reliable publisher + best-effort subscriber is incompatible under A only
+hand_calc full-delivery count if discovered and delivered with P_DROP=0 = 40.0000
+hand_calc expected received if discovered and P_DROP=0.0500 = 38.0000
+hand_calc 20 percent small-vs-clear factor = 0.2000
+Regimes and parameters were written before the first run
+Common random numbers: the payload and drop sequence is shared across arms at each regime and seed
+Assumptions: discrete event stand-in, not Fast DDS, not a real Zenoh session, not a QoS matrix from an unread DDS spec
+Documentation claims (router, default Fast DDS, Kilted packaging, no incompatible QoS wording) 以文档为准
+Real ros2 run / rmw_zenohd / multi-machine multicast: 本页未运行
+declared compatible_qos: A and B may near-tie on delivery - keep
+declared incompatible_qos: B consistent delivery, A loses - keep
+declared no_router: C loses discovery - keep
+declared expectation compatible_qos: A and B may near-tie on delivery (including an exact tie if the shared network draws apply equally after discovery) - keep
+regime compatible_qos  (mean+-sd over seeds)
+  A_dds_like received 37.4000+-1.9494 delivery_rate 0.9350+-0.0487 discovered 1.0000+-0.0000
+  B_zenoh_like received 37.4000+-1.9494 delivery_rate 0.9350+-0.0487 discovered 1.0000+-0.0000
+  C_zenoh_no_router received 0.0000+-0.0000 delivery_rate 0.0000+-0.0000 discovered 0.0000+-0.0000
+  paired B-A received: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A delivery_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B received: -37.4000+-1.9494: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B delivery_rate: -0.9350+-0.0487: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A received: -37.4000+-1.9494: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A delivery_rate: -0.9350+-0.0487: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+declared expectation incompatible_qos: B consistent delivery, A loses (classic reliable-vs-best-effort mismatch under the DDS-like arm) - keep
+regime incompatible_qos  (mean+-sd over seeds)
+  A_dds_like received 0.0000+-0.0000 delivery_rate 0.0000+-0.0000 discovered 1.0000+-0.0000
+  B_zenoh_like received 38.0000+-1.0000 delivery_rate 0.9500+-0.0250 discovered 1.0000+-0.0000
+  C_zenoh_no_router received 0.0000+-0.0000 delivery_rate 0.0000+-0.0000 discovered 0.0000+-0.0000
+  paired B-A received: 38.0000+-1.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A delivery_rate: 0.9500+-0.0250: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B received: -38.0000+-1.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B delivery_rate: -0.9500+-0.0250: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A received: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A delivery_rate: 0.0000+-0.0000: tie: identical on every seed
+declared expectation no_router: C loses discovery (Zenoh-like session has no multicast fallback; the router is not started for C) - keep
+regime no_router  (mean+-sd over seeds)
+  A_dds_like received 38.4000+-1.3416 delivery_rate 0.9600+-0.0335 discovered 1.0000+-0.0000
+  B_zenoh_like received 38.4000+-1.3416 delivery_rate 0.9600+-0.0335 discovered 1.0000+-0.0000
+  C_zenoh_no_router received 0.0000+-0.0000 delivery_rate 0.0000+-0.0000 discovered 0.0000+-0.0000
+  paired B-A received: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A delivery_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B received: -38.4000+-1.3416: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B delivery_rate: -0.9600+-0.0335: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A received: -38.4000+-1.3416: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A delivery_rate: -0.9600+-0.0335: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative same seeds P_DROP=0.2000 (not adopted)
+hand_calc expected received if discovered and P_DROP=0.2000 = 32.0000
+regime compatible_qos alt_p_drop=0.2000  (mean+-sd over seeds)
+  A_dds_like received 32.4000+-2.5100 delivery_rate 0.8100+-0.0627 discovered 1.0000+-0.0000
+  B_zenoh_like received 32.4000+-2.5100 delivery_rate 0.8100+-0.0627 discovered 1.0000+-0.0000
+  C_zenoh_no_router received 0.0000+-0.0000 delivery_rate 0.0000+-0.0000 discovered 0.0000+-0.0000
+  paired B-A received: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A delivery_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B received: -32.4000+-2.5100: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B delivery_rate: -0.8100+-0.0627: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A received: -32.4000+-2.5100: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A delivery_rate: -0.8100+-0.0627: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+regime incompatible_qos alt_p_drop=0.2000  (mean+-sd over seeds)
+  A_dds_like received 0.0000+-0.0000 delivery_rate 0.0000+-0.0000 discovered 1.0000+-0.0000
+  B_zenoh_like received 33.6000+-1.1402 delivery_rate 0.8400+-0.0285 discovered 1.0000+-0.0000
+  C_zenoh_no_router received 0.0000+-0.0000 delivery_rate 0.0000+-0.0000 discovered 0.0000+-0.0000
+  paired B-A received: 33.6000+-1.1402: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A delivery_rate: 0.8400+-0.0285: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B received: -33.6000+-1.1402: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B delivery_rate: -0.8400+-0.0285: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A received: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A delivery_rate: 0.0000+-0.0000: tie: identical on every seed
+regime no_router alt_p_drop=0.2000  (mean+-sd over seeds)
+  A_dds_like received 31.2000+-2.6833 delivery_rate 0.7800+-0.0671 discovered 1.0000+-0.0000
+  B_zenoh_like received 31.2000+-2.6833 delivery_rate 0.7800+-0.0671 discovered 1.0000+-0.0000
+  C_zenoh_no_router received 0.0000+-0.0000 delivery_rate 0.0000+-0.0000 discovered 0.0000+-0.0000
+  paired B-A received: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A delivery_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B received: -31.2000+-2.6833: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B delivery_rate: -0.7800+-0.0671: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A received: -31.2000+-2.6833: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A delivery_rate: -0.7800+-0.0671: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative same seeds incompatible_qos with publisher best_effort and subscriber reliable (not adopted)
+regime incompatible_qos alt_qos=best_effort_pub_reliable_sub  (mean+-sd over seeds)
+  A_dds_like received 38.0000+-1.0000 delivery_rate 0.9500+-0.0250 discovered 1.0000+-0.0000
+  B_zenoh_like received 38.0000+-1.0000 delivery_rate 0.9500+-0.0250 discovered 1.0000+-0.0000
+  C_zenoh_no_router received 0.0000+-0.0000 delivery_rate 0.0000+-0.0000 discovered 0.0000+-0.0000
+  paired B-A received: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A delivery_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B received: -38.0000+-1.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B delivery_rate: -0.9500+-0.0250: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A received: -38.0000+-1.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A delivery_rate: -0.9500+-0.0250: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No real rmw_* process was started
+No winner is universal: compatible same-LAN delivery can tie; the stand-in difference is the mismatch and the router
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used on this page, in this order: **tie: identical on every seed** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when `|paired mean|` and its sd are both below 1e-9 (no sign count is printed on such a line); **near-tie / small gap, within seed noise** when `|paired mean| <= sd`; otherwise a **consistent** gap (`|paired mean| > sd`), called **small** if `|m|` is under 20 % of the smaller arm mean and **clear** otherwise; the 20 % rule only chooses between those two words. Every consistent line carries a same-sign count over the 5 seeds. Gaps are computed from unrounded values. Paired differences are B−A, C−B and C−A.
+
+- **compatible_qos:** A and B both receive 37.4000+-1.9494 messages (`delivery_rate` 0.9350+-0.0487). B−A received is **tie: identical on every seed** (0.0000+-0.0000). The declared “may near-tie” therefore holds as an exact tie, because the shared drop sequence is applied equally after discovery. C receives 0.0000 on every seed; C−B received is a **clear** gap, -37.4000+-1.9494, same sign on all 5 seeds.
+- **incompatible_qos:** A discovers (1.0000) but receives 0.0000 — publishes-but-nothing-receives under the stand-in mismatch. B receives 38.0000+-1.0000 (`delivery_rate` 0.9500+-0.0250). B−A received is a **clear** gap, 38.0000+-1.0000, same sign on all 5 seeds, so B consistent delivery and A loses, as declared. C still receives 0.0000; C−A received is a tie at 0.0000+-0.0000 because both deliver nothing, for different reasons (QoS versus no discovery).
+- **no_router:** A and B again tie on received, 38.4000+-1.3416 (0.0000+-0.0000, identical on every seed). C receives 0.0000 and is not discovered; C−B received is a **clear** gap, -38.4000+-1.3416, same sign on all 5 seeds, so C loses discovery, as declared. A still delivers by multicast, which this Zenoh-like session config does not have.
+
+The alternatives on the same seeds were not adopted. At `P_DROP=0.2000`, `hand_calc` expected received if discovered is 32.0000; compatible B−A remains an exact tie (32.4000+-2.5100 received) and incompatible B−A remains a clear gap (33.6000+-1.1402). The swapped best-effort publisher / reliable subscriber pairing is compatible under the stand-in rule, so A and B tie at 38.0000+-1.0000 received; C still loses.
+
+The page **does not declare a universal winner**. Compatible same-LAN delivery can tie; the stand-in difference is the reliability mismatch and the missing router. Documentation figures 以文档为准. Real `ros2 run` / `rmw_zenohd` / multi-machine multicast: **本页未运行**.
+
+**180-minute work plan:** 30+25+50+40+35=180. 30 min read the Kilted and Jazzy vendors pages and both Working with Zenoh pages, and write the default, the Kilted Tier 1 / packaging line, and the router requirement; 25 min write the stand-in discovery and QoS rules before running; 50 min run the toy and read the three official regimes; 40 min rerun the declared alternatives on the same seeds (`P_DROP=0.2000` and the swapped QoS pairing); 35 min write why the course still starts on Jazzy and what a real `rmw_zenohd` check would still have to show (本页未运行).
+
+### Exercises
+
+1. From the Kilted release-notes table, name the default RMW and the support level listed for `rmw_zenoh_cpp`. Say whether the Jazzy vendors packaged table includes Zenoh.
+2. Show from `shared_draws` and `evaluate` that A, B and C see the same payloads and drop sequence for a given seed, and that C never discovers.
+3. Before rereading the official `incompatible_qos` block, predict A's received count under the stand-in rule, then check it.
+4. With seeds fixed, explain why the `P_DROP=0.2000` alternative still ties A and B on compatible QoS, and why the swapped QoS pairing ties them too.
+5. Before any real `rmw_zenohd` run (本页未运行), write what would still have to be checked on a Jazzy machine that the stand-in cannot show.
+
+
 <Summary>
 
 - Choose the apt or pixi Jazzy installation route, check the talker/listener demo, and distinguish ROS 1 commands from ROS 2.
 - Build an ament package in a colcon workspace; source the underlay and overlay in each new terminal, then inspect nodes, topics and interfaces.
 - Diagnose discovery, DOMAIN_ID, multicast, environment and package errors before rewriting a node.
 - SROS2 keystores and enclaves add identity and permission configuration beyond DOMAIN_ID; the shared ACL table contrasts open-domain receives, missing-enclave Enforce denial and explicit grants without claiming real DDS encryption.
+- rmw_zenoh is a documented non-DDS RMW: Fast DDS stays the default on Jazzy and Kilted; rmw_zenoh_cpp is Tier 1 and packaged from Kilted, not listed on the Jazzy vendors packaged table; a stand-in shows compatible QoS delivery tying, a reliability mismatch where only the Zenoh-like arm delivers, and discovery failing without a router — not a real rmw run, 本页未运行.
 
 </Summary>

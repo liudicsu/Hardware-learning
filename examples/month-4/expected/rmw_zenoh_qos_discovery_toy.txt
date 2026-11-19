@@ -1,0 +1,93 @@
+Synthetic RMW discovery and QoS stand-in; not Fast DDS, not a real Zenoh session
+declared N_PUB=40 P_DROP=0.0500 SMALL_FRAC=0.2000 seeds=0,1,2,3,4
+declared arms: A_dds_like multicast no-router; B_zenoh_like router required; C_zenoh_no_router no router and no multicast
+declared stand-in QoS rule: reliable publisher + best-effort subscriber is incompatible under A only
+hand_calc full-delivery count if discovered and delivered with P_DROP=0 = 40.0000
+hand_calc expected received if discovered and P_DROP=0.0500 = 38.0000
+hand_calc 20 percent small-vs-clear factor = 0.2000
+Regimes and parameters were written before the first run
+Common random numbers: the payload and drop sequence is shared across arms at each regime and seed
+Assumptions: discrete event stand-in, not Fast DDS, not a real Zenoh session, not a QoS matrix from an unread DDS spec
+Documentation claims (router, default Fast DDS, Kilted packaging, no incompatible QoS wording) 以文档为准
+Real ros2 run / rmw_zenohd / multi-machine multicast: 本页未运行
+declared compatible_qos: A and B may near-tie on delivery - keep
+declared incompatible_qos: B consistent delivery, A loses - keep
+declared no_router: C loses discovery - keep
+declared expectation compatible_qos: A and B may near-tie on delivery (including an exact tie if the shared network draws apply equally after discovery) - keep
+regime compatible_qos  (mean+-sd over seeds)
+  A_dds_like received 37.4000+-1.9494 delivery_rate 0.9350+-0.0487 discovered 1.0000+-0.0000
+  B_zenoh_like received 37.4000+-1.9494 delivery_rate 0.9350+-0.0487 discovered 1.0000+-0.0000
+  C_zenoh_no_router received 0.0000+-0.0000 delivery_rate 0.0000+-0.0000 discovered 0.0000+-0.0000
+  paired B-A received: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A delivery_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B received: -37.4000+-1.9494: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B delivery_rate: -0.9350+-0.0487: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A received: -37.4000+-1.9494: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A delivery_rate: -0.9350+-0.0487: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+declared expectation incompatible_qos: B consistent delivery, A loses (classic reliable-vs-best-effort mismatch under the DDS-like arm) - keep
+regime incompatible_qos  (mean+-sd over seeds)
+  A_dds_like received 0.0000+-0.0000 delivery_rate 0.0000+-0.0000 discovered 1.0000+-0.0000
+  B_zenoh_like received 38.0000+-1.0000 delivery_rate 0.9500+-0.0250 discovered 1.0000+-0.0000
+  C_zenoh_no_router received 0.0000+-0.0000 delivery_rate 0.0000+-0.0000 discovered 0.0000+-0.0000
+  paired B-A received: 38.0000+-1.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A delivery_rate: 0.9500+-0.0250: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B received: -38.0000+-1.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B delivery_rate: -0.9500+-0.0250: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A received: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A delivery_rate: 0.0000+-0.0000: tie: identical on every seed
+declared expectation no_router: C loses discovery (Zenoh-like session has no multicast fallback; the router is not started for C) - keep
+regime no_router  (mean+-sd over seeds)
+  A_dds_like received 38.4000+-1.3416 delivery_rate 0.9600+-0.0335 discovered 1.0000+-0.0000
+  B_zenoh_like received 38.4000+-1.3416 delivery_rate 0.9600+-0.0335 discovered 1.0000+-0.0000
+  C_zenoh_no_router received 0.0000+-0.0000 delivery_rate 0.0000+-0.0000 discovered 0.0000+-0.0000
+  paired B-A received: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A delivery_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B received: -38.4000+-1.3416: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B delivery_rate: -0.9600+-0.0335: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A received: -38.4000+-1.3416: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A delivery_rate: -0.9600+-0.0335: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative same seeds P_DROP=0.2000 (not adopted)
+hand_calc expected received if discovered and P_DROP=0.2000 = 32.0000
+regime compatible_qos alt_p_drop=0.2000  (mean+-sd over seeds)
+  A_dds_like received 32.4000+-2.5100 delivery_rate 0.8100+-0.0627 discovered 1.0000+-0.0000
+  B_zenoh_like received 32.4000+-2.5100 delivery_rate 0.8100+-0.0627 discovered 1.0000+-0.0000
+  C_zenoh_no_router received 0.0000+-0.0000 delivery_rate 0.0000+-0.0000 discovered 0.0000+-0.0000
+  paired B-A received: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A delivery_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B received: -32.4000+-2.5100: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B delivery_rate: -0.8100+-0.0627: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A received: -32.4000+-2.5100: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A delivery_rate: -0.8100+-0.0627: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+regime incompatible_qos alt_p_drop=0.2000  (mean+-sd over seeds)
+  A_dds_like received 0.0000+-0.0000 delivery_rate 0.0000+-0.0000 discovered 1.0000+-0.0000
+  B_zenoh_like received 33.6000+-1.1402 delivery_rate 0.8400+-0.0285 discovered 1.0000+-0.0000
+  C_zenoh_no_router received 0.0000+-0.0000 delivery_rate 0.0000+-0.0000 discovered 0.0000+-0.0000
+  paired B-A received: 33.6000+-1.1402: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A delivery_rate: 0.8400+-0.0285: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B received: -33.6000+-1.1402: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B delivery_rate: -0.8400+-0.0285: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A received: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A delivery_rate: 0.0000+-0.0000: tie: identical on every seed
+regime no_router alt_p_drop=0.2000  (mean+-sd over seeds)
+  A_dds_like received 31.2000+-2.6833 delivery_rate 0.7800+-0.0671 discovered 1.0000+-0.0000
+  B_zenoh_like received 31.2000+-2.6833 delivery_rate 0.7800+-0.0671 discovered 1.0000+-0.0000
+  C_zenoh_no_router received 0.0000+-0.0000 delivery_rate 0.0000+-0.0000 discovered 0.0000+-0.0000
+  paired B-A received: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A delivery_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B received: -31.2000+-2.6833: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B delivery_rate: -0.7800+-0.0671: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A received: -31.2000+-2.6833: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A delivery_rate: -0.7800+-0.0671: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative same seeds incompatible_qos with publisher best_effort and subscriber reliable (not adopted)
+regime incompatible_qos alt_qos=best_effort_pub_reliable_sub  (mean+-sd over seeds)
+  A_dds_like received 38.0000+-1.0000 delivery_rate 0.9500+-0.0250 discovered 1.0000+-0.0000
+  B_zenoh_like received 38.0000+-1.0000 delivery_rate 0.9500+-0.0250 discovered 1.0000+-0.0000
+  C_zenoh_no_router received 0.0000+-0.0000 delivery_rate 0.0000+-0.0000 discovered 0.0000+-0.0000
+  paired B-A received: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A delivery_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B received: -38.0000+-1.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B delivery_rate: -0.9500+-0.0250: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A received: -38.0000+-1.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A delivery_rate: -0.9500+-0.0250: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No real rmw_* process was started
+No winner is universal: compatible same-LAN delivery can tie; the stand-in difference is the mismatch and the router

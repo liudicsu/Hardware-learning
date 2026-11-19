@@ -1,5 +1,15 @@
 # Month 5 current plan / 第5个月当前计划
 
+Current / 当前：**M5 3930 min**, Batch-25 PR1. Older batch entries retain historical totals.
+
+## Batch-25 PR1 — redundant IK nullspace secondary task on kinematics-ik (+180)
+
+Base `def8795172af98816d18a7c732ac33b2066f8ea3` (batch-24 polish #200 merged; site **42300**). PR1 on M5 host: **M5 3750→3930 (+180)**; M4 moves in the same PR on its own plan. Site **42300→42660** (42660=42300+180+180), still 71 lessons.
+
+- **H2 / 5.x kinematics-ik: 750→930 (+180).** Redundant IK nullspace secondary task (`redundant_ik_nullspace_toy.py`; common random numbers, 5 seeds; shared 4R planar arm, shared primary target, shared preferred posture, shared tip-measurement noise). New rectangular 2×4 Jacobian (`n>m`); the lesson 3×3 SO-101 position Jacobian is not treated as redundant and `kinematics.py` is not rewritten. Modern Robotics Dec 2019 preprint Eq. 6.7 `θ̇ = J†(θ)Vd` and the weighted form `θ̇ = G Vd + (I-GJ) M^{-1} ∇h` with `G = M^{-1} J^T (J M^{-1} J^T)^{-1}` (以原文为准); the toy uses the unweighted specialization `θ̇ = J^{+}v+(I-J^{+}J)z`, labelled as such plus the Moore–Penrose projector `I-A^{+}A` onto `ker(A)` and `A(I-A^{+}A)=0` (Wikipedia Inverse kinematics oldid 1380700181; Moore–Penrose inverse oldid 1382104859; 以原文为准). MR's spatial `n>6` case is not misquoted as a requirement on this planar example. Declared parameters: LINKS 0.1000 m, reach_max 0.4000 m, DT 0.0200 s, N_STEP 80, horizon 1.6000 s, KP 4.0000 /s, KS 2.0000 /s, SIG_TIP 0.0002 m, Q_PREF 0.6000,0.7000,0.5000,0.4000 rad, SMALL_FRAC 0.2000. Hand calc (printed): reach 0.4000, factor 0.2000, horizon 1.6000, mid tip (0.0277, 0.3311), rank 2, det(JJt)=0.0025, proj residual 1.007e-16; limit tip (0.0075, 0.1890), det(JJt)=0.0012; stretched rank=1, det(JJt)=0.0000, `J J^{+} v=(0.0000, 0.0000)` for v=(0.0500, 0.0000) — no secondary-task win declared. mid_workspace: declared A/B primary near-tie **did not hold**, kept as B−A primary_mm `-2.175e-6+-2.755e-7`, **small but consistent**, 5/5; C−A primary 11.9447+-0.0078, clear, 5/5. near_joint_limit: B−A primary `-0.0016+-0.0031`, **near-tie**; B−A secondary_cost `-0.7757+-4.637e-5`, **clear**, 5/5 (held); C−A primary 42.6440+-0.0731, clear, 5/5 (held). Alternative KS=0.5000 on the same seeds, not adopted (limit primary remains a near-tie, secondary still a clear B improvement, C still loses). No code change after the first official run. ≠ DLS / manipulability / PoE / humanoid contact nullspace. Real arm / MoveIt / TRAC-IK 本页未运行. / 新的 4R 平面臂演示零空间次任务；中位形主误差预声明未以接近打平成立，结果保留；靠近限位时投影组次任务代价更好；无投影组在主误差上失败。
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
+
 Current / 当前：**M5 3750 min**, Batch-24 PR1. Older batch entries retain historical totals.
 
 ## Batch-24 PR1 — Nyquist stability criterion on control-modelling (+180)
