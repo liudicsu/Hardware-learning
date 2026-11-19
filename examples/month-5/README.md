@@ -51,3 +51,7 @@ bash examples/month-5/check.sh
 ## state-space-lqr/ — LQG: a Kalman filter with the same LQR gain / LQG：卡尔曼滤波器配同一个 LQR 增益
 
 `state-space-lqr/lqg_kalman_lqr_separation_toy.py`: standard-library synthetic mass-damper with a full-state oracle, a Kalman filter from the true noise covariances, two pole-placed Luenberger observers and a misspecified Kalman filter, all with the same LQR gain (matched, noisy and quiet sensor) on shared initial-state and noise draws; no hardware; expected output in `expected/lqg_kalman_lqr_separation_toy.txt`, included in `check.sh`. Real plant / IMU 本页未运行. / 标准库合成的质量-阻尼对象：全状态 oracle、按真实噪声协方差设计的卡尔曼滤波器、两个极点配置的 Luenberger 观测器和噪声模型写错的卡尔曼滤波器共用同一 LQR 增益，不是实测，输出由 `check.sh` 核对。
+
+## control-modelling/ — Nyquist stability criterion / Nyquist 稳定性判据
+
+`control-modelling/nyquist_stability_criterion_toy.py`: standard-library synthetic Nyquist stability-criterion model (first-phase-margin-only accept, encirclement count Z = N + P, any-healthy-margin accept) on shared declared linear plants and a deterministic omega grid; not a rewrite of the Bode helpers, Smith or computed-torque toys, and not the sampling Nyquist frequency; expected output in `expected/nyquist_stability_criterion_toy.txt`, included in `check.sh`. Real plant / analyser 本页未运行. / 标准库合成的 Nyquist 稳定性判据模型，在共享的声明线性对象和确定性 ω 网格上比较只看第一个相位裕度、按 Z = N + P 计数和把任一健康裕度当成稳定的判定；不改写 Bode 辅助程序、Smith 或计算力矩玩具，也不是采样 Nyquist 频率；输出由 `check.sh` 核对。

@@ -1469,6 +1469,449 @@ Real bus / analyser: 本页未运行; Wikipedia statements 以原文为准
 4. 打印的 TIMEOUT_US = 1000.0 替代让 C 在 overtime_stretch 上与 B 打平。为什么不能据此删掉超时失败的情形？
 5. 在做任何真实总线抓取之前（本页未运行），写出你会怎样在逻辑分析仪波形上区分「目标在拉伸」和「RC 上升太慢」，以及首先检查哪个控制器设置。
 
+## Steinhart–Hart NTC 测温
+
+<Resource id="wiki-steinhart-hart" />
+
+<Resource id="wiki-thermistor" />
+
+主要来源是 Wikipedia 的 **Steinhart–Hart equation** 页面（修订 1291894974，2025 年 5 月 24 日 09:30，Asia/Shanghai；以原文为准）。它把测到的电阻映到体温度，写成 1/T = A + B ln R + C (ln R)^3，其中 T 用开尔文，A、B、C 是该样品在给定温度范围内的系数。系数未知时，用三个已知 (R, T) 点列三个联立方程，按该页的 L_i = ln R_i、Y_i = 1/T_i，再依次解出 C、B、A。本页只用该页给出的反函数 R(T)：R = exp(cbrt(y − x/2) − cbrt(y + x/2))，其中 x = (1/C)(A − 1/T)，y = sqrt((B/(3C))^3 + x^2/4)，立方根取实数并保留符号。Thermistor 页面改写过的反函数不混用。
+
+Wikipedia 的 **Thermistor** 页面（修订 1380549254，2026 年 10 月 16 日 20:03，Asia/Shanghai；以原文为准）作为辅助来源保留。它用参数 a、b、c 写出同一条三阶正向公式，并说明一阶线性模型 ΔR = k ΔT 只在有限区间内准确；同一页还给出 B 参数简化 1/T = 1/T_0 + (1/B) ln(R/R_0)（等价于 R = R_0 exp(B(1/T − 1/T_0))），也就是把三次项取零后的同一族公式。该页还举了一个典型的 25 °C 下 3 kΩ 器件例子：a = 1.40e-3，b = 2.37e-4，c = 9.90e-8，并写道 Steinhart–Hart 方程在 200 °C 范围内误差一般小于 0.02 °C（以原文为准）。这些示例系数和 0.02 °C 的说法都不是玩具输出，也不是本页把它当成手册值来用。
+
+这一节**不是**电源与电池课里把 B 参数 R(T) 当作限流元件的 NTC 浪涌限制，**不是**对本页 MPU-6050 TEMP_OUT 寄存器做标定（该寄存器保持未读、未用），**不是**厂商曲线，**不是**标定槽，也**不是**重新讲授分压器：分压器和 ADC 只是从电阻到计数的共享替身。
+
+<Formula label="Steinhart–Hart 正向">1/T = A + B ln R + C (ln R)^3，T 用开尔文</Formula>
+
+<Formula label="Steinhart–Hart 反函数，仅本页这一式">x = (1/C)(A − 1/T)，y = sqrt((B/(3C))^3 + x^2/4)，R = exp(cbrt(y − x/2) − cbrt(y + x/2))</Formula>
+
+<Formula label="B 参数">1/T = 1/T_0 + (1/B) ln(R/R_0)</Formula>
+
+玩具是只用标准库、只在 CPU 上跑的模型。共享的真实温度列表、共享的分压器/ADC 替身和共享的电阻噪声在每个情形和种子上只抽一次，然后每一臂都读同一份（公共随机数 Common random numbers；种子 0 到 4 共五个；输出用 ROUND_HALF_UP）。真实 R(T) 用上面的反函数，A、B、C 由三个声明的替身点解出，**不是** Wikipedia 的 3 kΩ 例子：(R, T) = (25000.0000 Ω, 0.0000 °C)、(10000.0000 Ω, 25.0000 °C)、(1500.0000 Ω, 80.0000 °C)，因此 0.0000 °C = 273.1500 K，25.0000 °C = 298.1500 K，80.0000 °C = 353.1500 K（手算）。打印出的解为 A = 1.7038685512e-03，B = 1.1164361508e-04，C = 7.9592857047e-07；25.0000 °C 处 1/T = 3.3540164347e-03，反函数在 25.0000 °C 处给出真实 R = 10000.0000 Ω。分压器为 V = VCC × R / (R + R_DIV)，VCC = 3.3000 V，R_DIV = 10000.0000 Ω，再经过 12 位 ADC，adc_counts = 4095；25.0000 °C、无噪声时分压为 1.6500 V（手算）。电阻噪声是标准差 sig_R = 40.0000 Ω 的高斯量，抽一次后共享。指标是温度 RMSE，单位 °C（rmse_C）。
+
+**A_beta_local** 只在 25.0000 °C 附近用 24.0000 °C 与 26.0000 °C 两个局部点拟合 B 参数模型，这两点的真实电阻是 10364.8362 Ω 与 9648.5917 Ω；打印的 beta 为 3182.6587 K，局部 T0、R0 为 297.1500 K、10364.8362 Ω。**B_sh_threepoint** 使用由三个声明宽点解出的 Steinhart–Hart 系数（与真实曲线同一组 A、B、C，残差只来自分压器、ADC 和噪声）。**C_adc_counts** 把原始 ADC 计数直接当成温度：局部线性计数到 °C 的直线 T = 81.0959 − 0.0274 × counts，只用 24.0000 °C 与 26.0000 °C 处无噪声计数 2084 与 2011 拟合。在 24.0000、25.0000、26.0000 °C（电阻 10364.8362、10000.0000、9648.5917 Ω）上做的窄区间 Steinhart–Hart 求解只作为替代打印，因为在这条三参数曲线上，任意三个不同点都会恢复同一组 A、B、C，不能当作失败格。
+
+三种情形都在首次运行前写定，并予保留。**mid_range** 在 20.0000 到 30.0000 °C 上评估（五个点 20.0000、22.0000、25.0000、28.0000、30.0000 °C），声明 A 与 B 在 rmse_C 上可能接近打平；**wide_span** 在 0.0000 到 80.0000 °C 上评估（0.0000、10.0000、25.0000、50.0000、80.0000 °C），声明 B 一贯低于 A；**out_of_range** 在 −5.0000 到 90.0000 °C 上评估（−5.0000、0.0000、80.0000、90.0000 °C），声明 C 输给 B。
+
+<CodeSource path="examples/month-2/sensors-fusion/steinhart_hart_ntc_sense_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic Steinhart-Hart NTC temperature-sensing toy.
+
+Stdlib only. A shared true temperature list, a shared divider/ADC stand-in
+and shared resistance noise are drawn once per (regime, seed) and then read
+by every arm (common random numbers).
+
+The true R(T) uses the inverse of 1/T = A + B ln R + C (ln R)^3 taken from
+the Steinhart-Hart equation page, with A, B, C solved from three declared
+(R, T) points on that same page's three-point formulae. That inverse is the
+only R(T) used; the Thermistor page's rearranged inverse is not mixed in.
+
+Arms:
+  A_beta_local  — B-parameter model fitted only near 25 C
+  B_sh_threepoint — Steinhart-Hart with coefficients from the three declared points
+  C_adc_counts — raw ADC counts mapped through a local linear counts-to-C
+                 line fitted only near 25 C (the narrow-range Steinhart-Hart
+                 solve on this same three-parameter curve recovers the same
+                 A, B, C and is printed only as an alternative)
+
+Not a vendor curve, not a calibration bath, not an inrush-limiter plant, and
+not a reading of an IMU temperature register. Wikipedia example coefficients
+and the 0.02 C error claim are 以原文为准 and are not toy outputs.
+Real thermistor / bath / IMU temperature register: 本页未运行.
+
+Regimes and parameters were written before the first run.
+
+Labels: tie = identical on every seed; numerically zero = |paired mean| and sd
+both < 1e-9; |m| <= sd = near-tie; |m| > sd = consistent gap (small if |m| < 20 %
+of the smaller arm mean, else clear), with a sign count. ROUND_HALF_UP output.
+"""
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+
+# Declared toy parameters (not datasheet values, not Wikipedia example coefficients).
+K0 = 273.15
+T0_C = 25.0
+T0_K = T0_C + K0
+# Three declared calibration points (R in ohm, T in C) used to solve A, B, C.
+CAL_R = (25000.0, 10000.0, 1500.0)
+CAL_C = (0.0, 25.0, 80.0)
+# Narrow-range points for arm C, in C, clustered near T0_C.
+NARROW_C = (24.0, 25.0, 26.0)
+# Evaluation lists (C).
+MID_C = (20.0, 22.0, 25.0, 28.0, 30.0)
+WIDE_C = (0.0, 10.0, 25.0, 50.0, 80.0)
+FAR_C = (-5.0, 0.0, 80.0, 90.0)
+# Local B-parameter fit uses two temperatures near T0_C.
+LOCAL_C = (24.0, 26.0)
+VCC = 3.3
+R_DIV = 10000.0
+ADC_BITS = 12
+ADC_COUNTS = 2 ** ADC_BITS - 1  # 4095
+SIG_R = 40.0  # ohm, resistance noise, shared
+
+METRICS = ("rmse_C",)
+ARMS = ("A_beta_local", "B_sh_threepoint", "C_adc_counts")
+PAIRS = (("B", "A"), ("C", "B"), ("C", "A"))
+
+# name: (temp list C, declared expectation); written before the first run
+REGIMES = {
+    "mid_range": (MID_C, "A and B may near-tie on rmse_C - keep"),
+    "wide_span": (WIDE_C, "B consistently below A on rmse_C (linear-local beta loses on a wide span) - keep"),
+    "out_of_range": (FAR_C, "C loses to B on rmse_C (raw ADC counts treated as temperature, far from the local counts-to-C line) - keep"),
+}
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def cbrt(z):
+    return math.copysign(abs(z) ** (1.0 / 3.0), z)
+
+
+def sh_solve(points):
+    """A, B, C from three (R, T_kelvin) points, Steinhart-Hart equation page."""
+    (R1, T1), (R2, T2), (R3, T3) = points
+    L1, L2, L3 = math.log(R1), math.log(R2), math.log(R3)
+    Y1, Y2, Y3 = 1.0 / T1, 1.0 / T2, 1.0 / T3
+    g2 = (Y2 - Y1) / (L2 - L1)
+    g3 = (Y3 - Y1) / (L3 - L1)
+    C = ((g3 - g2) / (L3 - L2)) / (L1 + L2 + L3)
+    B = g2 - C * (L1 ** 2 + L1 * L2 + L2 ** 2)
+    A = Y1 - (B + L1 ** 2 * C) * L1
+    return A, B, C
+
+
+def sh_T_from_R(R, A, B, C):
+    lr = math.log(R)
+    return 1.0 / (A + B * lr + C * lr ** 3)
+
+
+def sh_R_from_T(T, A, B, C):
+    """Inverse R(T) from the Steinhart-Hart equation page only."""
+    x = (1.0 / C) * (A - 1.0 / T)
+    y = math.sqrt((B / (3.0 * C)) ** 3 + x ** 2 / 4.0)
+    return math.exp(cbrt(y - x / 2.0) - cbrt(y + x / 2.0))
+
+
+def beta_from_two(R1, T1, R2, T2):
+    """B-parameter (kelvin) and R0, T0 from two points; T0 is T1."""
+    Bbeta = math.log(R1 / R2) / (1.0 / T1 - 1.0 / T2)
+    return Bbeta, R1, T1
+
+
+def T_from_beta(R, Bbeta, R0, T0):
+    return 1.0 / (1.0 / T0 + math.log(R / R0) / Bbeta)
+
+
+def T_from_linear(R, k, R0, T0):
+    return T0 + (R - R0) / k
+
+
+CAL_POINTS = tuple((r, c + K0) for r, c in zip(CAL_R, CAL_C))
+SH_A, SH_B, SH_C = sh_solve(CAL_POINTS)
+
+
+def true_R(Tc):
+    return sh_R_from_T(Tc + K0, SH_A, SH_B, SH_C)
+
+
+# Narrow and local points are taken from the true inverse (declared, printed).
+NARROW_POINTS = tuple((true_R(c), c + K0) for c in NARROW_C)
+SH_A_N, SH_B_N, SH_C_N = sh_solve(NARROW_POINTS)
+R_LOCAL = (true_R(LOCAL_C[0]), true_R(LOCAL_C[1]))
+BBETA, R0_BETA, T0_BETA = beta_from_two(R_LOCAL[0], LOCAL_C[0] + K0, R_LOCAL[1], LOCAL_C[1] + K0)
+K_LIN = (R_LOCAL[1] - R_LOCAL[0]) / ((LOCAL_C[1] + K0) - (LOCAL_C[0] + K0))
+R0_LIN = true_R(T0_C)
+T0_LIN = T0_K
+
+
+def counts_of_R(R):
+    v = VCC * R / (R + R_DIV)
+    frac = min(max(v / VCC, 0.0), 1.0)
+    counts = int(frac * ADC_COUNTS + 0.5)
+    if counts <= 0:
+        counts = 1
+    if counts >= ADC_COUNTS:
+        counts = ADC_COUNTS - 1
+    return counts
+
+
+C24 = counts_of_R(true_R(LOCAL_C[0]))
+C26 = counts_of_R(true_R(LOCAL_C[1]))
+ADC_Q = (LOCAL_C[1] - LOCAL_C[0]) / (C26 - C24)
+ADC_P = LOCAL_C[0] - ADC_Q * C24
+
+
+def measure(R_true, noise):
+    R_noisy = max(R_true + noise, 1e-6)
+    v = VCC * R_noisy / (R_noisy + R_DIV)
+    frac = min(max(v / VCC, 0.0), 1.0)
+    counts = int(frac * ADC_COUNTS + 0.5)
+    if counts <= 0:
+        counts = 1
+    if counts >= ADC_COUNTS:
+        counts = ADC_COUNTS - 1
+    # Invert the same divider.
+    R_meas = R_DIV * counts / (ADC_COUNTS - counts)
+    return R_meas, counts
+
+
+def estimate(arm, R_meas, counts):
+    if arm == "A_beta_local":
+        return T_from_beta(R_meas, BBETA, R0_BETA, T0_BETA) - K0
+    if arm == "B_sh_threepoint":
+        return sh_T_from_R(R_meas, SH_A, SH_B, SH_C) - K0
+    if arm == "C_adc_counts":
+        return ADC_P + ADC_Q * counts
+    return sh_T_from_R(R_meas, SH_A_N, SH_B_N, SH_C_N) - K0
+
+
+def estimate_linear(R_meas):
+    return T_from_linear(R_meas, K_LIN, R0_LIN, T0_LIN) - K0
+
+
+def rmse(errs):
+    return math.sqrt(sum(e * e for e in errs) / len(errs))
+
+
+def run_regime(regime, seed, extra_arms=()):
+    temps, _ = REGIMES[regime]
+    rng = random.Random(f"{regime}/{seed}")
+    noises = [rng.gauss(0.0, SIG_R) for _ in temps]
+    arms = list(ARMS) + list(extra_arms)
+    out = {arm: {m: 0.0 for m in METRICS} for arm in arms}
+    for arm in arms:
+        errs = []
+        for Tc, noise in zip(temps, noises):
+            R_true = true_R(Tc)
+            R_meas, counts = measure(R_true, noise)
+            if arm == "A_linear":
+                that = estimate_linear(R_meas)
+            elif arm == "C_sh_narrow":
+                that = estimate(arm, R_meas, counts)
+            else:
+                that = estimate(arm, R_meas, counts)
+            errs.append(that - Tc)
+        out[arm]["rmse_C"] = rmse(errs)
+    return out
+
+
+def main():
+    print("Steinhart-Hart NTC sensing toy: shared temperature list, divider/ADC and resistance noise (synthetic; not a vendor curve, not a bath, not an inrush limiter, not an IMU temperature register)")
+    print("Wikipedia example coefficients and the cited error-bound claim 以原文为准; real thermistor / bath / IMU temperature register: 本页未运行")
+    print(
+        f"seeds={len(SEEDS)} t0_C={num(T0_C)} t0_K={num(T0_K)} k0={num(K0)} "
+        f"cal_R={CAL_R[0]:.4f},{CAL_R[1]:.4f},{CAL_R[2]:.4f} "
+        f"cal_C={CAL_C[0]:.4f},{CAL_C[1]:.4f},{CAL_C[2]:.4f} "
+        f"narrow_C={NARROW_C[0]:.4f},{NARROW_C[1]:.4f},{NARROW_C[2]:.4f} "
+        f"local_C={LOCAL_C[0]:.4f},{LOCAL_C[1]:.4f} "
+        f"mid_C={','.join(f'{x:.4f}' for x in MID_C)} "
+        f"wide_C={','.join(f'{x:.4f}' for x in WIDE_C)} "
+        f"far_C={','.join(f'{x:.4f}' for x in FAR_C)} "
+        f"vcc={num(VCC)} r_div={num(R_DIV)} adc_bits={ADC_BITS} adc_counts={ADC_COUNTS} "
+        f"sig_R={num(SIG_R)} "
+        f"sh_A={SH_A:.10e} sh_B={SH_B:.10e} sh_C={SH_C:.10e} "
+        f"beta={num(BBETA)} adc_p={num(ADC_P)} adc_q={num(ADC_Q)} "
+        f"adc_c_local={C24},{C26} (declared)"
+    )
+    print("Regimes and parameters were written before the first run")
+    print("Common random numbers: the resistance noise draw is shared across arms at each regime and seed")
+    print(f"hand_calc 25 C in kelvin = {num(T0_K)}")
+    print(f"hand_calc 0 C in kelvin = {num(0.0 + K0)}")
+    print(f"hand_calc 80 C in kelvin = {num(80.0 + K0)}")
+    print(f"hand_calc 1/T at 25 C = {1.0 / T0_K:.10e}")
+    print(f"hand_calc true R at 25 C = {num(true_R(25.0))}")
+    v25 = VCC * true_R(25.0) / (true_R(25.0) + R_DIV)
+    print(f"hand_calc divider V at 25 C, no noise = {num(v25)}")
+    print(f"hand_calc A,B,C from the three declared points = {SH_A:.10e}, {SH_B:.10e}, {SH_C:.10e}")
+    print(f"hand_calc card range mid_C = {MID_C[0]:.4f} to {MID_C[-1]:.4f}")
+    print(f"hand_calc card range wide_C = {WIDE_C[0]:.4f} to {WIDE_C[-1]:.4f}")
+    print(f"hand_calc card range far_C = {FAR_C[0]:.4f} to {FAR_C[-1]:.4f}")
+    print(f"hand_calc local R at 24 C and 26 C = {num(R_LOCAL[0])}, {num(R_LOCAL[1])}")
+    print(f"hand_calc narrow R at 24, 25, 26 C = {num(NARROW_POINTS[0][0])}, {num(NARROW_POINTS[1][0])}, {num(NARROW_POINTS[2][0])}")
+    print(f"hand_calc beta and local T0, R0 = {num(BBETA)}, {num(T0_BETA)}, {num(R0_BETA)}")
+    print(f"hand_calc adc counts-to-C line P, Q and counts at 24 C, 26 C = {num(ADC_P)}, {num(ADC_Q)}, {C24}, {C26}")
+
+    for r, (_temps, exp) in REGIMES.items():
+        print(f"declared {r}: {exp}")
+
+    EXTRA = ("A_linear", "C_sh_narrow")
+    store = {r: {arm: {m: [] for m in METRICS} for arm in ARMS} for r in REGIMES}
+    alt_store = {r: {arm: {m: [] for m in METRICS} for arm in list(ARMS) + list(EXTRA)} for r in REGIMES}
+    for seed in SEEDS:
+        for r in REGIMES:
+            official = run_regime(r, seed)
+            alt = run_regime(r, seed, extra_arms=EXTRA)
+            for arm in ARMS:
+                for m in METRICS:
+                    store[r][arm][m].append(official[arm][m])
+                    alt_store[r][arm][m].append(alt[arm][m])
+            for arm in EXTRA:
+                for m in METRICS:
+                    alt_store[r][arm][m].append(alt[arm][m])
+
+    for r in REGIMES:
+        print(f"regime {r}")
+        for arm in ARMS:
+            for m in METRICS:
+                mu, sd = mean_sd(store[r][arm][m])
+                print(f"  {arm} {m}: {num(mu)}+-{num(sd)}")
+        for left, right in PAIRS:
+            la = [a for a in ARMS if a.startswith(left + "_")][0]
+            ra = [a for a in ARMS if a.startswith(right + "_")][0]
+            for m in METRICS:
+                print(f"  paired {left}-{right} {m}: {verdict(store[r][la][m], store[r][ra][m])}")
+
+    print("alternative A_linear = dR/dT fitted only near 25 C (printed, not adopted)")
+    print("alternative C_sh_narrow = Steinhart-Hart coefficients from the three narrow-C points (printed, not adopted; on this three-parameter curve it recovers the same A, B, C as arm B)")
+    for r in REGIMES:
+        official_ba = verdict(store[r]["B_sh_threepoint"]["rmse_C"], store[r]["A_beta_local"]["rmse_C"])
+        alt_ba = verdict(alt_store[r]["B_sh_threepoint"]["rmse_C"], alt_store[r]["A_linear"]["rmse_C"])
+        official_cb = verdict(store[r]["C_adc_counts"]["rmse_C"], store[r]["B_sh_threepoint"]["rmse_C"])
+        alt_cb = verdict(alt_store[r]["C_sh_narrow"]["rmse_C"], alt_store[r]["B_sh_threepoint"]["rmse_C"])
+        print(f"  {r} official B-A rmse_C: {official_ba}")
+        print(f"  {r} alternative B-A_linear rmse_C: {alt_ba}")
+        print(f"  {r} official C-B rmse_C: {official_cb}")
+        print(f"  {r} alternative C_sh_narrow-B rmse_C: {alt_cb}")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Steinhart-Hart NTC sensing toy: shared temperature list, divider/ADC and resistance noise (synthetic; not a vendor curve, not a bath, not an inrush limiter, not an IMU temperature register)
+Wikipedia example coefficients and the cited error-bound claim 以原文为准; real thermistor / bath / IMU temperature register: 本页未运行
+seeds=5 t0_C=25.0000 t0_K=298.1500 k0=273.1500 cal_R=25000.0000,10000.0000,1500.0000 cal_C=0.0000,25.0000,80.0000 narrow_C=24.0000,25.0000,26.0000 local_C=24.0000,26.0000 mid_C=20.0000,22.0000,25.0000,28.0000,30.0000 wide_C=0.0000,10.0000,25.0000,50.0000,80.0000 far_C=-5.0000,0.0000,80.0000,90.0000 vcc=3.3000 r_div=10000.0000 adc_bits=12 adc_counts=4095 sig_R=40.0000 sh_A=1.7038685512e-03 sh_B=1.1164361508e-04 sh_C=7.9592857047e-07 beta=3182.6587 adc_p=81.0959 adc_q=-0.0274 adc_c_local=2084,2011 (declared)
+Regimes and parameters were written before the first run
+Common random numbers: the resistance noise draw is shared across arms at each regime and seed
+hand_calc 25 C in kelvin = 298.1500
+hand_calc 0 C in kelvin = 273.1500
+hand_calc 80 C in kelvin = 353.1500
+hand_calc 1/T at 25 C = 3.3540164347e-03
+hand_calc true R at 25 C = 10000.0000
+hand_calc divider V at 25 C, no noise = 1.6500
+hand_calc A,B,C from the three declared points = 1.7038685512e-03, 1.1164361508e-04, 7.9592857047e-07
+hand_calc card range mid_C = 20.0000 to 30.0000
+hand_calc card range wide_C = 0.0000 to 80.0000
+hand_calc card range far_C = -5.0000 to 90.0000
+hand_calc local R at 24 C and 26 C = 10364.8362, 9648.5917
+hand_calc narrow R at 24, 25, 26 C = 10364.8362, 10000.0000, 9648.5917
+hand_calc beta and local T0, R0 = 3182.6587, 297.1500, 10364.8362
+hand_calc adc counts-to-C line P, Q and counts at 24 C, 26 C = 81.0959, -0.0274, 2084, 2011
+declared mid_range: A and B may near-tie on rmse_C - keep
+declared wide_span: B consistently below A on rmse_C (linear-local beta loses on a wide span) - keep
+declared out_of_range: C loses to B on rmse_C (raw ADC counts treated as temperature, far from the local counts-to-C line) - keep
+regime mid_range
+  A_beta_local rmse_C: 0.0866+-0.0325
+  B_sh_threepoint rmse_C: 0.0802+-0.0269
+  C_adc_counts rmse_C: 0.0818+-0.0224
+  paired B-A rmse_C: -0.0064+-0.0142: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  paired C-B rmse_C: 0.0016+-0.0093: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired C-A rmse_C: -0.0048+-0.0210: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+regime wide_span
+  A_beta_local rmse_C: 4.4946+-0.4701
+  B_sh_threepoint rmse_C: 0.3094+-0.1691
+  C_adc_counts rmse_C: 6.0824+-0.1483
+  paired B-A rmse_C: -4.1852+-0.4341: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B rmse_C: 5.7730+-0.2619: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A rmse_C: 1.5878+-0.6184: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+regime out_of_range
+  A_beta_local rmse_C: 8.1676+-0.4835
+  B_sh_threepoint rmse_C: 0.4562+-0.3558
+  C_adc_counts rmse_C: 12.1077+-0.1255
+  paired B-A rmse_C: -7.7114+-0.8221: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B rmse_C: 11.6515+-0.2455: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A rmse_C: 3.9401+-0.6069: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative A_linear = dR/dT fitted only near 25 C (printed, not adopted)
+alternative C_sh_narrow = Steinhart-Hart coefficients from the three narrow-C points (printed, not adopted; on this three-parameter curve it recovers the same A, B, C as arm B)
+  mid_range official B-A rmse_C: -0.0064+-0.0142: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+  mid_range alternative B-A_linear rmse_C: -0.2426+-0.0463: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  mid_range official C-B rmse_C: 0.0016+-0.0093: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  mid_range alternative C_sh_narrow-B rmse_C: -2.706e-16+-4.710e-14: numerically zero (floating-point residue), effectively a tie
+  wide_span official B-A rmse_C: -4.1852+-0.4341: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  wide_span alternative B-A_linear rmse_C: -16.1874+-0.2240: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  wide_span official C-B rmse_C: 5.7730+-0.2619: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  wide_span alternative C_sh_narrow-B rmse_C: 4.646e-12+-1.166e-11: numerically zero (floating-point residue), effectively a tie
+  out_of_range official B-A rmse_C: -7.7114+-0.8221: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  out_of_range alternative B-A_linear rmse_C: -29.4409+-0.3299: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  out_of_range official C-B rmse_C: 11.6515+-0.2455: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  out_of_range alternative C_sh_narrow-B rmse_C: -5.719e-12+-1.335e-11: numerically zero (floating-point residue), effectively a tie
+```
+
+</SimOutput>
+
+在 **mid_range** 上，A_beta_local 的 rmse_C 为 0.0866±0.0325，B_sh_threepoint 为 0.0802±0.0269。成对 B−A rmse_C 为 −0.0064±0.0142，属于**接近打平 / 小差距，仍在种子噪声内（|m| ≤ sd）**；5 个种子里有 3 个反号。中区间的声明成立。C_adc_counts 为 0.0818±0.0224，与 B 也是接近打平（成对 C−B 0.0016±0.0093；5 个种子里有 2 个反号）：在 25.0000 °C 附近，局部的计数到 °C 直线仍然是很近的替身。
+
+在 **wide_span** 上，A 为 4.4946±0.4701，B 为 0.3094±0.1691。成对 B−A rmse_C 为 −4.1852±0.4341，属于**明显差距，不是打平**（5 个种子全部同号）。一旦温度跨出 24.0000–26.0000 °C 邻域，三点 Steinhart–Hart 就稳定地好于局部 B 参数拟合。C_adc_counts 升到 6.0824±0.1483，已经输给 B（成对 C−B 5.7730±0.2619，明显，5/5）。
+
+在 **out_of_range** 上，A 为 8.1676±0.4835，B 为 0.4562±0.3558，C 为 12.1077±0.1255。成对 C−B rmse_C 为 11.6515±0.2455，属于**明显差距，不是打平**（5 个种子全部同号）。C 会输的声明成立。成对 B−A 为 −7.7114±0.8221，也是明显差距（5/5）：局部 beta 拟合在远离 25.0000 °C 后会继续偏掉。
+
+**看过结果后做的选择**。 没有。 **首次运行后的代码改动**。 Steinhart–Hart 玩具第一行关于 Wikipedia 的说明改了措辞，使 0.02 °C 这个数字（以原文为准）不再作为玩具输出出现；结果块未改。校准点、温度列表、分压器、ADC、sig_R = 40.0000 Ω 和三种情形都在首次运行前写定。同一组种子上打印、但未采纳的替代：若把 A 换成局部线性 ΔR = k ΔT 拟合，mid_range 的 B−A 会变成 −0.2426±0.0463 的**明显差距**（5 个种子全部同号），反而盖住已声明的接近打平，所以正式的 A 仍用局部 B 参数模型；窄区间 Steinhart–Hart 求解 C_sh_narrow 在每个情形都与 B **数值为零**（浮点残差），这在这条三参数曲线上是预期行为，因此不用它当失败格。
+
+本页**不宣布普遍赢家**。在中区间附近，局部 B 参数模型可以与规格正确的 Steinhart–Hart 求解接近打平；跨宽区间时，三点 Steinhart–Hart 仍然一致，局部 beta 拟合则不然；把原始 ADC 计数当成温度，一旦离开局部计数到 °C 直线就会输。真实热敏电阻、标定槽或 MPU-6050 的 TEMP_OUT 寄存器均**本页未运行**。
+
+**180 分钟安排:** 30 分钟读 Steinhart–Hart equation 页上的正向公式、三点求解和反函数，以及 Thermistor 页上的 B 参数简化；25 分钟手算 0.0000 °C、25.0000 °C、80.0000 °C 的开尔文值、25.0000 °C 处的 1/T，以及无噪声分压（手算）；50 分钟运行玩具并阅读三种情形；40 分钟固定种子对照打印的 A_linear 与 C_sh_narrow 替代；35 分钟做练习（30+25+50+40+35=180）。
+
+### 练习
+
+1. 用打印的手算行说明：25.0000 °C 是 298.1500 K，且 25.0000 °C 处 1/T 是 3.3540164347e-03。为什么 1/T = A + B ln R + C (ln R)^3 里的 T 必须用开尔文？
+2. 这里的反函数是 Steinhart–Hart equation 页上的 R = exp(cbrt(y − x/2) − cbrt(y + x/2))。为什么即使正向公式属于同一族，把 Thermistor 页改写过的反函数混进来仍然是错的？
+3. 在 mid_range 里，成对 B−A rmse_C 为 −0.0064±0.0142，属于接近打平，且 5 个种子里有 3 个反号。为什么这与「B 是规格正确的映射」并不矛盾？为什么没有采纳 A_linear 替代（明显差距 −0.2426±0.0463）？
+4. 在 24.0000、25.0000、26.0000 °C 上做的窄区间 Steinhart–Hart 求解与 B 臂是数值为零的打平。为什么在这个玩具里会这样，又为什么正式的 C 臂改用原始 ADC 计数？
+5. 在做任何真实热敏电阻或标定槽实验之前（本页未运行），写出你会怎样取三个 (R, T) 点、解出 A、B、C，并在远离这些点处检查同一只器件，同时不要把 Wikipedia 的 0.02 °C 说法（以原文为准）当成自己刚测到的结果。
+
 <Summary>
 
 等预算留出 IMU 比较从声明噪声模型推导 KF 的 Q/R，另用调参种子选择互补变体，任何臂都拿不到真实零偏。
@@ -1492,4 +1935,6 @@ SPI 模式 / 位序 / CS 在共享合成导线上核对，错误边沿可能移�
 硬铁偏置把磁力计云重新居中，软铁拉伸再把它从椭圆拉回；共享偏航路径上原始约 17.5° 航向误差，仅硬铁约 11.3°，硬+软约 1.5°——不是 AHRS 认证。
 
 I²C 时钟拉伸：在共享字节时间表上，不拉伸时三种控制器打平；拉伸 20.0..60.0 us 时不读 SCL 的控制器出坏字节（成对 A−B bad_rate 0.8681±0.0111，明显，5/5），等待则多花总线时间（成对 B−A bus_ms 12.0501±0.1307）；拉伸超过 200.0 us 超时时，带超时的控制器中止（成对 C−B bad_rate 0.9375±0.0000，明显，5/5，保留）——合成模型，不是逻辑分析仪抓取。
+
+Steinhart–Hart NTC 测温：在共享温度列表、分压器/ADC 和电阻噪声下，中区间 A 与 B 在 rmse_C 上接近打平（成对 B−A −0.0064±0.0142，5 个种子里 3 个反号）；宽区间上 B 明显好于局部 B 参数拟合（成对 B−A −4.1852±0.4341，5/5）；把原始 ADC 计数当成温度时，远离局部计数到 °C 直线会输（成对 C−B 11.6515±0.2455，5/5，保留）——合成替身，不是标定槽，也不是 IMU TEMP_OUT 读数（本页未运行）。
 </Summary>

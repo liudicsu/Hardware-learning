@@ -1,0 +1,69 @@
+Nyquist stability-criterion toy: shared declared linear plants and a shared omega grid (synthetic; not a rewrite of the Bode helpers, not Smith, not computed torque, not the sampling Nyquist frequency)
+Real plant / analyzer: 本页未运行
+seeds=5 pts_per_dec=80 log_w=-3_to_4 pm_min_deg=30.0000 dt=0.0010 t_end=20.0000 y_clip=20.0000 alt_pts_per_dec=20 (declared)
+Regimes and parameters were written before the first run
+Common random numbers: none; the contour is deterministic and every seed sees the same plants and the same omega grid
+hand_calc Z = N + P, closed-loop stable iff Z = 0
+hand_calc step-stability bound: |y| clipped at 20.0000; ISE integrated to t_end=20.0000 with Euler step dt=0.0010
+hand_calc ol_stable_joint wn=6.0000 zeta=0.5000 K=2.0000
+hand_calc card range omega = 0.0010 to 10000.0000
+hand_calc ol_unstable factor 0.2000
+hand_calc nmp_encircle factor 0.2000
+declared ol_stable_joint: num=(72.0,) den=(1.0, 6.0, 36.0) P=0: A and B agree on call and may near-tie - keep
+declared ol_unstable: num=(8.0, 1.6) den=(1.0, 3.0, -4.0) P=1: A's single-margin stable call loses; B flags the missing encirclement (Z = N + P != 0) - keep
+declared nmp_encircle: num=(-5.0, 1.0) den=(1.0, 3.0, 2.0) P=0: C loses (one healthy phase margin, but the plot encircles -1) - keep
+plant ol_stable_joint
+  N_raw=4.498e-17 N=0 P=0 P_calc=0 Z=0 first_pm=49.3542 pms=49.3542deg@w=9.1061 gms=none n_grid=561 step_ise=2.2962 clipped=0 y_end=0.6667
+  A_bode_first call: 1.0000+-0.0000
+  A_bode_first miss: 0.0000+-0.0000
+  B_nyquist call: 1.0000+-0.0000
+  B_nyquist miss: 0.0000+-0.0000
+  C_bode_any call: 1.0000+-0.0000
+  C_bode_any miss: 0.0000+-0.0000
+  paired B-A call: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A miss: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B call: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B miss: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A call: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A miss: 0.0000+-0.0000: tie: identical on every seed
+plant ol_unstable
+  N_raw=6.019e-17 N=0 P=1 P_calc=1 Z=1 first_pm=90.1206 pms=90.1206deg@w=0.5364;110.3383deg@w=6.8347 gms=none n_grid=561 step_ise=3350.9884 clipped=1 y_end=20.0000
+  A_bode_first call: 1.0000+-0.0000
+  A_bode_first miss: 1.0000+-0.0000
+  B_nyquist call: 0.0000+-0.0000
+  B_nyquist miss: 0.0000+-0.0000
+  C_bode_any call: 1.0000+-0.0000
+  C_bode_any miss: 1.0000+-0.0000
+  paired B-A call: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A miss: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B call: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B miss: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A call: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A miss: 0.0000+-0.0000: tie: identical on every seed
+plant nmp_encircle
+  N_raw=2.0000 N=2 P=0 P_calc=0 Z=2 first_pm=84.9799 pms=84.9799deg@w=0.3888;-50.6024deg@w=4.4553 gms=-4.4362dB@w=1.6125 n_grid=561 step_ise=5985.5519 clipped=1 y_end=20.0000
+  A_bode_first call: 1.0000+-0.0000
+  A_bode_first miss: 1.0000+-0.0000
+  B_nyquist call: 0.0000+-0.0000
+  B_nyquist miss: 0.0000+-0.0000
+  C_bode_any call: 1.0000+-0.0000
+  C_bode_any miss: 1.0000+-0.0000
+  paired B-A call: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A miss: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B call: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B miss: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A call: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A miss: 0.0000+-0.0000: tie: identical on every seed
+alternative pts_per_dec=20 (printed, not adopted)
+  ol_stable_joint official N=0 Z=0 first_pm=49.3542; alternative N=0 Z=0 first_pm=49.3549
+  ol_stable_joint A_bode_first official call=1.0000 miss=0.0000; alternative call=1.0000 miss=0.0000; same_labels=yes
+  ol_stable_joint B_nyquist official call=1.0000 miss=0.0000; alternative call=1.0000 miss=0.0000; same_labels=yes
+  ol_stable_joint C_bode_any official call=1.0000 miss=0.0000; alternative call=1.0000 miss=0.0000; same_labels=yes
+  ol_unstable official N=0 Z=1 first_pm=90.1206; alternative N=0 Z=1 first_pm=90.0879
+  ol_unstable A_bode_first official call=1.0000 miss=1.0000; alternative call=1.0000 miss=1.0000; same_labels=yes
+  ol_unstable B_nyquist official call=0.0000 miss=0.0000; alternative call=0.0000 miss=0.0000; same_labels=yes
+  ol_unstable C_bode_any official call=1.0000 miss=1.0000; alternative call=1.0000 miss=1.0000; same_labels=yes
+  nmp_encircle official N=2 Z=2 first_pm=84.9799; alternative N=2 Z=2 first_pm=85.0077
+  nmp_encircle A_bode_first official call=1.0000 miss=1.0000; alternative call=1.0000 miss=1.0000; same_labels=yes
+  nmp_encircle B_nyquist official call=0.0000 miss=0.0000; alternative call=0.0000 miss=0.0000; same_labels=yes
+  nmp_encircle C_bode_any official call=1.0000 miss=1.0000; alternative call=1.0000 miss=1.0000; same_labels=yes

@@ -1379,6 +1379,515 @@ The page **does not declare a universal winner**: computed torque wins when iner
 4. Set `KP = 1600` and `KD = 80` with seeds fixed. Recompute `H*`, and predict how B−A rms in `slow_quasi_static` changes before you run.
 5. Before a real arm (本页未运行), write how you would identify the payload mass and the friction, and how you would tell a wrong payload from unmodelled friction in a tracking log.
 
+## Nyquist stability criterion: encirclements of −1
+
+<Resource id="wiki-nyquist-stability" />
+
+The source is the Wikipedia **Nyquist stability criterion** page (revision 1376383390, 24 September 2026, 05:20 Asia/Shanghai; 以原文为准). The Nyquist plot is the image of G(jω) in the complex plane. For unity feedback the critical point is −1 + j0. The argument principle is written N = Z − P, so clockwise encirclements of −1 equal the number of closed-loop right-half-plane poles minus the number of open-loop right-half-plane poles, and Z = N + P. The closed loop is stable if and only if Z = 0. If G is already open-loop unstable, the plot must supply one counter-clockwise encirclement of −1 for each open-loop right-half-plane pole (N = −P). The article also notes that Bode plots are a less general tool, even though they are sometimes more convenient for design (以原文为准). The Wikipedia title “Nyquist plot” is only a redirect, not a second body, and is not cited as one.
+
+This section is **not** a re-teach of the Bode gain and phase margins already on this page: those margins are distances to −1 along particular rays (the unit-gain and −180° rays), and they are not a substitute when the loop is open-loop unstable or has several gain crossovers. It is **not** the sampling Nyquist frequency used by the existing helper (that “Nyquist frequency” is fs/2). It does **not** rewrite `joint_freq.py`, the Smith-predictor toy, or the computed-torque toy, and it is **not** the aliasing Nyquist lesson on the Python-terminal page.
+
+<Formula label="Nyquist relation">N = Z − P, Z = N + P, closed-loop stable iff Z = 0</Formula>
+
+The toy is a standard-library, CPU-only model of three declared linear plants, a shared loop gain already absorbed as K in each open-loop G, and a shared omega grid. The contour is deterministic: every seed sees the same plants and the same grid (Common random numbers: none, because the contour is deterministic; five seeds 0 through 4 are still printed so the verdict helpers stay uniform; ROUND_HALF_UP output). The official grid uses 80 points per decade from 0.0010 to 10000.0000 rad/s (n_grid = 561). Arm A (A_bode_first) accepts the loop if the first gain-crossover phase margin is at least pm_min_deg = 30.0000°, and ignores other crossings and open-loop right-half-plane poles. Arm B (B_nyquist) accepts if and only if Z = N + P equals 0, with N the nearest integer to the clockwise winding of G + 1 about the origin. Arm C (C_bode_any) accepts if any one phase margin looks healthy and treats P as 0. Metrics are call (1.0000 if the arm says stable) and miss (1.0000 if that call is a false accept, i.e. the arm says stable while Z is not 0). A plant-level step is also integrated with explicit Euler: the declared step-stability bound is that |y| is clipped at y_clip = 20.0000, ISE is integrated to t_end = 20.0000 s, and the Euler step is dt = 0.0010 s (hand_calc). The step figures are diagnostics for the plant, not an arm metric.
+
+Three plants were written before the first run and are kept. **ol_stable_joint** is an open-loop-stable second-order joint-like plant G(s) = 2 × 6^2 / (s^2 + 2 × 0.5000 × 6 s + 6^2), so num = (72.0,), den = (1.0, 6.0, 36.0), wn = 6.0000, zeta = 0.5000, K = 2.0000, P = 0; A and B are declared to agree on call and may near-tie. **ol_unstable** is G(s) = 8(s + 0.2000)/((s − 1)(s + 4)), so num = (8.0, 1.6), den = (1.0, 3.0, −4.0), P = 1; A's single-margin stable call is declared to lose, and B is declared to flag the missing encirclement (Z = N + P is not 0). **nmp_encircle** is the non-minimum-phase loop G(s) = (1 − s/0.2000)/((s + 1)(s + 2)), so num = (−5.0, 1.0), den = (1.0, 3.0, 2.0), P = 0; C is declared to lose because one healthy phase margin still comes with an encirclement of −1.
+
+<CodeSource path="examples/month-5/control-modelling/nyquist_stability_criterion_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic Nyquist stability-criterion toy.
+
+Stdlib only. Shared declared linear plants, a shared controller (already
+absorbed as a loop gain K in each open-loop G), and a shared omega grid.
+The contour is deterministic: every seed sees the same plants and the same
+grid. Seeds are still printed (five) so the verdict helpers stay uniform.
+
+Arms:
+  A_bode_first — accept the loop if the first gain-crossover phase margin
+                 is at least the declared threshold; ignore other crossings
+                 and open-loop right-half-plane poles
+  B_nyquist — accept iff Z = N + P equals 0, with N the clockwise
+              encirclements of -1+j0 and P the open-loop RHP pole count
+  C_bode_any — accept if any one gain-crossover phase margin looks healthy,
+               and treat P as 0 (a still-weaker Bode-only call)
+
+Not a rewrite of the page's Bode helpers, not a Smith/computed-torque
+re-teach, and not the sampling Nyquist frequency (fs/2) used by the existing
+helper. Real plant / analyzer: 本页未运行.
+
+Regimes and parameters were written before the first run.
+
+Labels: tie = identical on every seed; numerically zero = |paired mean| and sd
+both < 1e-9; |m| <= sd = near-tie; |m| > sd = consistent gap (small if |m| < 20 %
+of the smaller arm mean, else clear), with a sign count. ROUND_HALF_UP output.
+"""
+import cmath
+import math
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+
+# Declared contour and Bode-threshold parameters.
+PTS_PER_DEC = 80
+LOG_W_MIN = -3  # 10^-3
+LOG_W_MAX = 4   # 10^4
+PM_MIN_DEG = 30.0
+# Step diagnostic (plant-level, not an arm metric). Euler integration bound.
+DT = 0.001
+T_END = 20.0
+Y_CLIP = 20.0
+
+METRICS = ("call", "miss")
+ARMS = ("A_bode_first", "B_nyquist", "C_bode_any")
+PAIRS = (("B", "A"), ("C", "B"), ("C", "A"))
+
+# Plants: (name, num, den, declared_P, declared expectation)
+# num/den are highest-power first. Delay is not used in the official plants.
+PLANTS = {
+    "ol_stable_joint": {
+        "num": (72.0,),           # 2 * 6^2
+        "den": (1.0, 6.0, 36.0),  # s^2 + 2*0.5*6 s + 6^2
+        "P": 0,
+        "expect": "A and B agree on call and may near-tie - keep",
+    },
+    "ol_unstable": {
+        "num": (8.0, 1.6),        # 8*(s + 0.2000)
+        "den": (1.0, 3.0, -4.0),  # (s - 1)*(s + 4)
+        "P": 1,
+        "expect": "A's single-margin stable call loses; B flags the missing encirclement (Z = N + P != 0) - keep",
+    },
+    "nmp_encircle": {
+        "num": (-5.0, 1.0),       # 1 - s/0.2000
+        "den": (1.0, 3.0, 2.0),   # (s + 1)*(s + 2)
+        "P": 0,
+        "expect": "C loses (one healthy phase margin, but the plot encircles -1) - keep",
+    },
+}
+
+# Alternative coarser grid (printed, not adopted).
+ALT_PTS_PER_DEC = 20
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    x = float(x)
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def poly_eval(coeffs, s):
+    acc = 0j
+    for a in coeffs:
+        acc = acc * s + a
+    return acc
+
+
+def G_jw(numc, denc, w):
+    s = 1j * w
+    return poly_eval(numc, s) / poly_eval(denc, s)
+
+
+def omega_grid(pts_per_dec, log_min=LOG_W_MIN, log_max=LOG_W_MAX):
+    # Inclusive end: (log_max-log_min)*pts_per_dec + 1 points.
+    n = (log_max - log_min) * pts_per_dec
+    return [10 ** (log_min + i * (log_max - log_min) / n) for i in range(n + 1)]
+
+
+def unwrap_phase(angles):
+    out = []
+    prev = None
+    acc = 0.0
+    for a in angles:
+        if prev is None:
+            acc = a
+        else:
+            d = a - prev
+            while d > math.pi:
+                d -= 2 * math.pi
+            while d < -math.pi:
+                d += 2 * math.pi
+            acc += d
+        out.append(acc)
+        prev = a
+    return out
+
+
+def bode_margins(numc, denc, grid):
+    mag = []
+    raw = []
+    for w in grid:
+        g = G_jw(numc, denc, w)
+        mag.append(abs(g))
+        raw.append(cmath.phase(g))
+    un = unwrap_phase(raw)
+    pms = []
+    gms = []
+    for i in range(len(grid) - 1):
+        if (mag[i] - 1.0) * (mag[i + 1] - 1.0) <= 0 and mag[i] != mag[i + 1]:
+            t = (1.0 - mag[i]) / (mag[i + 1] - mag[i])
+            ph = un[i] + t * (un[i + 1] - un[i])
+            # log interpolation of omega
+            w = grid[i] * (grid[i + 1] / grid[i]) ** t
+            pms.append((ph * 180.0 / math.pi + 180.0, w))
+        # phase crossing of -180 deg on the unwrapped branch nearest odd multiples
+        # GM at the first phase == -pi (plus 2pi k) crossing.
+        target = -math.pi
+        # search nearest odd-pi using the unwrapped value crossing -pi, -3pi, ...
+        for k in range(-6, 7):
+            tgt = -math.pi + 2 * math.pi * k
+            if (un[i] - tgt) * (un[i + 1] - tgt) <= 0 and un[i] != un[i + 1]:
+                t = (tgt - un[i]) / (un[i + 1] - un[i])
+                w = grid[i] * (grid[i + 1] / grid[i]) ** t
+                magc = mag[i] + t * (mag[i + 1] - mag[i])
+                if magc > 1e-18:
+                    gm_db = -20.0 * math.log10(magc)
+                    gms.append((gm_db, w, magc))
+                break
+    return pms, gms
+
+
+def winding_N(numc, denc, grid):
+    # D-contour image: omega from -inf to +inf, then close through the origin
+    # (strictly proper G(j inf) = 0). Clockwise encirclements of -1.
+    pos = [G_jw(numc, denc, w) for w in grid]
+    neg = [G_jw(numc, denc, -w) for w in grid[::-1]]
+    curve = neg + pos
+    rel = [z + 1.0 for z in curve]
+    dang = 0.0
+    for a, b in zip(rel, rel[1:] + rel[:1]):
+        if abs(a) < 1e-18 or abs(b) < 1e-18:
+            continue
+        q = b / a
+        dang += math.atan2(q.imag, q.real)
+    return -dang / (2.0 * math.pi)
+
+
+def rhp_poles_quadratic(denc):
+    # den = s^2 + a s + b, roots of s^2 + a s + b = 0.
+    if len(denc) != 3 or denc[0] != 1.0:
+        raise ValueError("official plants are monic second-order")
+    a, b = denc[1], denc[2]
+    disc = a * a - 4.0 * b
+    if disc >= 0:
+        r1 = (-a + math.sqrt(disc)) / 2.0
+        r2 = (-a - math.sqrt(disc)) / 2.0
+        return int(r1.real > 0) + int(r2.real > 0), (r1, r2)
+    real = -a / 2.0
+    imag = math.sqrt(-disc) / 2.0
+    return int(real > 0) + int(real > 0), (complex(real, imag), complex(real, -imag))
+
+
+def simulate_step(numc, denc, dt=DT, t_end=T_END, y_clip=Y_CLIP):
+    """Unity-feedback step, controllable canonical form, forward Euler.
+
+    Closed-loop input is r - y. |y| is clipped at y_clip; ISE is integrated
+    to t_end. The clip is the declared step-stability bound.
+    """
+    # Plant: strictly proper monic second order, y = C x, ẋ = A x + B u
+    # Companion: ẋ1 = x2, ẋ2 = -a0 x1 - a1 x2 + u, y = b0 x1 + b1 x2
+    # den = [1, a1, a0], num padded to [b1, b0]
+    a1, a0 = denc[1], denc[2]
+    if len(numc) == 1:
+        b1, b0 = 0.0, numc[0]
+    else:
+        b1, b0 = numc[0], numc[1]
+    x1 = 0.0
+    x2 = 0.0
+    ise = 0.0
+    clipped = 0
+    nstep = int(round(t_end / dt))
+    y = 0.0
+    for _ in range(nstep):
+        u = 1.0 - y
+        dx1 = x2
+        dx2 = -a0 * x1 - a1 * x2 + u
+        x1 += dt * dx1
+        x2 += dt * dx2
+        y = b0 * x1 + b1 * x2
+        if y > y_clip:
+            y = y_clip
+            clipped = 1
+        elif y < -y_clip:
+            y = -y_clip
+            clipped = 1
+        ise += (y - 1.0) ** 2 * dt
+    return ise, clipped, y
+
+
+def analyze(plant, pts_per_dec):
+    numc = plant["num"]
+    denc = plant["den"]
+    grid = omega_grid(pts_per_dec)
+    pms, gms = bode_margins(numc, denc, grid)
+    N_raw = winding_N(numc, denc, grid)
+    N = int(round(N_raw))
+    P_calc, roots = rhp_poles_quadratic(denc)
+    P = plant["P"]
+    if P_calc != P:
+        # still use the declared P; surface the check in the printed line
+        pass
+    Z = N + P
+    first_pm = pms[0][0] if pms else None
+    any_healthy = any(pm >= PM_MIN_DEG for pm, _w in pms)
+    first_healthy = (first_pm is not None) and (first_pm >= PM_MIN_DEG)
+    ise, clipped, y_end = simulate_step(numc, denc)
+    return {
+        "pms": pms,
+        "gms": gms,
+        "N_raw": N_raw,
+        "N": N,
+        "P": P,
+        "P_calc": P_calc,
+        "roots": roots,
+        "Z": Z,
+        "first_pm": first_pm,
+        "first_healthy": first_healthy,
+        "any_healthy": any_healthy,
+        "ise": ise,
+        "clipped": clipped,
+        "y_end": y_end,
+        "n_grid": len(grid),
+    }
+
+
+def arm_scores(info):
+    A_call = 1.0 if info["first_healthy"] else 0.0
+    B_call = 1.0 if info["Z"] == 0 else 0.0
+    C_call = 1.0 if info["any_healthy"] else 0.0
+    truth_stable = info["Z"] == 0
+    def miss(call):
+        return 1.0 if (call == 1.0 and not truth_stable) else 0.0
+    return {
+        "A_bode_first": {"call": A_call, "miss": miss(A_call)},
+        "B_nyquist": {"call": B_call, "miss": miss(B_call)},
+        "C_bode_any": {"call": C_call, "miss": miss(C_call)},
+    }
+
+
+def fmt_pms(pms):
+    if not pms:
+        return "none"
+    return ";".join(f"{num(pm)}deg@w={num(w)}" for pm, w in pms)
+
+
+def fmt_gms(gms):
+    if not gms:
+        return "none"
+    # unique-ish by omega
+    seen = []
+    for gm, w, magc in gms:
+        rec = f"{num(gm)}dB@w={num(w)}"
+        if rec not in seen:
+            seen.append(rec)
+    return ";".join(seen)
+
+
+def main():
+    print("Nyquist stability-criterion toy: shared declared linear plants and a shared omega grid (synthetic; not a rewrite of the Bode helpers, not Smith, not computed torque, not the sampling Nyquist frequency)")
+    print("Real plant / analyzer: 本页未运行")
+    print(
+        f"seeds={len(SEEDS)} pts_per_dec={PTS_PER_DEC} log_w={LOG_W_MIN}_to_{LOG_W_MAX} "
+        f"pm_min_deg={num(PM_MIN_DEG)} dt={num(DT)} t_end={num(T_END)} y_clip={num(Y_CLIP)} "
+        f"alt_pts_per_dec={ALT_PTS_PER_DEC} (declared)"
+    )
+    print("Regimes and parameters were written before the first run")
+    print("Common random numbers: none; the contour is deterministic and every seed sees the same plants and the same omega grid")
+    print(f"hand_calc Z = N + P, closed-loop stable iff Z = 0")
+    print(f"hand_calc step-stability bound: |y| clipped at {num(Y_CLIP)}; ISE integrated to t_end={num(T_END)} with Euler step dt={num(DT)}")
+    print(f"hand_calc ol_stable_joint wn=6.0000 zeta=0.5000 K=2.0000")
+    print(f"hand_calc card range omega = {10 ** LOG_W_MIN:.4f} to {10 ** LOG_W_MAX:.4f}")
+    print("hand_calc ol_unstable factor 0.2000")
+    print("hand_calc nmp_encircle factor 0.2000")
+    for name, plant in PLANTS.items():
+        print(
+            f"declared {name}: num={plant['num']} den={plant['den']} P={plant['P']}: {plant['expect']}"
+        )
+
+    official = {name: analyze(plant, PTS_PER_DEC) for name, plant in PLANTS.items()}
+    alternative = {name: analyze(plant, ALT_PTS_PER_DEC) for name, plant in PLANTS.items()}
+
+    for name, plant in PLANTS.items():
+        info = official[name]
+        print(f"plant {name}")
+        print(
+            f"  N_raw={num(info['N_raw'])} N={info['N']} P={info['P']} P_calc={info['P_calc']} "
+            f"Z={info['Z']} first_pm={num(info['first_pm']) if info['first_pm'] is not None else 'none'} "
+            f"pms={fmt_pms(info['pms'])} gms={fmt_gms(info['gms'])} "
+            f"n_grid={info['n_grid']} step_ise={num(info['ise'])} clipped={info['clipped']} "
+            f"y_end={num(info['y_end'])}"
+        )
+        scores = arm_scores(info)
+        # Deterministic: repeat the same scores on every seed.
+        store = {arm: {m: [scores[arm][m]] * len(SEEDS) for m in METRICS} for arm in ARMS}
+        for arm in ARMS:
+            for m in METRICS:
+                mu, sd = mean_sd(store[arm][m])
+                print(f"  {arm} {m}: {num(mu)}+-{num(sd)}")
+        for left, right in PAIRS:
+            la = [a for a in ARMS if a.startswith(left + "_")][0]
+            ra = [a for a in ARMS if a.startswith(right + "_")][0]
+            for m in METRICS:
+                print(f"  paired {left}-{right} {m}: {verdict(store[la][m], store[ra][m])}")
+
+    print("alternative pts_per_dec=20 (printed, not adopted)")
+    for name in PLANTS:
+        o, a = official[name], alternative[name]
+        o_scores, a_scores = arm_scores(o), arm_scores(a)
+        print(
+            f"  {name} official N={o['N']} Z={o['Z']} first_pm={num(o['first_pm']) if o['first_pm'] is not None else 'none'}; "
+            f"alternative N={a['N']} Z={a['Z']} first_pm={num(a['first_pm']) if a['first_pm'] is not None else 'none'}"
+        )
+        for arm in ARMS:
+            same = o_scores[arm] == a_scores[arm]
+            print(
+                f"  {name} {arm} official call={num(o_scores[arm]['call'])} miss={num(o_scores[arm]['miss'])}; "
+                f"alternative call={num(a_scores[arm]['call'])} miss={num(a_scores[arm]['miss'])}; same_labels={'yes' if same else 'no'}"
+            )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Nyquist stability-criterion toy: shared declared linear plants and a shared omega grid (synthetic; not a rewrite of the Bode helpers, not Smith, not computed torque, not the sampling Nyquist frequency)
+Real plant / analyzer: 本页未运行
+seeds=5 pts_per_dec=80 log_w=-3_to_4 pm_min_deg=30.0000 dt=0.0010 t_end=20.0000 y_clip=20.0000 alt_pts_per_dec=20 (declared)
+Regimes and parameters were written before the first run
+Common random numbers: none; the contour is deterministic and every seed sees the same plants and the same omega grid
+hand_calc Z = N + P, closed-loop stable iff Z = 0
+hand_calc step-stability bound: |y| clipped at 20.0000; ISE integrated to t_end=20.0000 with Euler step dt=0.0010
+hand_calc ol_stable_joint wn=6.0000 zeta=0.5000 K=2.0000
+hand_calc card range omega = 0.0010 to 10000.0000
+hand_calc ol_unstable factor 0.2000
+hand_calc nmp_encircle factor 0.2000
+declared ol_stable_joint: num=(72.0,) den=(1.0, 6.0, 36.0) P=0: A and B agree on call and may near-tie - keep
+declared ol_unstable: num=(8.0, 1.6) den=(1.0, 3.0, -4.0) P=1: A's single-margin stable call loses; B flags the missing encirclement (Z = N + P != 0) - keep
+declared nmp_encircle: num=(-5.0, 1.0) den=(1.0, 3.0, 2.0) P=0: C loses (one healthy phase margin, but the plot encircles -1) - keep
+plant ol_stable_joint
+  N_raw=4.498e-17 N=0 P=0 P_calc=0 Z=0 first_pm=49.3542 pms=49.3542deg@w=9.1061 gms=none n_grid=561 step_ise=2.2962 clipped=0 y_end=0.6667
+  A_bode_first call: 1.0000+-0.0000
+  A_bode_first miss: 0.0000+-0.0000
+  B_nyquist call: 1.0000+-0.0000
+  B_nyquist miss: 0.0000+-0.0000
+  C_bode_any call: 1.0000+-0.0000
+  C_bode_any miss: 0.0000+-0.0000
+  paired B-A call: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A miss: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B call: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B miss: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A call: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A miss: 0.0000+-0.0000: tie: identical on every seed
+plant ol_unstable
+  N_raw=6.019e-17 N=0 P=1 P_calc=1 Z=1 first_pm=90.1206 pms=90.1206deg@w=0.5364;110.3383deg@w=6.8347 gms=none n_grid=561 step_ise=3350.9884 clipped=1 y_end=20.0000
+  A_bode_first call: 1.0000+-0.0000
+  A_bode_first miss: 1.0000+-0.0000
+  B_nyquist call: 0.0000+-0.0000
+  B_nyquist miss: 0.0000+-0.0000
+  C_bode_any call: 1.0000+-0.0000
+  C_bode_any miss: 1.0000+-0.0000
+  paired B-A call: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A miss: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B call: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B miss: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A call: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A miss: 0.0000+-0.0000: tie: identical on every seed
+plant nmp_encircle
+  N_raw=2.0000 N=2 P=0 P_calc=0 Z=2 first_pm=84.9799 pms=84.9799deg@w=0.3888;-50.6024deg@w=4.4553 gms=-4.4362dB@w=1.6125 n_grid=561 step_ise=5985.5519 clipped=1 y_end=20.0000
+  A_bode_first call: 1.0000+-0.0000
+  A_bode_first miss: 1.0000+-0.0000
+  B_nyquist call: 0.0000+-0.0000
+  B_nyquist miss: 0.0000+-0.0000
+  C_bode_any call: 1.0000+-0.0000
+  C_bode_any miss: 1.0000+-0.0000
+  paired B-A call: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A miss: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B call: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B miss: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A call: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A miss: 0.0000+-0.0000: tie: identical on every seed
+alternative pts_per_dec=20 (printed, not adopted)
+  ol_stable_joint official N=0 Z=0 first_pm=49.3542; alternative N=0 Z=0 first_pm=49.3549
+  ol_stable_joint A_bode_first official call=1.0000 miss=0.0000; alternative call=1.0000 miss=0.0000; same_labels=yes
+  ol_stable_joint B_nyquist official call=1.0000 miss=0.0000; alternative call=1.0000 miss=0.0000; same_labels=yes
+  ol_stable_joint C_bode_any official call=1.0000 miss=0.0000; alternative call=1.0000 miss=0.0000; same_labels=yes
+  ol_unstable official N=0 Z=1 first_pm=90.1206; alternative N=0 Z=1 first_pm=90.0879
+  ol_unstable A_bode_first official call=1.0000 miss=1.0000; alternative call=1.0000 miss=1.0000; same_labels=yes
+  ol_unstable B_nyquist official call=0.0000 miss=0.0000; alternative call=0.0000 miss=0.0000; same_labels=yes
+  ol_unstable C_bode_any official call=1.0000 miss=1.0000; alternative call=1.0000 miss=1.0000; same_labels=yes
+  nmp_encircle official N=2 Z=2 first_pm=84.9799; alternative N=2 Z=2 first_pm=85.0077
+  nmp_encircle A_bode_first official call=1.0000 miss=1.0000; alternative call=1.0000 miss=1.0000; same_labels=yes
+  nmp_encircle B_nyquist official call=0.0000 miss=0.0000; alternative call=0.0000 miss=0.0000; same_labels=yes
+  nmp_encircle C_bode_any official call=1.0000 miss=1.0000; alternative call=1.0000 miss=1.0000; same_labels=yes
+```
+
+</SimOutput>
+
+On **ol_stable_joint**, N_raw = 4.498e-17 so N = 0, P = 0, Z = 0. The first (and only) phase margin is 49.3542° at ω = 9.1061 rad/s, above the 30.0000° threshold; there is no gain-margin crossing. The closed-loop step stays unclipped, with step_ise = 2.2962 and y_end = 0.6667, which matches the hand_calc DC gain G(0)/(1 + G(0)) = 2/3. Arms A, B and C all call 1.0000±0.0000 with miss 0.0000±0.0000. Paired B−A call and miss are both a **tie: identical on every seed**. The declaration that A and B agree, and may near-tie, held (the official result is an exact tie, which is kept and is not retuned).
+
+On **ol_unstable**, N_raw = 6.019e-17 so N = 0, P = 1, Z = 1. The loop is closed-loop unstable: it would have needed N = −1, one counter-clockwise encirclement, and it does not have it. The first phase margin is nevertheless 90.1206° at ω = 0.5364 rad/s, with a second margin 110.3383° at ω = 6.8347 rad/s, both above 30.0000°. The step hits the bound (clipped = 1, y_end = 20.0000, step_ise = 3350.9884). A_bode_first and C_bode_any both call 1.0000 and miss 1.0000; B_nyquist calls 0.0000 and misses 0.0000. Paired B−A call and miss are both -1.0000±0.0000, a **clear gap, not a tie** (same sign on all 5 seeds). A's single-margin “stable” call loses, and B flags Z = 1, as declared.
+
+On **nmp_encircle**, N_raw = 2.0000 so N = 2, P = 0, Z = 2. The first phase margin is 84.9799° at ω = 0.3888 rad/s and looks healthy, but a second crossing is −50.6024° at ω = 4.4553 rad/s, and the gain margin is −4.4362 dB at ω = 1.6125 rad/s. The step again hits the bound (clipped = 1, y_end = 20.0000, step_ise = 5985.5519). C_bode_any (and A, which looks only at the first margin) call 1.0000 and miss 1.0000; B calls 0.0000. Paired C−B call and miss are both 1.0000±0.0000, a **clear gap, not a tie** (same sign on all 5 seeds). The declaration that C loses held.
+
+**Choices made after seeing results.** After the first run, the official paired token −1.0000 in this section, the Summary, and the new curriculum objective was changed to ASCII -1.0000 so a difference-direction lock would match expected/; result numbers and regimes were not changed. The three plants, pm_min_deg = 30.0000°, the official 80-point-per-decade grid, the step-stability bound and the three regimes were written before the first run. An alternative coarser grid of 20 points per decade, printed on the same plants and not adopted, leaves every arm's call and miss labels unchanged (first_pm moves by a few thousandths of a degree: 49.3542° to 49.3549°, 90.1206° to 90.0879°, 84.9799° to 85.0077°; N and Z are unchanged).
+
+The page **does not declare a universal winner**: on an open-loop-stable second-order joint-like plant a healthy first phase margin and a Nyquist count of Z = 0 agree; on an open-loop-unstable plant, or on a loop that encircles −1 after one healthy crossing, a single-margin “stable” call is the wrong accept and the encirclement count is the one that matches Z. A real plant or analyser: **本页未运行**.
+
+**180-minute work plan:** 30 min read N = Z − P, the role of −1 + j0, and why an open-loop-unstable plant needs counter-clockwise encirclements on the Nyquist stability criterion page; 25 min work Z = N + P for the three declared plants by hand, and the closed-loop DC gain 2/3 of ol_stable_joint (手算); 50 min run the toy and read the three plants; 40 min compare the printed 20-point-per-decade alternative with the official grid; 35 min the exercises (30+25+50+40+35=180).
+
+### Exercises
+
+1. From the printed plant lines, show that ol_unstable has N = 0 and P = 1, so Z = 1. How many counter-clockwise encirclements of −1 would have been required for Z = 0, and why is a first phase margin of 90.1206° not enough?
+2. On ol_stable_joint the first phase margin is 49.3542° at ω = 9.1061 rad/s and Z = 0. Why may A and B then tie, and why is that still not a licence to skip the encirclement count on the other two plants?
+3. nmp_encircle has a first phase margin of 84.9799° and a second of −50.6024°. Why does arm A, which looks only at the first crossing, false-accept, and why is C (any one healthy margin, P treated as 0) the lose cell against B?
+4. The printed alternative of 20 points per decade leaves every call and miss label unchanged. Why does that not licence deleting the official 80-point grid from the page?
+5. Before any real plant or analyser run (本页未运行), write how you would tell a Bode “healthy PM” reading from a Nyquist encirclement of −1 on the same loop, and which open-loop poles you would count first.
+
 <Summary>
 
 - With gravity feedforward the joint is `G(s) = 1 / (s (J s + B))`, a free integrator and a lag with `J/B = 0.08 s`; Month 3's 0.05 N·m/deg is 2.86 N·m/rad in the model.
@@ -1387,4 +1896,5 @@ The page **does not declare a universal winner**: computed torque wins when iner
 - Smith predictor: on a 0.20 s delay the delay-ignoring PI overshoots 87.3189±0.1214 points more than a Smith predictor with the true model (clear, same sign on all 5 seeds), with no delay all three **tie** (identical on every seed), with a 0.04 s delay the plain PI settles faster (A−B −0.1920±0.0045, clear), and a delay model 90–110 % off loses on every metric — a synthetic plant, not a bench run.
 - Computed torque puts inverse dynamics in the loop: on a shared 2R arm it clearly beats PD + gravity on a fast coupled trajectory (paired rms −100.9081±33.6992 mrad, 5/5), clearly loses to it on a slow one where unmodelled friction is all that is left (+16.7587±13.6344, the declared near-tie did not hold), and with the payload left out of its model loses clearly (C−A +133.6632±28.8934) — `computed_torque_inverse_dynamics_toy.py`, a stand-in, not a lab run.
 
+Nyquist stability: on a shared deterministic contour, an open-loop-stable second-order joint-like plant is a tie between a healthy first phase margin and Z = 0 (paired B−A call 0.0000±0.0000, identical on every seed); an open-loop-unstable plant with first PM = 90.1206° still has Z = 1, so A’s single-margin accept loses (paired B−A miss -1.0000±0.0000, 5/5); a non-minimum-phase loop with one healthy PM still encircles −1 and C loses (paired C−B miss 1.0000±0.0000, 5/5, kept) — a synthetic contour, not an analyser run (本页未运行).
 </Summary>
