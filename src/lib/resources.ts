@@ -7024,6 +7024,41 @@ export const resources: Record<string, Resource> = {
     extra: true,
   },
 
+
+  "navila-paper": {
+    id: "navila-paper",
+    url: "https://arxiv.org/abs/2412.04453",
+    title: {
+      zh: "NaVILA 论文：腿式机器人导航的视觉-语言-动作模型",
+      en: "NaVILA paper: a legged-robot vision-language-action model for navigation",
+    },
+    author: "An-Chieh Cheng, Yandong Ji, Zhaojing Yang, Zaitian Gongye, Xueyan Zou, Jan Kautz, Erdem Bıyık, Hongxu Yin, Sifei Liu, Xiaolong Wang",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "NaVILA 是两层的腿式视觉-语言导航结构：视觉-语言-动作模型输出带空间信息的中层语言动作，再由视觉运动强化学习策略执行。作者行按摘要十个姓名；PDF 与 HTML 将 Cheng、Ji 与 Yang 标为共同一作（字母序），将 Yin、Liu 与 Wang 标为通讯 / 共同指导；单位为 UC San Diego、USC 与 NVIDIA。Erdem Bıyık 与 Hongxu Yin 的拼写与摘要、PDF 一致。所报告的「超过 17 %」VLN 成功率改进，以及 25 条真实指令上 88 % 的成功率（Unitree Go2 / H1 / Booster T1），均以论文为准，不是本页玩具输出。arXiv 2412.04453 v2（摘要、HTML 与 PDF 正文已核验）。IsaacLab / 真实 Unitree 或 Booster / GPU：本页未运行。",
+      en: "NaVILA is a two-level legged vision-and-language navigation stack: a VLA emits mid-level language actions with spatial information, and a visual locomotion RL policy executes them. Authorship follows the abs, ten names; the PDF and HTML mark Cheng, Ji and Yang as equal contribution (alphabetical) and Yin, Liu and Wang as corresponding / equal advising; affiliations are UC San Diego, USC and NVIDIA. Erdem Bıyık and Hongxu Yin are spelled as on the abs and PDF. The reported “over 17 %” VLN success-rate improvement and 88 % success on 25 real-world instructions (Unitree Go2 / H1 / Booster T1) are 以论文为准 and are not toy outputs on this page. arXiv 2412.04453 v2 (abs, HTML and PDF bodies checked). IsaacLab / real Unitree or Booster / GPU: 本页未运行.",
+    },
+    license: { zh: "预印本（arXiv 非独占分发许可），© 原作者；仅提供外链", en: "Preprint (arXiv non-exclusive distribution license), © the authors; external link only" },
+    extra: true,
+  },
+  "fdvla-paper": {
+    id: "fdvla-paper",
+    url: "https://arxiv.org/abs/2602.02142",
+    title: {
+      zh: "FD-VLA 论文：面向接触丰富操作、经力蒸馏的视觉-语言-动作模型",
+      en: "FD-VLA paper: a force-distilled vision-language-action model for contact-rich manipulation",
+    },
+    author: "Ruiteng Zhao, Wenshuo Wang, Yicheng Ma, Xiaocong Li, Francis E. H. Tay, Marcelo H. Ang Jr., Haiyue Zhu",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "FD-VLA 把力觉放进视觉-语言-动作模型，在推理时不需要物理力传感器：力蒸馏模块把以视觉和状态为条件的可学习查询，映射成在训练时与真实力潜表示对齐的预测力 token。作者行按摘要七个姓名，遵循摘要对 Francis E. H. Tay 的拼写（缩写字母之间有空格）；PDF 扉页印作 Francis E.H. Tay，Haiyue Zhu 为通讯作者。论文把这一做法与晚融合 / 混合专家的力注入相对比，并声称在其物理实验中蒸馏 token 可以超过直接的传感器力；这些说法均以论文为准，不是本页玩具输出。arXiv 2602.02142 v2（摘要、HTML 与 PDF 正文已核验）。GPU / 力/力矩硬件：本页未运行。",
+      en: "FD-VLA puts force awareness into a VLA without a physical force sensor at inference: a Force Distillation Module maps a learnable query, conditioned on vision and state, to a predicted force token aligned at training time with latent representations of real force. Authorship follows the abs, seven names, with “Francis E. H. Tay” spelled as on the abs (spaces in the initials); the PDF title page prints “Francis E.H. Tay”, and Haiyue Zhu is corresponding. The paper’s contrast with late-fusion / MoE force injection, and the claim that the distilled token can outperform direct sensor force in their physical experiments, are 以论文为准 and are not toy outputs on this page. arXiv 2602.02142 v2 (abs, HTML and PDF bodies checked). GPU / F/T hardware: 本页未运行.",
+    },
+    license: { zh: "预印本（arXiv 非独占分发许可），© 原作者；仅提供外链", en: "Preprint (arXiv non-exclusive distribution license), © the authors; external link only" },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

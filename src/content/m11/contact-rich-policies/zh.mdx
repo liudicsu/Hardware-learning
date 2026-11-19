@@ -421,6 +421,392 @@ ok: shared noise (identical pre-onset residuals); break from contact flag only; 
 - 流匹配 / 扩散头的数学（10.1、6.2）。
 - VLA 上的强化学习（10.7）与人形全身控制（11.6）。
 
+## FD-VLA：无需测试时力传感器的力蒸馏
+
+<Resource id="fdvla-paper" />
+
+主要来源是 **FD-VLA: Force-Distilled Vision-Language-Action Model for Contact-Rich Manipulation**，arXiv 2602.02142 v2（更新于 2026 年 3 月 20 日 09:53:38 UTC = 2026 年 3 月 20 日 17:53 Asia/Shanghai；v1 提交于 2026 年 2 月 2 日；摘要、HTML 与 PDF 正文均已阅读；以论文为准）。
+
+作者行按摘要，七个姓名依次为：Ruiteng Zhao、Wenshuo Wang、Yicheng Ma、Xiaocong Li、Francis E. H. Tay、Marcelo H. Ang Jr.、Haiyue Zhu。PDF 与 HTML 保持同一顺序；Haiyue Zhu 被标为通讯作者。排印：摘要写作 “Francis E. H. Tay”（缩写字母之间有空格）；PDF 扉页印作 “Francis E.H. Tay”。这一差异在此写明；作者名单遵循摘要拼写。“Marcelo H. Ang Jr.” 与摘要引用形式 “Ang Jr., Marcelo H.” 是同一人。不抄写 PDF 元数据里的笔误 `au2`。
+
+FD-VLA 把力觉放进视觉-语言-动作模型，**在推理时不需要物理力传感器**。力蒸馏模块把一个以视觉和状态为条件的可学习查询，映射成在训练时与真实力的潜表示对齐的预测力 token（摘要 / HTML / PDF；以论文为准）。论文把这一做法与晚融合 / 混合专家的力注入相对比，并声称在其物理实验中蒸馏 token 可以超过直接的传感器力；这些说法均以论文为准，**不得**作为玩具的重调目标。
+
+本节**不是**本页已有的门控插入或打滑残差玩具，**不是** `effort-admittance` 上的力/力矩偏置，也**不是**带实测力的混合力-位置 MoE。GPU / 力/力矩硬件 / 论文成功率均**本页未运行**。
+
+玩具是标准库、只在 CPU 上运行的**线性查找替身**，不是 FD-VLA 权重，也不是真实的力/力矩传感器。共享的接触丰富场景、视觉与状态特征，以及真实的潜在力，在每种情形、每个种子上只抽一次，然后每一臂都读同一份（公共随机数；五个种子 0 到 4；n_scenes = 25.0000；ROUND_HALF_UP 输出）。正式的臂 A_vision_only 只用视觉特征作为力 token，没有力通道。臂 B_distilled 使用预测 / 蒸馏 token clip(w_v * 视觉 + w_s * 状态)，其中 w_v = 0.3000、w_s = 0.7000，二者之和为 1.0000（hand_calc），测试时看不到真实力。臂 C_broken_sensor 注入带噪声、偏置和丢弃的原始传感器读数：sensor_bias = 0.5500、sensor_sig = 0.0800、dropout_p = 0.2500（hand_calc）。非正式的干净 oracle 力臂使用真实潜在力，只为对照而打印，不是重调目标。成功率为 clip(bias + (1.0000 − k_err * |token − 真实力|), 0.0000, 1.0000)，其中 bias = 0.0000、k_err = 1.0000，再对 25.0000 个场景取平均（越大越好）。真实力的 mu_z = 0.4000、sig_z = 0.0800。两种情形都在首次运行前写定：easy_observed 里视觉为 v = 1.0000 * z + 0.0000 + N(0, 0.0200)，状态为 z + N(0, 0.0200)；occluded_subtle 里视觉为 v = 0.0000 * z + 0.5000 + N(0, 0.1500)，状态为 z + N(0, 0.0600)。在容易、观察良好的接触上 A 与 B 可能接近打平；在遮挡 / 细微接触上 B 须一贯高于 A；两种情形都声明 C 输给 B。小差距阈值是较小一臂均值的 0.2000（hand_calc）。
+
+<CodeSource path="examples/month-11/contact-rich-policies/fdvla_force_distill_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic force-distillation stand-in without a test-time force sensor.
+
+Stdlib only. Shared contact-rich scenes, vision and state features, and the
+true latent force are drawn once per (regime, seed) and then read by every
+arm (common random numbers).
+
+Arm A uses vision only. Arm B uses a predicted / distilled force token from
+vision and state, with no true force channel at test time. Arm C injects a
+noisy, biased, drop-out raw-sensor force. An unofficial clean oracle-force
+arm is printed for comparison and is not a retuning target.
+
+This is a linear lookup stand-in, not FD-VLA weights and not a real F/T
+sensor. It is not a gated-insertion toy, not a slip-residual toy, not an
+F/T-bias lesson, and not a measured-force hybrid MoE. Paper physical-
+experiment success rates and the claim that a distilled token can
+outperform direct sensor force are 以论文为准 and are not toy outputs.
+GPU / F/T hardware: 本页未运行.
+
+Regimes and parameters were written before the first run.
+
+Labels: tie = identical on every seed; numerically zero = |paired mean| and sd
+both < 1e-9; |m| <= sd = near-tie; |m| > sd = consistent gap (small if |m| < 20 %
+of the smaller arm mean, else clear), with a sign count. ROUND_HALF_UP output.
+"""
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+SMALL_FRAC = 0.2000
+
+N_SCENES = 25
+BIAS = 0.0000
+K_ERR = 1.0000
+CLIP_LO = 0.0000
+CLIP_HI = 1.0000
+MU_Z = 0.4000
+SIG_Z = 0.0800
+W_V = 0.3000
+W_S = 0.7000
+EASY_V_SIG = 0.0200
+EASY_S_SIG = 0.0200
+EASY_V_COEF = 1.0000
+EASY_V_OFF = 0.0000
+OCC_V_SIG = 0.1500
+OCC_S_SIG = 0.0600
+OCC_V_COEF = 0.0000
+OCC_V_OFF = 0.5000
+SENSOR_BIAS = 0.5500
+SENSOR_SIG = 0.0800
+DROPOUT_P = 0.2500
+
+ALT_OCC_V_SIG = 0.2000
+ALT_W_V = 0.5000
+ALT_W_S = 0.5000
+
+METRICS = ("success",)
+ARMS = ("A_vision_only", "B_distilled", "C_broken_sensor")
+PAIRS = (("B", "A"), ("C", "B"), ("C", "A"))
+
+REGIMES = {
+    "easy_observed": "A and B may near-tie on success (easy, well-observed contact) - keep",
+    "occluded_subtle": "B consistently above A on success (occluded / subtle contact) - keep",
+}
+C_EXPECT = "C loses to B on success (biased / drop-out raw sensor injection) - keep"
+REGIME_IDS = {"easy_observed": 0, "occluded_subtle": 1}
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < SMALL_FRAC * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def clip(x, lo=CLIP_LO, hi=CLIP_HI):
+    return lo if x < lo else hi if x > hi else x
+
+
+def regime_params(regime, occ_v_sig=OCC_V_SIG):
+    if regime == "easy_observed":
+        return EASY_V_COEF, EASY_V_OFF, EASY_V_SIG, EASY_S_SIG
+    return OCC_V_COEF, OCC_V_OFF, occ_v_sig, OCC_S_SIG
+
+
+def draw_scenes(regime, seed, occ_v_sig=OCC_V_SIG):
+    rid = REGIME_IDS[regime]
+    extra = 0 if occ_v_sig == OCC_V_SIG else 17
+    rng = random.Random(seed + 1000 * rid + extra)
+    v_coef, v_off, v_sig, s_sig = regime_params(regime, occ_v_sig=occ_v_sig)
+    scenes = []
+    for _ in range(N_SCENES):
+        z = clip(rng.gauss(MU_Z, SIG_Z))
+        v = clip(v_coef * z + v_off + rng.gauss(0.0, v_sig))
+        s = clip(z + rng.gauss(0.0, s_sig))
+        raw_noise = rng.gauss(0.0, SENSOR_SIG)
+        drop = rng.random() < DROPOUT_P
+        scenes.append((z, v, s, raw_noise, drop))
+    return scenes
+
+
+def success_of(f_hat, z):
+    return clip(BIAS + (1.0000 - K_ERR * abs(f_hat - z)))
+
+
+def tokens_of(scene, w_v, w_s):
+    z, v, s, raw_noise, drop = scene
+    f_a = v
+    f_b = clip(w_v * v + w_s * s)
+    f_c = 0.0000 if drop else clip(z + SENSOR_BIAS + raw_noise)
+    f_o = z
+    return f_a, f_b, f_c, f_o
+
+
+def run_regime(regime, seed, occ_v_sig=OCC_V_SIG, w_v=W_V, w_s=W_S):
+    scenes = draw_scenes(regime, seed, occ_v_sig=occ_v_sig)
+    acc = {arm: 0.0 for arm in ARMS}
+    acc["oracle_force"] = 0.0
+    for scene in scenes:
+        f_a, f_b, f_c, f_o = tokens_of(scene, w_v, w_s)
+        z = scene[0]
+        acc["A_vision_only"] += success_of(f_a, z)
+        acc["B_distilled"] += success_of(f_b, z)
+        acc["C_broken_sensor"] += success_of(f_c, z)
+        acc["oracle_force"] += success_of(f_o, z)
+    n = float(N_SCENES)
+    return {k: {"success": acc[k] / n} for k in acc}
+
+
+def main():
+    w_sum = W_V + W_S
+    print(
+        "Force distillation toy: shared contact-rich scenes / vision / state / "
+        "true force under common random numbers (linear lookup stand-in, not "
+        "FD-VLA weights, not a real F/T sensor)"
+    )
+    print(
+        "Paper physical-experiment success rates and the claim that a distilled "
+        "token can outperform direct sensor force 以论文为准 and are not toy "
+        "outputs; GPU / F/T hardware: 本页未运行"
+    )
+    print(
+        f"seeds={len(SEEDS)} n_scenes={num(float(N_SCENES))} bias={num(BIAS)} "
+        f"k_err={num(K_ERR)} clip_lo={num(CLIP_LO)} clip_hi={num(CLIP_HI)} "
+        f"mu_z={num(MU_Z)} sig_z={num(SIG_Z)} w_v={num(W_V)} w_s={num(W_S)} "
+        f"w_sum={num(w_sum)} easy_v_coef={num(EASY_V_COEF)} "
+        f"easy_v_off={num(EASY_V_OFF)} easy_v_sig={num(EASY_V_SIG)} "
+        f"easy_s_sig={num(EASY_S_SIG)} occ_v_coef={num(OCC_V_COEF)} "
+        f"occ_v_off={num(OCC_V_OFF)} occ_v_sig={num(OCC_V_SIG)} "
+        f"occ_s_sig={num(OCC_S_SIG)} sensor_bias={num(SENSOR_BIAS)} "
+        f"sensor_sig={num(SENSOR_SIG)} dropout_p={num(DROPOUT_P)} "
+        f"small_frac={num(SMALL_FRAC)}"
+    )
+    print("Regimes and parameters were written before the first run")
+    print(
+        "Common random numbers: the scene / vision / state / true-force draws "
+        "are shared across arms at each regime and seed"
+    )
+    print(f"hand_calc n_scenes = {num(float(N_SCENES))}")
+    print(f"hand_calc B weights {num(W_V)} + {num(W_S)} = {num(w_sum)}")
+    print(
+        f"hand_calc bias = {num(BIAS)} k_err = {num(K_ERR)} clip = "
+        f"{num(CLIP_LO)} to {num(CLIP_HI)}"
+    )
+    print(f"hand_calc mu_z = {num(MU_Z)} sig_z = {num(SIG_Z)}")
+    print(
+        f"hand_calc easy: v = {num(EASY_V_COEF)} * z + {num(EASY_V_OFF)} + "
+        f"N(0, {num(EASY_V_SIG)}), s = z + N(0, {num(EASY_S_SIG)})"
+    )
+    print(
+        f"hand_calc occluded: v = {num(OCC_V_COEF)} * z + {num(OCC_V_OFF)} + "
+        f"N(0, {num(OCC_V_SIG)}), s = z + N(0, {num(OCC_S_SIG)})"
+    )
+    print(
+        f"hand_calc C sensor_bias = {num(SENSOR_BIAS)} sensor_sig = "
+        f"{num(SENSOR_SIG)} dropout_p = {num(DROPOUT_P)}"
+    )
+    print(f"hand_calc small-gap threshold = {num(SMALL_FRAC)} of the smaller arm mean")
+    print(
+        f"hand_calc easy expected |A error| roughly {num(EASY_V_SIG)} "
+        f"(formula, not a measured result)"
+    )
+
+    for r, exp in REGIMES.items():
+        print(f"declared {r}: {exp}")
+        print(f"declared {r} C: {C_EXPECT}")
+
+    store = {r: {arm: {m: [] for m in METRICS} for arm in list(ARMS) + ["oracle_force"]} for r in REGIMES}
+    alt_sig = {r: {arm: {m: [] for m in METRICS} for arm in ARMS} for r in REGIMES}
+    alt_w = {r: {arm: {m: [] for m in METRICS} for arm in ARMS} for r in REGIMES}
+    for seed in SEEDS:
+        for r in REGIMES:
+            official = run_regime(r, seed)
+            sig_run = run_regime(r, seed, occ_v_sig=ALT_OCC_V_SIG)
+            w_run = run_regime(r, seed, w_v=ALT_W_V, w_s=ALT_W_S)
+            for arm in list(ARMS) + ["oracle_force"]:
+                for m in METRICS:
+                    store[r][arm][m].append(official[arm][m])
+            for arm in ARMS:
+                for m in METRICS:
+                    alt_sig[r][arm][m].append(sig_run[arm][m])
+                    alt_w[r][arm][m].append(w_run[arm][m])
+
+    def arm_of(letter, arms=ARMS):
+        return [a for a in arms if a.startswith(letter + "_")][0]
+
+    for r in REGIMES:
+        print(f"regime {r}")
+        for arm in ARMS:
+            mu, sd = mean_sd(store[r][arm]["success"])
+            print(f"  {arm} success: {num(mu)}+-{num(sd)}")
+        for left, right in PAIRS:
+            print(
+                f"  paired {left}-{right} success: "
+                f"{verdict(store[r][arm_of(left)]['success'], store[r][arm_of(right)]['success'])}"
+            )
+        mu, sd = mean_sd(store[r]["oracle_force"]["success"])
+        print(f"  oracle_force success: {num(mu)}+-{num(sd)}")
+        print(
+            f"  paired B-oracle success: "
+            f"{verdict(store[r]['B_distilled']['success'], store[r]['oracle_force']['success'])}"
+        )
+        print(
+            f"  paired oracle-A success: "
+            f"{verdict(store[r]['oracle_force']['success'], store[r]['A_vision_only']['success'])}"
+        )
+
+    print("alternatives on the same seeds (not adopted):")
+    print(f"  alternative occ_v_sig={num(ALT_OCC_V_SIG)}")
+    for r in REGIMES:
+        print(f"  regime {r}")
+        for left, right in (("B", "A"), ("C", "B")):
+            print(
+                f"    paired {left}-{right} success: "
+                f"{verdict(alt_sig[r][arm_of(left)]['success'], alt_sig[r][arm_of(right)]['success'])}"
+            )
+    print(f"  alternative B weights w_v={num(ALT_W_V)} w_s={num(ALT_W_S)}")
+    for r in REGIMES:
+        print(f"  regime {r}")
+        for left, right in (("B", "A"), ("C", "B")):
+            print(
+                f"    paired {left}-{right} success: "
+                f"{verdict(alt_w[r][arm_of(left)]['success'], alt_w[r][arm_of(right)]['success'])}"
+            )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Force distillation toy: shared contact-rich scenes / vision / state / true force under common random numbers (linear lookup stand-in, not FD-VLA weights, not a real F/T sensor)
+Paper physical-experiment success rates and the claim that a distilled token can outperform direct sensor force 以论文为准 and are not toy outputs; GPU / F/T hardware: 本页未运行
+seeds=5 n_scenes=25.0000 bias=0.0000 k_err=1.0000 clip_lo=0.0000 clip_hi=1.0000 mu_z=0.4000 sig_z=0.0800 w_v=0.3000 w_s=0.7000 w_sum=1.0000 easy_v_coef=1.0000 easy_v_off=0.0000 easy_v_sig=0.0200 easy_s_sig=0.0200 occ_v_coef=0.0000 occ_v_off=0.5000 occ_v_sig=0.1500 occ_s_sig=0.0600 sensor_bias=0.5500 sensor_sig=0.0800 dropout_p=0.2500 small_frac=0.2000
+Regimes and parameters were written before the first run
+Common random numbers: the scene / vision / state / true-force draws are shared across arms at each regime and seed
+hand_calc n_scenes = 25.0000
+hand_calc B weights 0.3000 + 0.7000 = 1.0000
+hand_calc bias = 0.0000 k_err = 1.0000 clip = 0.0000 to 1.0000
+hand_calc mu_z = 0.4000 sig_z = 0.0800
+hand_calc easy: v = 1.0000 * z + 0.0000 + N(0, 0.0200), s = z + N(0, 0.0200)
+hand_calc occluded: v = 0.0000 * z + 0.5000 + N(0, 0.1500), s = z + N(0, 0.0600)
+hand_calc C sensor_bias = 0.5500 sensor_sig = 0.0800 dropout_p = 0.2500
+hand_calc small-gap threshold = 0.2000 of the smaller arm mean
+hand_calc easy expected |A error| roughly 0.0200 (formula, not a measured result)
+declared easy_observed: A and B may near-tie on success (easy, well-observed contact) - keep
+declared easy_observed C: C loses to B on success (biased / drop-out raw sensor injection) - keep
+declared occluded_subtle: B consistently above A on success (occluded / subtle contact) - keep
+declared occluded_subtle C: C loses to B on success (biased / drop-out raw sensor injection) - keep
+regime easy_observed
+  A_vision_only success: 0.9841+-0.0015
+  B_distilled success: 0.9863+-0.0024
+  C_broken_sensor success: 0.5048+-0.0073
+  paired B-A success: 0.0021+-0.0017: small but consistent gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  paired C-B success: -0.4815+-0.0067: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A success: -0.4793+-0.0062: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  oracle_force success: 1.0000+-0.0000
+  paired B-oracle success: -0.0137+-0.0024: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired oracle-A success: 0.0159+-0.0015: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+regime occluded_subtle
+  A_vision_only success: 0.8293+-0.0119
+  B_distilled success: 0.9363+-0.0035
+  C_broken_sensor success: 0.4986+-0.0155
+  paired B-A success: 0.1070+-0.0087: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: -0.4377+-0.0175: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A success: -0.3307+-0.0242: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  oracle_force success: 1.0000+-0.0000
+  paired B-oracle success: -0.0637+-0.0035: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired oracle-A success: 0.1707+-0.0119: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternatives on the same seeds (not adopted):
+  alternative occ_v_sig=0.2000
+  regime easy_observed
+    paired B-A success: 0.0046+-0.0013: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C-B success: -0.4816+-0.0205: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  regime occluded_subtle
+    paired B-A success: 0.1247+-0.0299: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C-B success: -0.4230+-0.0288: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  alternative B weights w_v=0.5000 w_s=0.5000
+  regime easy_observed
+    paired B-A success: 0.0035+-0.0011: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C-B success: -0.4828+-0.0059: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  regime occluded_subtle
+    paired B-A success: 0.0794+-0.0076: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C-B success: -0.4102+-0.0188: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+```
+
+</SimOutput>
+
+在 **easy_observed** 上，A_vision_only 的 success 为 0.9841±0.0015，B_distilled 为 0.9863±0.0024。成对 B−A success 为 0.0021±0.0017，是**小而一贯的差距，不是打平**（5 个种子中有 1 个符号相反）：B 略高。预先声明的「A 与 B 可能接近打平」**没有成立**。这一格按原样打印并**保留**，没有重调（容易情形的视觉与状态噪声、混合权重、bias、k_err 和场景数都保持首次运行前的声明值）。C_broken_sensor 为 0.5048±0.0073；成对 C−B 为 −0.4815±0.0067，是**明显差距，不是打平**（5/5）。C 会输的声明成立。非正式的 oracle_force success 为 1.0000±0.0000；成对 B−oracle 为 −0.0137±0.0024，是**小而一贯的差距，不是打平**（5/5）。B **没有**超过干净的 oracle；这一对照被打印出来，并且不是重调目标。
+
+在 **occluded_subtle** 上，A 为 0.8293±0.0119，B 为 0.9363±0.0035。成对 B−A success 为 0.1070±0.0087，是**小而一贯的差距，不是打平**（5 个种子符号相同）。蒸馏 token 在遮挡 / 细微接触上须一贯高于仅视觉的声明成立。C 为 0.4986±0.0155；成对 C−B 为 −0.4377±0.0175，是**明显差距，不是打平**（5/5）。C 会输的声明在这一情形同样成立。oracle 的 success 仍为 1.0000±0.0000；成对 B−oracle 为 −0.0637±0.0035，是**小而一贯的差距，不是打平**（5/5）。B 再次没有超过干净的 oracle；结果被打印出来，没有重调。
+
+**看过结果后做的选择**。 首次正式运行之后，唯一的改动是给每段新的 SimOutput 加上 text 围栏，好让输出检查看到恰好一块围栏（只改版式）。首次运行之后没有改任何常数、臂、指标或情形。蒸馏权重、容易与遮挡噪声、传感器偏置 = 0.5500、dropout_p = 0.2500、bias = 0.0000、k_err = 1.0000 和 n_scenes = 25.0000 都在首次运行前写定。同一组种子上打印、但未采纳的替代：遮挡视觉噪声 0.2000，以及替代的 B 权重 w_v = 0.5000、w_s = 0.5000，并不改变正式标签的方向（容易情形的 B−A 仍是小而一贯的差距，不是接近打平；遮挡情形上 B 仍一贯高于 A；C 仍然会输）。正式数字没有被重调成让 B 超过干净的 oracle。
+
+本页**不宣布普遍赢家**。在容易、观察良好的接触上，蒸馏 token 不必接近打平一个已经很强的仅视觉臂；在遮挡 / 细微接触上，声明的蒸馏 token 一贯好于仅视觉；带偏置 / 丢弃的原始传感器注入在两种情形都会输。若蒸馏臂没有超过干净的 oracle 力臂，这一对照被打印出来，并且不是重调目标。论文中的物理实验成功率，以及蒸馏 token 可以超过直接传感器力的说法，均以论文为准。GPU / 力/力矩硬件均**本页未运行**。
+
+**180 分钟安排:** 30 分钟阅读 arXiv 2602.02142 v2 摘要的作者行（七个姓名按摘要顺序，Francis E. H. Tay 的缩写带空格）、PDF 扉页的排印与通讯标记，以及力蒸馏模块 / 无传感器推理等说法；25 分钟手算打印的权重 0.3000 + 0.7000 = 1.0000、容易与遮挡情形的特征公式，以及 0.2000 的小差距阈值（手算）；50 分钟运行玩具并阅读两种情形，包括没有接近打平的容易格以及打印的 oracle 对照；40 分钟固定种子对照打印的遮挡视觉噪声 0.2000 与替代权重；35 分钟做练习（30+25+50+40+35=180）。
+
+### 练习
+
+1. 按摘要写出作者行：七个姓名按摘要顺序，并把 “Francis E. H. Tay” 写成摘要的拼法。PDF 扉页印的是什么，谁被标为通讯作者，为什么不抄写 PDF 元数据里的笔误？
+2. 根据打印的 hand_calc 行，说明 B 的权重 0.3000 + 0.7000 = 1.0000，并写出容易与遮挡情形的特征公式。为什么论文中的物理实验成功率，以及蒸馏 token 可以超过直接传感器力的说法，都以论文为准，不是玩具输出？
+3. 在 easy_observed 里，成对 B−A success 为 0.0021±0.0017，是小而一贯的差距，尽管预先声明可能接近打平。为什么这一格被保留，若在看过结果之后改容易情形的噪声会有什么问题？
+4. 在 occluded_subtle 里，成对 B−A 为 0.1070±0.0087，是小而一贯的差距（5/5），C−B 为 −0.4377±0.0175。结合打印的特征公式，说明为什么在视觉没有信息时，视觉加状态的蒸馏 token 能够帮忙，而带偏置 / 丢弃的原始传感器注入仍然会输。
+5. 非正式的 oracle 在两种情形都是 1.0000±0.0000，成对 B−oracle 为 −0.0137±0.0024 与 −0.0637±0.0035。为什么要打印这一对照，又为什么它不能成为重调目标？列出若要在真实 FD-VLA 栈上检验力蒸馏，你需要哪些东西（权重，以及只在训练时使用的力/力矩传感器）。只作为计划；GPU / 力/力矩硬件均本页未运行。
+
 <Summary>
 
 **要点**
@@ -452,4 +838,5 @@ ok: shared noise (identical pre-onset residuals); break from contact flag only; 
 
 - 回到 [8.7 毕业项目](/zh/month/month-8/capstone)，决定是否把接触模态作为进阶小节加入。
 
+- FD-VLA 力蒸馏：在共享场景的线性查找替身上，预先声明的容易接触接近打平没有成立（成对 B−A success 0.0021±0.0017，小而一贯，5 个种子中 1 个相反，保留）；在遮挡 / 细微接触上 B 一贯高于 A（0.1070±0.0087，小而一贯，5/5）；损坏 / 丢弃的原始传感器臂会输（C−B −0.4815±0.0067 与 −0.4377±0.0175，明显，5/5，保留）；B 没有超过干净的 oracle（容易 B−oracle −0.0137±0.0024；遮挡 −0.0637±0.0035），已打印，未重调——不是 FD-VLA 权重；论文成功率与蒸馏超过传感器力的说法以论文为准（本页未运行）。
 </Summary>

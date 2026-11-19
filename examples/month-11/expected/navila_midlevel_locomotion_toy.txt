@@ -1,0 +1,66 @@
+Mid-level language locomotion toy: 2-D synthetic corridor under common random numbers (kinematic / reactive lane stand-in, not Isaac, not a real Unitree or Booster)
+Paper VLN success-rate lift and real-world instruction success figures 以论文为准 and are not toy outputs; IsaacLab / real Unitree or Booster / GPU: 本页未运行
+seeds=5 n_scenes=25.0000 len=8.0000 half_w=1.2000 robot_r=0.1500 obs_r=0.2500 goal_tol=0.4000 side=0.5000 mid_fwd=0.7500 mid_turn_deg=30.0000 n_obs_clutter=4.0000 n_transparent=2.0000 c_yaw_bias=0.2000 wall_clear=1.0500 hit_clear=0.4000 small_frac=0.2000
+Regimes and parameters were written before the first run
+Common random numbers: the instruction, occupancy / clutter and mid-level command vocabulary are shared across arms at each regime and seed
+hand_calc n_scenes = 25.0000
+hand_calc wall_clear = 1.2000 - 0.1500 = 1.0500
+hand_calc hit_clear = 0.1500 + 0.2500 = 0.4000
+hand_calc mid-level vocabulary forward 0.7500 m, sidestep 0.5000 m, turn 30.0000 deg
+hand_calc C yaw bias 0.2000 rad, tan = 0.2027, y at LEN = 8.0000 * tan(0.2000) = 1.6217, which is > 1.0500 so C hits the wall
+hand_calc C wall x = 1.0500 / tan(0.2000) = 5.1798
+hand_calc n_obs open = 0.0000; clutter n_obs = 4.0000 of which n_transparent = 2.0000
+hand_calc small-gap threshold = 0.2000 of the smaller arm mean
+declared open_corridor: A and B may near-tie on success and collisions (open corridor, no clutter) - keep
+declared open_corridor C: C loses to B on success (mid-level commands ignored, blind heading bias 0.2000 rad) - keep
+declared clutter_transparent: B consistently above A on success and consistently below A on collisions (cluttered / transparent-obstacle stand-in) - keep
+declared clutter_transparent C: C loses to B on success (mid-level commands ignored, blind heading bias 0.2000 rad) - keep
+regime open_corridor
+  A_flat_lowlevel success: 1.0000+-0.0000
+  A_flat_lowlevel collisions: 0.0000+-0.0000
+  B_midlevel_visual success: 1.0000+-0.0000
+  B_midlevel_visual collisions: 0.0000+-0.0000
+  C_blind_ignored success: 0.0000+-0.0000
+  C_blind_ignored collisions: 1.0000+-0.0000
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A collisions: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B success: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B collisions: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A success: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A collisions: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+regime clutter_transparent
+  A_flat_lowlevel success: 0.0000+-0.0000
+  A_flat_lowlevel collisions: 2.0000+-0.0000
+  B_midlevel_visual success: 1.0000+-0.0000
+  B_midlevel_visual collisions: 0.0000+-0.0000
+  C_blind_ignored success: 0.0000+-0.0000
+  C_blind_ignored collisions: 1.9840+-0.0219
+  paired B-A success: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A collisions: -2.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B collisions: 1.9840+-0.0219: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A collisions: -0.0160+-0.0219: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+alternatives on the same seeds (not adopted):
+  alternative side=0.3000
+  regime open_corridor
+    paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+    paired B-A collisions: 0.0000+-0.0000: tie: identical on every seed
+    paired C-B success: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C-B collisions: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  regime clutter_transparent
+    paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+    paired B-A collisions: 0.0000+-0.0000: tie: identical on every seed
+    paired C-B success: 0.0000+-0.0000: tie: identical on every seed
+    paired C-B collisions: -1.0160+-0.0219: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  alternative c_yaw_bias=0.1000
+  regime open_corridor
+    paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+    paired B-A collisions: 0.0000+-0.0000: tie: identical on every seed
+    paired C-B success: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C-B collisions: 0.0000+-0.0000: tie: identical on every seed
+  regime clutter_transparent
+    paired B-A success: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired B-A collisions: -2.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C-B success: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired C-B collisions: 3.0400+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
