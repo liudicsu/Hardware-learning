@@ -1,5 +1,15 @@
 # Month 7 plan: Simulation, reinforcement learning & 3D perception
 
+Current / 当前：**M7 3870 min**, Batch-25 PR2. Earlier entries below retain their historical totals.
+
+## Batch-25 PR2 / 本月 H3 (+180)
+
+Base `55c7e5033b8600d33584e2ccece0fff29c8e3aab` (batch-25 PR1 #201 merged; site **42660**). PR2 on M7 host: **M7 3690→3870 (+180)**; M8 moves in the same PR on its own plan. Site **42660→43020** (43020=42660+180+180), still 71 lessons.
+
+- **H3 / 7.1 mujoco-so101: 420→600 (+180).** Elliptic versus pyramidal friction cones (`friction_cone_elliptic_pyramid_toy.py`; common random numbers, 5 seeds; shared contact-frame force and slip-velocity samples). Pinned MuJoCo 4.0.1 Computation “Friction cones” body (readthedocs 4.0.1; GitHub `4.0.1:doc/computation/index.rst` blob `6445e6637b52cf57fb14a0853c08251e49634152`; 以文档为准): elliptic and pyramidal sets, `condim` table (regular frictional contact 3 elliptic / 4 pyramidal; `condim=1` both are the non-negative ray). Stdlib stand-in, not `mujoco.step`, not a redo of `grip_sweep`. Declared parameters: `MU_Y=MU_Z=0.5000`, `N_SAMPLE=40`, `FN_SCALE=1.0000`, `SMALL_FRAC=0.2000`, seeds 0–4. Hand calc (printed): pyramid edges `4.0000`; mid-diagonal `fy=fz=0.3005`, `elliptic_sum_sq=0.7225`, `pyramid_l1=1.2021`. Official first run 2026-11-19 22:49:29 Asia/Shanghai; expected sha256 `98eecf26978c2907605d2bf1db67f293b23090385d360a42b99a80c7b43f1e93`. frictionless: B−A admit_rate `0.0000+-0.0000`, **tie: identical on every seed** (declared may tie or near-tie, held as an exact tie, kept). mid_tangential: `ell_in_pyr_out 8.0000+-0.0000`, `pyr_in_ell_out 0.0000+-0.0000`, example `fn=0.9009 fy=-0.2859 fz=0.2859`; B−A admit_rate `-0.2000+-0.0000`, **clear**, 5/5 (discrepancy printed and kept; documented sets did not produce the vice-versa cell; not retuned). high_tangential: C illegal_admit_rate `0.8250+-0.0000`, **clear**, 5/5 (held, kept). Alternative same seeds `MU_Y=MU_Z=1.0000` (not adopted) keeps the official labels. No code change after the first official run. ≠ `solref` sweep / integrator toy / Coulomb grasp cones on avoided `perception-to-grasp`. Real MuJoCo / `mujoco.step` 本页未运行. / 无摩擦时接纳率打平；中位形打印并保留椭圆内、金字塔外的集合差异；大切向时无上界摩擦失败。
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
+
 Current / 当前：**M7 3690 min**, Batch-23 PR2. Earlier entries below retain their historical totals.
 
 ## Batch-23 PR2 / 本月 H4 (+180)

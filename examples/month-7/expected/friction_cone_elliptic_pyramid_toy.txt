@@ -1,0 +1,100 @@
+Stdlib stand-in of documented elliptic vs pyramidal friction cones; not mujoco.step
+declared MU_Y=0.5000 MU_Z=0.5000 N_SAMPLE=40 FN_SCALE=1.0000 SMALL_FRAC=0.2000 seeds=0,1,2,3,4
+declared arms: A_elliptic documented elliptic inequality; B_pyramid documented pyramid edge span; C_unbounded friction treated as unbounded (fn >= 0 only)
+declared condim frictional 3: elliptic_dims=3 pyramidal_dims=4
+declared condim frictionless 1: elliptic_dims=1 pyramidal_dims=1
+hand_calc pyramid edges 2*(condim-1) at condim=3 = 4.0000
+hand_calc 20 percent small-vs-clear factor = 0.2000
+hand_calc mid-diagonal fn=1.0000 mu=0.5000 r=0.8500 fy=0.3005 fz=0.3005 elliptic_sum_sq=0.7225 pyramid_l1=1.2021 ell_in=1 pyr_in=0
+Regimes and parameters were written before the first run
+Common random numbers: the force and slip-velocity samples are shared across arms at each regime and seed
+Assumptions: stdlib inequality stand-in, not mujoco.step, not a redo of grip_sweep, not a third cone
+Documented cone sets and condim dimensions 以文档为准
+Real MuJoCo / mujoco.step / second grip scene: 本页未运行
+declared frictionless: A and B may tie or near-tie on admission - keep
+declared mid_tangential: print elliptic-vs-pyramid discrepancy and keep the sign - keep
+declared high_tangential: C loses (unbounded friction) - keep
+declared expectation frictionless: condim=1; both documented cones are the non-negative ray; A and B may tie or near-tie on admission - keep
+regime frictionless  (mean+-sd over seeds)
+  condim=1 elliptic_dims=1 pyramidal_dims=1 n_sample=40
+  discrepancy ell_in_pyr_out 0.0000+-0.0000 pyr_in_ell_out 0.0000+-0.0000 n_sliding 0.0000+-0.0000
+  example none
+  A_elliptic admit_rate 0.8750+-0.0000 illegal_admit_rate 0.0000+-0.0000
+  B_pyramid admit_rate 0.8750+-0.0000 illegal_admit_rate 0.0000+-0.0000
+  C_unbounded admit_rate 0.8750+-0.0000 illegal_admit_rate 0.0000+-0.0000
+  paired B-A admit_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A illegal_admit_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B admit_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B illegal_admit_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A admit_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A illegal_admit_rate: 0.0000+-0.0000: tie: identical on every seed
+declared expectation mid_tangential: condim=3; some shared samples lie inside the elliptic cone and outside the pyramid (or vice versa if the documented sets say so); print the discrepancy and keep the sign; do not retune to force the pyramid to be always more conservative - keep
+regime mid_tangential  (mean+-sd over seeds)
+  condim=3 elliptic_dims=3 pyramidal_dims=4 n_sample=40
+  discrepancy ell_in_pyr_out 8.0000+-0.0000 pyr_in_ell_out 0.0000+-0.0000 n_sliding 40.0000+-0.0000
+  example ell_in_pyr_out seed=0 fn=0.9009 fy=-0.2859 fz=0.2859 ell=1 pyr=0
+  A_elliptic admit_rate 0.6000+-0.0000 illegal_admit_rate 0.0000+-0.0000
+  B_pyramid admit_rate 0.4000+-0.0000 illegal_admit_rate 0.0000+-0.0000
+  C_unbounded admit_rate 0.8000+-0.0000 illegal_admit_rate 0.2000+-0.0000
+  paired B-A admit_rate: -0.2000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A illegal_admit_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B admit_rate: 0.4000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B illegal_admit_rate: 0.2000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A admit_rate: 0.2000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A illegal_admit_rate: 0.2000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+declared expectation high_tangential: high tangential demand; C loses (unbounded friction admits forces outside both documented cones) - keep
+regime high_tangential  (mean+-sd over seeds)
+  condim=3 elliptic_dims=3 pyramidal_dims=4 n_sample=40
+  discrepancy ell_in_pyr_out 0.0000+-0.0000 pyr_in_ell_out 0.0000+-0.0000 n_sliding 40.0000+-0.0000
+  example none
+  A_elliptic admit_rate 0.1750+-0.0000 illegal_admit_rate 0.0000+-0.0000
+  B_pyramid admit_rate 0.1750+-0.0000 illegal_admit_rate 0.0000+-0.0000
+  C_unbounded admit_rate 1.0000+-0.0000 illegal_admit_rate 0.8250+-0.0000
+  paired B-A admit_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A illegal_admit_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B admit_rate: 0.8250+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B illegal_admit_rate: 0.8250+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A admit_rate: 0.8250+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A illegal_admit_rate: 0.8250+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative same seeds MU_Y=MU_Z=1.0000 (not adopted)
+regime frictionless alt_MU=1.0000  (mean+-sd over seeds)
+  condim=1 elliptic_dims=1 pyramidal_dims=1 n_sample=40
+  discrepancy ell_in_pyr_out 0.0000+-0.0000 pyr_in_ell_out 0.0000+-0.0000 n_sliding 0.0000+-0.0000
+  example none
+  A_elliptic admit_rate 0.8750+-0.0000 illegal_admit_rate 0.0000+-0.0000
+  B_pyramid admit_rate 0.8750+-0.0000 illegal_admit_rate 0.0000+-0.0000
+  C_unbounded admit_rate 0.8750+-0.0000 illegal_admit_rate 0.0000+-0.0000
+  paired B-A admit_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A illegal_admit_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B admit_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B illegal_admit_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A admit_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A illegal_admit_rate: 0.0000+-0.0000: tie: identical on every seed
+regime mid_tangential alt_MU=1.0000  (mean+-sd over seeds)
+  condim=3 elliptic_dims=3 pyramidal_dims=4 n_sample=40
+  discrepancy ell_in_pyr_out 8.0000+-0.0000 pyr_in_ell_out 0.0000+-0.0000 n_sliding 40.0000+-0.0000
+  example ell_in_pyr_out seed=0 fn=0.9009 fy=-0.5718 fz=0.5718 ell=1 pyr=0
+  A_elliptic admit_rate 0.6000+-0.0000 illegal_admit_rate 0.0000+-0.0000
+  B_pyramid admit_rate 0.4000+-0.0000 illegal_admit_rate 0.0000+-0.0000
+  C_unbounded admit_rate 0.8000+-0.0000 illegal_admit_rate 0.2000+-0.0000
+  paired B-A admit_rate: -0.2000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A illegal_admit_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B admit_rate: 0.4000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B illegal_admit_rate: 0.2000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A admit_rate: 0.2000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A illegal_admit_rate: 0.2000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+regime high_tangential alt_MU=1.0000  (mean+-sd over seeds)
+  condim=3 elliptic_dims=3 pyramidal_dims=4 n_sample=40
+  discrepancy ell_in_pyr_out 0.0000+-0.0000 pyr_in_ell_out 0.0000+-0.0000 n_sliding 40.0000+-0.0000
+  example none
+  A_elliptic admit_rate 0.1750+-0.0000 illegal_admit_rate 0.0000+-0.0000
+  B_pyramid admit_rate 0.1750+-0.0000 illegal_admit_rate 0.0000+-0.0000
+  C_unbounded admit_rate 1.0000+-0.0000 illegal_admit_rate 0.8250+-0.0000
+  paired B-A admit_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A illegal_admit_rate: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B admit_rate: 0.8250+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B illegal_admit_rate: 0.8250+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A admit_rate: 0.8250+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A illegal_admit_rate: 0.8250+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No mujoco.step was called
+No winner is universal: frictionless admission can tie; a documented elliptic-in pyramid-out sample is a set difference, not a ranking

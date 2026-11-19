@@ -1,5 +1,15 @@
 # Month 8 plan
 
+Current / 当前：**M8 4350 min**, Batch-25 PR2. Earlier entries below retain their historical totals.
+
+## Batch-25 PR2 / 本月 H4 (+180)
+
+Base `55c7e5033b8600d33584e2ccece0fff29c8e3aab` (batch-25 PR1 #201 merged; site **42660**). PR2 on M8 host: **M8 4170→4350 (+180)**; M7 moves in the same PR on its own plan. Site **42660→43020** (43020=42660+180+180), still 71 lessons.
+
+- **H4 / 8.8 sim-benchmarks: 330→510 (+180).** LIBERO-X hierarchical robustness (`libero_x_robustness_ladder_toy.py`; common random numbers, 5 seeds; shared scenes, slots, instructions and policy stand-in). arXiv 2602.06556 v1 abs / HTML / PDF bodies read (submitted 2026-02-06; 以论文为准): seven authors in abs order Guodong Wang, Chenkai Zhang, Qingjie Liu, Jinjin Zhang, Jiancheng Cai, Junjie Liu, Xinmin Liu; PDF title-page marks (not the garbled HTML) Wang/Zhang equal contribution, Junjie Liu corresponding, Xinmin Liu project leader, affiliations Meituan and Beihang University; Comments “19 pages, 14 figures and 8 tables”, no venue. Paper figures 2,520 / 600 / 100 and the 9.8 % L1→L2 drop in average success rate (Figure 5) 以论文为准 (a drop, not a suite mean, and not the L1-to-L5 decline, not toy outputs). Levels L1–L5 as in the Evaluation Framework. Declared parameters: `P_BASE=0.8000`, `N_EP=40`, `N_SCENES=8`, `N_SLOTS=4`, penalties `0.0200, 0.1200, 0.1800, 0.1600, 0.1400`, `SMALL_FRAC=0.2000`, seeds 0–4. Hand calc (printed): cumulative penalties `0.0200, 0.1400, 0.3200, 0.4800, 0.6200`. Official first run 2026-11-19 22:49:29 Asia/Shanghai; expected sha256 `5d22ca3589545cc2b91bcd3661fad06cca9cc0becd6562ad7a819b03333d76c7`. l1_jitter: B−A L1 success `-0.0150+-0.0224`, **near-tie** (held, kept). cumulative_shift: B−A L3 `-0.3900+-0.1009`, L4 `-0.5000+-0.0530`, L5 `-0.6250+-0.0250`, **clear**, 5/5 (held, kept). leak_misreport: C−B leaked_L5_minus_true_L5 `0.6300+-0.0671`, **clear**, 5/5 (held, kept). Alternative same seeds `HARSH_PENALTY=0.7000` unstructured success `0.0750+-0.0177` (not adopted; too harsh). No code change after the first official run. ≠ five-suite LIBERO table / SimplerEnv / imagination ranking / LIBERO-Plus. GPU `lerobot-eval` / real LIBERO-X 本页未运行. / L1 可接近打平；累积 L3–L5 露出一致下降；把 L1 当成 L5 会误报。
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
+
 Current / 当前：**M8 4170 min**, Batch-24 PR2. Earlier entries below retain their historical totals.
 
 ## Batch-24 PR2 — π0.5 heterogeneous co-training on dataset-engineering (+180)

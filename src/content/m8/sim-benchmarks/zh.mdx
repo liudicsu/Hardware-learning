@@ -321,8 +321,471 @@ ok: a policy-blind underestimate lowers every rate but keeps the order; biases t
 - **不问世界模型模拟不了什么就相信它的排名。** 漏掉的失败模式（滑走、重试）恰好抬高或压低有这种问题的策略：玩具里 τ = +0.40 和 +0.80。
 - **不看区间就给一对接近的策略排名。** P3 和 P4 在 240 个回合里只差 2 个；这对翻不翻转都说明不了什么。
 
+## LIBERO-X：分层鲁棒性阶梯
+
+页上已有的五套件 LIBERO 假分数表、SimplerEnv 相关性阅读，以及想象中给策略排名的玩具，都保持不动。本节不改写它们，也不是 LIBERO-Plus、LIBERO-PRO 或 SafeLIBERO（论文相关工作表里点过名；不要把那些协议并进这里）。
+
+LIBERO-X（Wang、Zhang、Liu 等，arXiv 2602.06556 v1，提交于 2026-02-06；以论文为准）是一个操作基准，要点是：单套件成功率可能掩盖**累积**分布偏移下的失败。它增加了五级分层评估（摘要 / PDF「Evaluation Framework」；以论文为准）：
+
+- L1 局部空间扰动
+- L2 扩展空间扰动
+- L3 场景拓扑重组
+- L4 视觉属性变化（包括未见与干扰物体）
+- L5 语义等价的指令改写
+
+七位作者按摘要顺序是：Guodong Wang、Chenkai Zhang、Qingjie Liu、Jinjin Zhang、Jiancheng Cai、Junjie Liu、Xinmin Liu。不带脚注标记的摘要作者行本身没有星号或剑号。PDF 扉页（不要抄 HTML 转换里乱掉的标记）把 Wang 与 Zhang 标为同等贡献，把 Junjie Liu 标为通讯作者，把 Xinmin Liu 标为项目负责人，单位为 Meituan 与 Beihang University。摘要 Comments 字段是 “19 pages, 14 figures and 8 tables”（以论文为准）；该字段没有会议，本课也不发明会议。引用 v1。
+
+论文还报告了遥操作训练集的 2,520 条演示、600 个任务和 100 个场景（PDF；以论文为准，不是玩具输出）。从第 1 级到第 2 级平均成功率下降 9.8 %（Figure 5）也以论文为准：这是**降幅**，不是套件均值，也不是 L1 到 L5 的降幅，更不是玩具输出。
+
+<Resource id="libero-x-paper" />
+
+### 公平设定
+
+`libero_x_robustness_ladder_toy.py` 是一个**标准库**策略替身。它不是 `lerobot-eval`，也不是真正的 LIBERO-X 运行。事先写明的参数是 `P_BASE = 0.8000`、`N_EP = 40` 个共享回合、`N_SCENES = 8`、`N_SLOTS = 4`，以及打印成 0.2000 的百分之二十「小间隙 / 明显间隙」因子。五种子 `0,1,2,3,4`。正式的、按级累积的惩罚是 `L1=0.0200`、`L2=0.1200`、`L3=0.1800`、`L4=0.1600`、`L5=0.1400`。打印的手算累积惩罚是 `0.0200`、`0.1400`、`0.3200`、`0.4800`、`0.6200`。共同随机数：每个（情形，种子）只抽一次场景、物体槽位、指令、能力扰动和伯努利均匀数，三个臂共用。玩具打印的论文数字标为 `paper_figure`，以论文为准，不是玩具实测：2,520 条演示、600 个任务、100 个场景，以及 Figure 5 中 9.8 % 的 L1 到 L2 降幅。
+
+| 臂 | 报告 |
+|---|---|
+| A_unperturbed | 只报未扰动 / 分布内的套件均值 |
+| B_ladder | 五级累积阶梯；逐级成功率以及 L1 到 L5 的降幅 |
+| C_leak | 失败臂：训练–测试泄漏，把 L1 的结果当成 L5 来报告 |
+
+| 情形 | 焦点 | 第一次运行前的声明 |
+|---|---|---|
+| l1_jitter | A 与 B 在 L1 | 类似 L1 的轻微抖动：A 与 B 在成功率上可能接近打平——保留 |
+| cumulative_shift | B 在 L3、L4、L5 对照 A 的未扰动均值 | 累积的 L3–L5 偏移：B 相对 A 的未扰动均值有一致更低的成功率——保留 |
+| leak_misreport | C 泄漏的「L5」对照 B 的真 L5 | C 把 L1 当成 L5 来误报——保留 |
+
+**看过结果后做的选择**。正式参数在第一次运行之后都没有改过。课文是按冻结的正式输出写的。那次正式运行之后，论文数字 9.8 % 按站点体例在百分号前加了空格；正式 expected 输出没有重调。同一组种子上还跑了非结构化过苛扰动 `HARSH_PENALTY=0.7000`，**没有采用**。
+
+### 运行标准库玩具
+
+```bash
+cd ~/Hardware-learning/examples/month-8/sim-benchmarks
+python3 libero_x_robustness_ladder_toy.py
+```
+
+<CodeSource path="examples/month-8/sim-benchmarks/libero_x_robustness_ladder_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Stdlib stand-in of a five-level cumulative robustness ladder.
+
+Stdlib only. Not lerobot-eval, not a GPU LIBERO-X run, and not a redo of
+the five-suite LIBERO fake-score table, SimplerEnv, or imagination
+ranking already on this page. Real GPU lerobot-eval / LIBERO-X:
+本页未运行.
+
+LIBERO-X (Wang, Zhang, Liu, et al., arXiv 2602.06556 v1) is a
+manipulation benchmark whose point is that a single suite success rate
+can hide failure under cumulative distribution shifts. Paper figures
+(2,520 demonstrations, 600 tasks, 100 scenes, and the 9.8 % drop in
+average success rate from Level 1 to Level 2 in Figure 5) are
+以论文为准: the 9.8 % figure is a drop, not a suite mean, not the
+L1-to-L5 decline, and not a toy output.
+
+Shared base scenes, object slots and instructions, and a shared policy
+stand-in, are generated once per (regime, seed) and then read by every
+arm (common random numbers).
+
+Arms:
+  A_unperturbed  in-distribution / unperturbed suite mean only
+  B_ladder       five-level cumulative ladder (per-level success and
+                 the drop from L1 to L5)
+  C_leak         lose arm: a train-test leak that reuses the L1
+                 outcomes and reports them as if they were L5
+
+Regimes and parameters were written before the first run.
+
+Labels: tie = identical on every seed; numerically zero = |paired mean|
+and sd both < 1e-9; |m| <= sd = near-tie; |m| > sd = consistent gap
+(small if |m| < 20 % of the smaller arm mean, else clear), with a
+sign count. ROUND_HALF_UP output.
+
+LIBERO-X paper: body read; 以论文为准.
+"""
+from __future__ import annotations
+
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+SMALL_FRAC = 0.2000  # 20 % of the smaller-arm mean; printed as 0.2000
+
+# Declared stand-in parameters. Written before the first run.
+# These are toy penalties, not paper success rates.
+N_EP = 40
+N_SCENES = 8
+N_SLOTS = 4
+P_BASE = 0.8000
+# Cumulative penalties added as each level is stacked on the previous.
+# L1 is a small local jitter; later levels are larger stacked shifts.
+PENALTY = {
+    1: 0.0200,  # local spatial perturbation (minor jitter)
+    2: 0.1200,  # extended spatial perturbation
+    3: 0.1800,  # scene topology reconstruction
+    4: 0.1600,  # visual attribute variation (unseen / confounding)
+    5: 0.1400,  # semantic-equivalent instruction reformulation
+}
+# Unstructured harsh alternative (same seeds, not adopted).
+HARSH_PENALTY = 0.7000
+
+LEVELS = (1, 2, 3, 4, 5)
+ARMS = ("A_unperturbed", "B_ladder", "C_leak")
+# Official paired metrics: unperturbed mean vs ladder at the regime's
+# focus levels, plus C's leaked "L5" report against B's true L5.
+PAIRS = (("B", "A"), ("C", "B"), ("C", "A"))
+
+REGIMES = {
+    "l1_jitter": (
+        "L1-like minor jitter; A and B may near-tie on success - keep"
+    ),
+    "cumulative_shift": (
+        "cumulative L3-L5 shifts; B consistent lower success than A's "
+        "unperturbed mean - keep"
+    ),
+    "leak_misreport": (
+        "C mis-reports by reusing L1 outcomes as if they were L5 - keep"
+    ),
+}
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < SMALL_FRAC * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def rng_for(*parts):
+    material = "libero-x-ladder|" + "|".join(str(p) for p in parts)
+    return random.Random(material)
+
+
+def clip01(p):
+    return 0.0 if p < 0.0 else 1.0 if p > 1.0 else p
+
+
+def cumulative_penalty(level, penalty=PENALTY):
+    return sum(penalty[k] for k in LEVELS if k <= level)
+
+
+def shared_bank(regime, seed, n_ep=N_EP):
+    """Shared scenes, slots, instructions, competence and uniforms (CRN)."""
+    rng = rng_for(regime, seed, "bank")
+    episodes = []
+    for i in range(n_ep):
+        scene = i % N_SCENES
+        slot = (i * 3) % N_SLOTS
+        instruction = (i * 5 + scene) % 16
+        competence = rng.uniform(-0.0400, 0.0400)
+        u = rng.random()
+        episodes.append(
+            {
+                "scene": scene,
+                "slot": slot,
+                "instruction": instruction,
+                "competence": competence,
+                "u": u,
+            }
+        )
+    return episodes
+
+
+def success_prob(episode, stacked_penalty):
+    return clip01(P_BASE + episode["competence"] - stacked_penalty)
+
+
+def roll_success(episode, stacked_penalty):
+    return 1 if episode["u"] < success_prob(episode, stacked_penalty) else 0
+
+
+def evaluate(regime, seed, penalty=None, harsh=None, n_ep=N_EP):
+    if penalty is None:
+        penalty = PENALTY
+    episodes = shared_bank(regime, seed, n_ep=n_ep)
+    # A: unperturbed / in-distribution, one suite mean on the shared bank.
+    a_hits = [roll_success(ep, 0.0) for ep in episodes]
+    a_mean = sum(a_hits) / n_ep
+    # B: cumulative ladder, per level, same bank and same uniforms.
+    b_level = {}
+    b_hits = {}
+    for lv in LEVELS:
+        hits = [roll_success(ep, cumulative_penalty(lv, penalty)) for ep in episodes]
+        b_hits[lv] = hits
+        b_level[lv] = sum(hits) / n_ep
+    b_drop_l1_l5 = b_level[1] - b_level[5]
+    # C official: leak L1 outcomes and report them as L5.
+    c_l5_leak = b_level[1]
+    # Optional unstructured harsh report (used only in the named alternative).
+    if harsh is None:
+        c_harsh = None
+    else:
+        c_harsh = sum(roll_success(ep, harsh) for ep in episodes) / n_ep
+    return {
+        "n_ep": n_ep,
+        "A_unperturbed": a_mean,
+        "B_level": b_level,
+        "B_drop_l1_l5": b_drop_l1_l5,
+        "C_leak_l5": c_l5_leak,
+        "C_harsh": c_harsh,
+        "penalty": dict(penalty),
+    }
+
+
+def official_rows(name, penalty=None, harsh=None, n_ep=N_EP):
+    return [evaluate(name, seed, penalty=penalty, harsh=harsh, n_ep=n_ep) for seed in SEEDS]
+
+
+def print_regime(title, rows, focus):
+    print(f"regime {title}  (mean+-sd over seeds)")
+    print(f"  n_ep={rows[0]['n_ep']} n_scenes={N_SCENES} n_slots={N_SLOTS}")
+    a = [r["A_unperturbed"] for r in rows]
+    print(f"  A_unperturbed success {num(mean_sd(a)[0])}+-{num(mean_sd(a)[1])}")
+    b_levels = {}
+    for lv in LEVELS:
+        xs = [r["B_level"][lv] for r in rows]
+        b_levels[lv] = xs
+        print(f"  B_ladder L{lv} success {num(mean_sd(xs)[0])}+-{num(mean_sd(xs)[1])}")
+    drop = [r["B_drop_l1_l5"] for r in rows]
+    print(f"  B_ladder drop_L1_to_L5 {num(mean_sd(drop)[0])}+-{num(mean_sd(drop)[1])}")
+    c = [r["C_leak_l5"] for r in rows]
+    print(f"  C_leak reported_as_L5 {num(mean_sd(c)[0])}+-{num(mean_sd(c)[1])}")
+    if rows[0]["C_harsh"] is not None:
+        h = [r["C_harsh"] for r in rows]
+        print(f"  C_harsh unstructured success {num(mean_sd(h)[0])}+-{num(mean_sd(h)[1])}")
+
+    # Focused official pairs for this regime, plus the leak comparison.
+    if focus == "l1":
+        print(f"  paired B-A L1_success: {verdict(b_levels[1], a)}")
+        print(f"  paired C-B leaked_L5_minus_true_L5: {verdict(c, b_levels[5])}")
+        print(f"  paired C-A leaked_L5_minus_unperturbed: {verdict(c, a)}")
+    elif focus == "cumulative":
+        for lv in (3, 4, 5):
+            print(f"  paired B-A L{lv}_success: {verdict(b_levels[lv], a)}")
+        print(f"  paired C-B leaked_L5_minus_true_L5: {verdict(c, b_levels[5])}")
+        print(f"  paired C-A leaked_L5_minus_unperturbed: {verdict(c, a)}")
+    else:
+        # leak_misreport: C vs true L5 and vs A; also show L1 near A for context
+        print(f"  paired B-A L1_success: {verdict(b_levels[1], a)}")
+        print(f"  paired B-A L5_success: {verdict(b_levels[5], a)}")
+        print(f"  paired C-B leaked_L5_minus_true_L5: {verdict(c, b_levels[5])}")
+        print(f"  paired C-A leaked_L5_minus_unperturbed: {verdict(c, a)}")
+
+
+def main():
+    print("Stdlib stand-in of a five-level cumulative robustness ladder; not a LIBERO-X eval")
+    print(
+        f"declared P_BASE={num(P_BASE)} N_EP={N_EP} N_SCENES={N_SCENES} "
+        f"N_SLOTS={N_SLOTS} SMALL_FRAC={num(SMALL_FRAC)} "
+        f"seeds={','.join(str(s) for s in SEEDS)}"
+    )
+    print(
+        "declared arms: A_unperturbed in-distribution suite mean; "
+        "B_ladder cumulative L1-L5; "
+        "C_leak reuses L1 outcomes as if they were L5"
+    )
+    print(
+        "declared penalties L1={p1} L2={p2} L3={p3} L4={p4} L5={p5}".format(
+            p1=num(PENALTY[1]),
+            p2=num(PENALTY[2]),
+            p3=num(PENALTY[3]),
+            p4=num(PENALTY[4]),
+            p5=num(PENALTY[5]),
+        )
+    )
+    for lv in LEVELS:
+        print(f"hand_calc cumulative_penalty L{lv} = {num(cumulative_penalty(lv))}")
+    print(f"hand_calc 20 percent small-vs-clear factor = {num(SMALL_FRAC)}")
+    # Paper figures, labelled as such, not toy outputs.
+    print("paper_figure demonstrations = 2,520 (以论文为准, not a toy output)")
+    print("paper_figure tasks = 600 (以论文为准, not a toy output)")
+    print("paper_figure scenes = 100 (以论文为准, not a toy output)")
+    print("paper_figure L1_to_L2_average_success_drop_pct = 9.8 (Figure 5; a drop, not a suite mean, not L1-to-L5, 以论文为准, not a toy output)")
+    print("Regimes and parameters were written before the first run")
+    print("Common random numbers: scenes, slots, instructions, competence and uniforms are shared across arms at each regime and seed")
+    print("Assumptions: stdlib policy stand-in, not lerobot-eval, not LIBERO-Plus, not the five-suite table")
+    print("Paper dataset sizes and the 9.8 % L1 to L2 drop 以论文为准")
+    print("GPU lerobot-eval / real LIBERO-X: 本页未运行")
+    print("declared l1_jitter: A and B may near-tie on success - keep")
+    print("declared cumulative_shift: B consistent lower success than A's unperturbed mean - keep")
+    print("declared leak_misreport: C mis-reports (leak) - keep")
+    print(f"declared expectation l1_jitter: {REGIMES['l1_jitter']}")
+    print_regime("l1_jitter", official_rows("l1_jitter"), "l1")
+    print(f"declared expectation cumulative_shift: {REGIMES['cumulative_shift']}")
+    print_regime("cumulative_shift", official_rows("cumulative_shift"), "cumulative")
+    print(f"declared expectation leak_misreport: {REGIMES['leak_misreport']}")
+    print_regime("leak_misreport", official_rows("leak_misreport"), "leak")
+
+    print("alternative same seeds HARSH_PENALTY=0.7000 unstructured (not adopted)")
+    print(f"hand_calc harsh residual success floor if competence=0 = {num(clip01(P_BASE - HARSH_PENALTY))}")
+    rows = official_rows("cumulative_shift", harsh=HARSH_PENALTY)
+    print_regime("cumulative_shift alt_harsh=0.7000", rows, "cumulative")
+
+    print("No GPU eval was started")
+    print("No winner is universal: L1-like jitter can near-tie; the hidden drop is the cumulative ladder, not a retune toward the unperturbed mean")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Stdlib stand-in of a five-level cumulative robustness ladder; not a LIBERO-X eval
+declared P_BASE=0.8000 N_EP=40 N_SCENES=8 N_SLOTS=4 SMALL_FRAC=0.2000 seeds=0,1,2,3,4
+declared arms: A_unperturbed in-distribution suite mean; B_ladder cumulative L1-L5; C_leak reuses L1 outcomes as if they were L5
+declared penalties L1=0.0200 L2=0.1200 L3=0.1800 L4=0.1600 L5=0.1400
+hand_calc cumulative_penalty L1 = 0.0200
+hand_calc cumulative_penalty L2 = 0.1400
+hand_calc cumulative_penalty L3 = 0.3200
+hand_calc cumulative_penalty L4 = 0.4800
+hand_calc cumulative_penalty L5 = 0.6200
+hand_calc 20 percent small-vs-clear factor = 0.2000
+paper_figure demonstrations = 2,520 (以论文为准, not a toy output)
+paper_figure tasks = 600 (以论文为准, not a toy output)
+paper_figure scenes = 100 (以论文为准, not a toy output)
+paper_figure L1_to_L2_average_success_drop_pct = 9.8 (Figure 5; a drop, not a suite mean, not L1-to-L5, 以论文为准, not a toy output)
+Regimes and parameters were written before the first run
+Common random numbers: scenes, slots, instructions, competence and uniforms are shared across arms at each regime and seed
+Assumptions: stdlib policy stand-in, not lerobot-eval, not LIBERO-Plus, not the five-suite table
+Paper dataset sizes and the 9.8 % L1 to L2 drop 以论文为准
+GPU lerobot-eval / real LIBERO-X: 本页未运行
+declared l1_jitter: A and B may near-tie on success - keep
+declared cumulative_shift: B consistent lower success than A's unperturbed mean - keep
+declared leak_misreport: C mis-reports (leak) - keep
+declared expectation l1_jitter: L1-like minor jitter; A and B may near-tie on success - keep
+regime l1_jitter  (mean+-sd over seeds)
+  n_ep=40 n_scenes=8 n_slots=4
+  A_unperturbed success 0.8100+-0.0285
+  B_ladder L1 success 0.7950+-0.0371
+  B_ladder L2 success 0.6950+-0.0647
+  B_ladder L3 success 0.5650+-0.0487
+  B_ladder L4 success 0.3750+-0.0637
+  B_ladder L5 success 0.2300+-0.0326
+  B_ladder drop_L1_to_L5 0.5650+-0.0224
+  C_leak reported_as_L5 0.7950+-0.0371
+  paired B-A L1_success: -0.0150+-0.0224: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+  paired C-B leaked_L5_minus_true_L5: 0.5650+-0.0224: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A leaked_L5_minus_unperturbed: -0.0150+-0.0224: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+declared expectation cumulative_shift: cumulative L3-L5 shifts; B consistent lower success than A's unperturbed mean - keep
+regime cumulative_shift  (mean+-sd over seeds)
+  n_ep=40 n_scenes=8 n_slots=4
+  A_unperturbed success 0.8100+-0.0675
+  B_ladder L1 success 0.8000+-0.0661
+  B_ladder L2 success 0.6650+-0.1055
+  B_ladder L3 success 0.4200+-0.1483
+  B_ladder L4 success 0.3100+-0.0859
+  B_ladder L5 success 0.1850+-0.0576
+  B_ladder drop_L1_to_L5 0.6150+-0.0224
+  C_leak reported_as_L5 0.8000+-0.0661
+  paired B-A L3_success: -0.3900+-0.1009: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A L4_success: -0.5000+-0.0530: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A L5_success: -0.6250+-0.0250: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B leaked_L5_minus_true_L5: 0.6150+-0.0224: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A leaked_L5_minus_unperturbed: -0.0100+-0.0137: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+declared expectation leak_misreport: C mis-reports by reusing L1 outcomes as if they were L5 - keep
+regime leak_misreport  (mean+-sd over seeds)
+  n_ep=40 n_scenes=8 n_slots=4
+  A_unperturbed success 0.8050+-0.0798
+  B_ladder L1 success 0.7800+-0.0737
+  B_ladder L2 success 0.6050+-0.0371
+  B_ladder L3 success 0.4450+-0.0694
+  B_ladder L4 success 0.3100+-0.0978
+  B_ladder L5 success 0.1500+-0.0559
+  B_ladder drop_L1_to_L5 0.6300+-0.0671
+  C_leak reported_as_L5 0.7800+-0.0737
+  paired B-A L1_success: -0.0250+-0.0250: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+  paired B-A L5_success: -0.6550+-0.0737: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B leaked_L5_minus_true_L5: 0.6300+-0.0671: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A leaked_L5_minus_unperturbed: -0.0250+-0.0250: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+alternative same seeds HARSH_PENALTY=0.7000 unstructured (not adopted)
+hand_calc harsh residual success floor if competence=0 = 0.1000
+regime cumulative_shift alt_harsh=0.7000  (mean+-sd over seeds)
+  n_ep=40 n_scenes=8 n_slots=4
+  A_unperturbed success 0.8100+-0.0675
+  B_ladder L1 success 0.8000+-0.0661
+  B_ladder L2 success 0.6650+-0.1055
+  B_ladder L3 success 0.4200+-0.1483
+  B_ladder L4 success 0.3100+-0.0859
+  B_ladder L5 success 0.1850+-0.0576
+  B_ladder drop_L1_to_L5 0.6150+-0.0224
+  C_leak reported_as_L5 0.8000+-0.0661
+  C_harsh unstructured success 0.0750+-0.0177
+  paired B-A L3_success: -0.3900+-0.1009: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A L4_success: -0.5000+-0.0530: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A L5_success: -0.6250+-0.0250: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B leaked_L5_minus_true_L5: 0.6150+-0.0224: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A leaked_L5_minus_unperturbed: -0.0100+-0.0137: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+No GPU eval was started
+No winner is universal: L1-like jitter can near-tie; the hidden drop is the cumulative ladder, not a retune toward the unperturbed mean
+```
+
+</SimOutput>
+
+### 读这些情形
+
+本页标签的用法，按这个顺序，**tie: identical on every seed** 只在每个种子上的成对差都恰好为零时使用；**numerically zero (floating-point residue), effectively a tie** 是成对均值的绝对值与标准差都小于 1e-9，那一行不算符号；**near-tie** 是 `|m| <= sd`；然后用较小臂均值的百分之二十（打印为 0.2000）以及同号计数（k/N 同号）区分 **small** 与 **clear**。
+
+- **l1_jitter**。 A 的未扰动成功率是 `0.8100+-0.0285`；B 在 L1 是 `0.7950+-0.0371`。B-A 在 L1 成功率上是 `-0.0150+-0.0224: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal`。事先声明的 A/B 接近打平**成立**，并**保留**。这一格并不是在说 L1 与未扰动均值相同。
+- **cumulative_shift**。 A 是 `0.8100+-0.0675`。B 在 L3 是 `0.4200+-0.1483`，L4 是 `0.3100+-0.0859`，L5 是 `0.1850+-0.0576`，都更低。B-A 在 L3 是 `-0.3900+-0.1009`，在 L4 是 `-0.5000+-0.0530`，在 L5 是 `-0.6250+-0.0250`，都是**明显**间隙，全部 5 个种子同号。事先声明的一致下降**成立**，并**保留**。B 自己打印的 L1 到 L5 降幅是 `0.6150+-0.0224`。这个玩具降幅不是论文 Figure 5 里 9.8 % 的 L1 到 L2 降幅，也不是套件均值。
+- **leak_misreport**。 C 把 L1 成功率 `0.7800+-0.0737` 当成 L5 来报告，而 B 的真 L5 是 `0.1500+-0.0559`。C-B（`leaked_L5_minus_true_L5`）是 `0.6300+-0.0671: clear gap, not a tie (|m| > sd); same sign on all 5 seeds`。事先声明的误报**成立**，并**保留**。泄漏数字与 A 接近打平（`-0.0250+-0.0250`），这正是泄漏会把阶梯藏起来的方式。
+
+**事后备选，同一组种子**。 非结构化过苛扰动 `HARSH_PENALTY=0.7000` 在 `cumulative_shift` 的样本库上跑过，**没有采用**。它的成功率是 `0.0750+-0.0177`，比 B 的 L5 `0.1850+-0.0576` 还低。打印的手算下限（能力扰动为零时）是 `0.1000`。单个非结构化过苛数字可能过苛；正式失败臂仍是把 L1 当成 L5 的泄漏。没有改正式惩罚，让阶梯去和未扰动均值对齐。
+
+本页**不宣布普遍赢家**。类似 L1 的抖动可以接近打平；被藏起来的下降来自累积阶梯；泄漏或单次过苛扰动会误报。GPU `lerobot-eval` 与真正的 LIBERO-X 评估，**本页未运行**。
+
+**180 分钟工作计划**。 30+25+50+40+35=180。30 分钟读摘要、PDF 扉页标记和 Evaluation Framework 的层级；25 分钟写下五级，以及论文数字 2,520 / 600 / 100 和 9.8 % 的 L1 到 L2 降幅（以论文为准）；50 分钟运行玩具并阅读三个正式情形；40 分钟比较玩具的 L1 到 L5 降幅与论文 9.8 % 的 L1 到 L2 降幅；35 分钟写清泄漏的 L5 或单次过苛扰动为何会误报。
+
+### 练习
+
+1. 为什么论文 Figure 5 的 9.8 % 是从第 1 级到第 2 级平均成功率的降幅，而不是套件均值，也不是玩具的 `drop_L1_to_L5`？请指向 `paper_figure` 行，以论文为准。
+2. 在 `l1_jitter` 上，B-A 的 L1 成功率是 `-0.0150+-0.0224`，属于接近打平。为什么轻微的局部抖动可以和未扰动均值接近打平，即使你本来期待明显下降，为什么这一格要**保留**？
+3. C 把 L1 成功率当成 L5 来报告。用 `leak_misreport` 里的 `0.7800+-0.0737` 对照真 L5 `0.1500+-0.0559`，说明这种泄漏如何掩盖打印的 L1 到 L5 降幅 `0.6300+-0.0671`。
+
 <Summary>
 
-仿真基准 8.8：LIBERO 5 套件 / 130 任务；默认四标准套件 × 每任务 10 集；`MUJOCO_GL=egl`。SimplerEnv（arXiv 2405.05941）谈仿真↔真机相关性。`suite_score_table.py` 固定种子聚合五套件假分数与 Wilson；不进 CI 的 GPU eval。Ctrl-World（arXiv 2510.10125，以论文为准）在世界模型中给策略排名；`imagine_rank_toy.py` 在共享任务与初始条件上给五个合成策略排名：与策略无关的偏差保持 Kendall τ = +1.00，只打中某种失败模式的偏差会翻转（τ = +0.40 到 +0.80）。不替代 8.7。
+仿真基准 8.8：LIBERO 5 套件 / 130 任务；默认四标准套件 × 每任务 10 集；`MUJOCO_GL=egl`。SimplerEnv（arXiv 2405.05941）谈仿真↔真机相关性。`suite_score_table.py` 固定种子聚合五套件假分数与 Wilson；不进 CI 的 GPU eval。Ctrl-World（arXiv 2510.10125，以论文为准）在世界模型中给策略排名；`imagine_rank_toy.py` 在共享任务与初始条件上给五个合成策略排名：与策略无关的偏差保持 Kendall τ = +1.00，只打中某种失败模式的偏差会翻转（τ = +0.40 到 +0.80）。不替代 8.7。 LIBERO-X（arXiv 2602.06556 v1，以论文为准）增加五级累积鲁棒性阶梯；`libero_x_robustness_ladder_toy.py` 保留 L1 的接近打平（`-0.0150+-0.0224`）以及 L3–L5 的一致下降，泄漏的 L5 会误报（`0.6300+-0.0671`）；论文中的 2,520 / 600 / 100 以及 9.8 % 的 L1 到 L2 降幅以论文为准，GPU LIBERO-X 本页未运行。
 
 </Summary>

@@ -7138,6 +7138,34 @@ export const resources: Record<string, Resource> = {
     license: { zh: "预印本（arXiv 非独占分发许可），© 原作者；仅提供外链", en: "Preprint (arXiv non-exclusive distribution license), © the authors; external link only" },
     extra: true,
   },
+  "mujoco-computation-401": {
+    id: "mujoco-computation-401",
+    url: "https://mujoco.readthedocs.io/en/4.0.1/computation/index.html#friction-cones",
+    title: { zh: "MuJoCo 4.0.1 Computation：摩擦锥", en: "MuJoCo 4.0.1 Computation: friction cones" },
+    author: "Google DeepMind",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "钉住的 MuJoCo 4.0.1 Computation「Friction cones」正文（readthedocs 4.0.1，与 GitHub 4.0.1:doc/computation/index.rst blob 6445e6637b52cf57fb14a0853c08251e49634152）。接触摩擦锥可以是椭圆或金字塔，这是和约束求解器绑定的全局设置；condim 改变约束维数，常规有摩擦接触在椭圆锥下是 3 维、在金字塔锥下是 4 维，condim=1 时两种锥都是非负射线。椭圆与金字塔集合的不等式以文档为准。本页用标准库替身比较这些不等式，不是 mujoco.step，也不是 grip_sweep 的重做。mujoco.step / 第二次抓取场景：本页未运行。",
+      en: "Pinned MuJoCo 4.0.1 Computation “Friction cones” body (readthedocs 4.0.1, and GitHub 4.0.1:doc/computation/index.rst blob 6445e6637b52cf57fb14a0853c08251e49634152). The contact friction cone can be elliptic or pyramidal, a global setting tied to the constraint solver; condim changes constraint dimensions — regular frictional contact is 3 for elliptic and 4 for pyramidal, and at condim=1 both cones are the non-negative ray. The elliptic and pyramidal inequalities are 以文档为准. This page compares those inequalities on a stdlib stand-in, not mujoco.step, and not a redo of grip_sweep. mujoco.step / a second grip scene: 本页未运行.",
+    },
+    license: { zh: "© Google DeepMind，仅提供外链", en: "© Google DeepMind; external link only" },
+    extra: true,
+  },
+  "libero-x-paper": {
+    id: "libero-x-paper",
+    url: "https://arxiv.org/abs/2602.06556",
+    title: { zh: "LIBERO-X：视觉-语言-动作模型的鲁棒性试纸", en: "LIBERO-X: Robustness Litmus for Vision-Language-Action Models" },
+    author: "Guodong Wang, Chenkai Zhang, Qingjie Liu, Jinjin Zhang, Jiancheng Cai, Junjie Liu, Xinmin Liu",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "arXiv 2602.06556 v1（提交于 2026-02-06）。摘要作者顺序七人如上。PDF 扉页另有标记：Wang 与 Zhang 同等贡献，Junjie Liu 通讯作者，Xinmin Liu 项目负责人，单位为 Meituan 与 Beihang University；不要抄 HTML 里乱掉的标记。Comments 为 “19 pages, 14 figures and 8 tables”，没有会议，本条目不发明会议。五级分层评估、遥操作训练集 2,520 条演示 / 600 个任务 / 100 个场景，以及 Figure 5 中从第 1 级到第 2 级平均成功率下降 9.8 %，都以论文为准：9.8 % 是降幅，不是套件均值，也不是 L1 到 L5 的降幅，更不是玩具输出。已读摘要、HTML 正文与 PDF。GPU lerobot-eval / 真正的 LIBERO-X：本页未运行。",
+      en: "arXiv 2602.06556 v1 (submitted 2026-02-06). Seven authors in abstract order as above. The PDF title page, not the garbled HTML marks, adds Wang and Zhang as equal contribution, Junjie Liu as corresponding author, and Xinmin Liu as project leader, with affiliations Meituan and Beihang University. Comments: “19 pages, 14 figures and 8 tables”; no venue, and this entry invents none. The five-level hierarchical evaluation, the teleoperated training set of 2,520 demonstrations / 600 tasks / 100 scenes, and the 9.8 % drop in average success rate from Level 1 to Level 2 in Figure 5 are 以论文为准: 9.8 % is a drop, not a suite mean, and not the L1-to-L5 decline, and is not a toy output. Abs, HTML body and PDF were read. GPU lerobot-eval / real LIBERO-X: 本页未运行.",
+    },
+    license: { zh: "预印本（arXiv 非独占分发许可），© 原作者；仅提供外链", en: "Preprint (arXiv non-exclusive distribution license), © the authors; external link only" },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {
