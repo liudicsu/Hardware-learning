@@ -580,8 +580,9 @@ if __name__ == "__main__":
     main()
 ```
 
-<SimOutput>
+<SimOutput source="python">
 
+```text
 ChatVLA-2-style reasoning-following toy: board equation and number cards (synthetic; not Qwen2-VL, not DexVLA, not the paper's 52-equation lab)
 paper math-matching scores (43/52 and the rest) 以论文为准; GPU / real whiteboard / paper-task runs: 本页未运行
 seeds=5 a_min=1 a_max=9 b_min=1 b_max=9 n_id_eq=12 n_ood_eq=20 n_cards=5 n_arith=40 n_add_pairs=81 untrained_y=-100.0000 hand_a=7 hand_b=5 (declared)
@@ -633,6 +634,7 @@ alternative untrained_y = first addend (printed, not adopted)
     (paired C-B reason_then_pick): -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
     (paired C-A pick_acc): -0.2600+-0.1245: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
     (paired C-A reason_then_pick): -0.0200+-0.0447: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 4 of 5 equal
+```
 
 </SimOutput>
 
