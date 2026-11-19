@@ -1224,10 +1224,495 @@ alternative first-run architecture on short_id (frozen random AQ, no proprio/AQ 
 4. 在 precise 上，写出 B−A 成功率的均值 ± sd 及其标签。为什么这一格要保留，而不是重新调参？
 5. 在把玩具的规模优势当成 0.5B 结果之前（本页未运行），说出一项必须保持以论文为准的论文主张，以及这个标准库注意力替身与论文 Policy 的一个差别。
 
+## TacitVLA：推理而不付出推理延迟
+
+本页已有的 int8 /「更小不一定更快」预算，以及 VLA-Adapter 的 Bridge Attention 一节，保持原样。本节不改写它们。这也不是 RTC 的块接缝（在 [10.2](/zh/month/month-10/real-time-chunking)），不是 [8.1](/zh/month/month-8/vla-models) 里 CoT-VLA「先画出子目标再行动」，不是 ChatVLA-2，也不是 [10.6](/zh/month/month-10/real-world-rl) 里 ThinkAct 的视觉规划潜变量。
+
+[TacitVLA](https://arxiv.org/abs/2610.17540)（Lu、You、Li 等，arXiv **2610.17540** v1，提交于 2026-10-13；以论文为准）是一种推理型 VLA：它的**动作专家并不 attend 当前这次调用生成的推理**。推理监督仍可以改进主干；在长视野记忆任务上，推理文本可以在动作执行期间生成，而不必先生成再行动（摘要 / PDF；以论文为准）。
+
+十一位作者按摘要顺序为 Jack Lu、Yurong You、Boyi Li、Yulong Cao、Thomas Tian、Chaowei Xiao、Xiangyu Chen、Wenjie Luo、Boris Ivanovic、Marco Pavone、Yan Wang。无标记的摘要作者行不带脚注符号。PDF 扉页给 Lu 加了匕首号，PDF 将其定义为 “Work done during an internship at NVIDIA”——该标记**不是**通讯作者，也**不是**共同一作。Pavone 与 Yan Wang 带星号，PDF 将其定义为 “Equal advising”，**不是**通讯作者。本课不发明通讯作者标记。扉页上的单位是 NVIDIA、New York University、University of California, Berkeley、Johns Hopkins University 与 Stanford University。HTML 转换把实习脚注贴得不好；标记以 **PDF** 为准。摘要 Comments 字段只有项目主页（https://tacitvla.github.io）；该字段没有会议，本课也不发明会议。引用 v1。PDF 页眉还印有 **2026-10-14**；那是编译 / 页眉日期，不是第二个版本。
+
+论文报告，TacitVLA 与显式推理对照在成功率上匹配，延迟最多低 **3.4×**，并在与无推理架构相同的延迟下成功率最多高 **17.1 %**。绝对数字包括 RoboMME Counting **82.7 %** 对 **66.8 %**、RMBench **77.5 %** 对 **56.5 %**、LIBERO-Plus **72.9 %**，以及 PhysicalAI-AV 公开划分的场景分 **52.5 %**（摘要 / PDF；以论文为准，**不是**玩具输出）。GPU、RoboMME、RMBench、LIBERO-Plus 与 PhysicalAI-AV 均为 **本页未运行**。
+
+<Resource id="tacitvla-paper" />
+
+### 公平设定
+
+`tacitvla_reasoning_latency_toy.py` 是**标准库**延迟与账本替身，不是 GPU 上的 TacitVLA 运行。事先声明的参数为 `T_ACTION = 8.0000`、`T_REASON = 12.0000`、`WINDOW = 20.0000`、共享 `N_EP = 40` 条回合、`N_STEPS = 6`、`P_SHORT = 0.8500`、`P_SHORT_NOSUP = 0.7000`、`C_FIXED_PRESSES = 4`，目标次数为 2、3、4、5，以及印成 0.2000 的 20 % 小/明显分界。五种种子 0、1、2、3、4。打印的手算包括 `T_ACTION + T_REASON = 20.0000`、`WINDOW - T_REASON = 8.0000`，以及 `explicit_over_tacit_latency = 2.5000`。这个 2.5000 是**玩具**替身比；论文里最多 **3.4×** 的数字仍以论文为准，并不是这个比值。**共同随机数**。每个（情形，种子）的任务、均匀随机数、目标与过期抽取只抽一次，再供每个臂使用。玩具打印的论文数字标为 `paper_figure`，以论文为准，不是玩具测量。
+
+| 臂 | 报告 |
+|---|---|
+| A_explicit | 动作等待并条件于当前推理 |
+| B_tacit | 动作不 attend 当前的 r_t；在记忆任务上，推理可以在执行窗口内发出 |
+| C_lose | 没有推理监督（没有账本条目），或动作 attend 过期 / 打乱的推理 |
+
+| 情形 | 焦点 | 第一次运行前的声明 |
+|---|---|---|
+| short_reactive | A 与 B 的成功率与延迟 | 短视野 / 无需记忆：A 与 B 的成功率可能接近打平，且 B 的替身延迟稳定更低——保留 |
+| memory_ledger | 在可比延迟下比较 B 与 C 的成功率 | 记忆 / 账本且 C 没有条目：B 的成功率稳定高于 C，延迟可比——保留 |
+| stale_memory | 难记忆格上 C 使用过期推理 | C 或过期推理输掉——保留 |
+
+**不要**为了让 tacit 必须在成功率上打败 explicit 而重调。论文主张的是在更低延迟下**匹配**成功率。
+
+**看过结果后做的选择**。官方参数在第一次正式运行之后没有改动。课文是按冻结的官方输出写的。正式运行之后，中文课文里小/明显分界的 20 % 按站点体例在百分号前加了空格；官方 expected 输出没有重调。同一组种子上跑过一个对照 `ALT_T_REASON = 25.0000`（不再装进执行窗口），并且**未采用**。
+
+### 运行标准库玩具
+
+```bash
+cd ~/Hardware-learning/examples/month-10/edge-deploy-checklist
+python3 tacitvla_reasoning_latency_toy.py
+```
+
+<CodeSource path="examples/month-10/edge-deploy-checklist/tacitvla_reasoning_latency_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Stdlib stand-in of reasoning latency vs ledger memory for a VLA.
+
+Stdlib only. Not a GPU RoboMME / RMBench / LIBERO-Plus / PhysicalAI-AV
+run, and not the int8 budget, VLA-Adapter, RTC, CoT-VLA, ChatVLA-2, or
+ThinkAct already on nearby pages. GPU / RoboMME / PhysicalAI-AV:
+本页未运行.
+
+TacitVLA (Lu, You, Li, et al., arXiv 2610.17540 v1) is a reasoning VLA
+whose action expert never attends to the reasoning it generates for the
+current call. Reasoning supervision can still improve the backbone; on
+long-horizon memory tasks the reasoning text can be generated during
+action execution rather than before acting. Paper figures (up to 3.4x
+lower latency than an explicit-reasoning counterpart, up to +17.1 %
+success at a no-reasoning architecture's latency, RoboMME Counting
+82.7 % vs 66.8 %, RMBench 77.5 % vs 56.5 %, LIBERO-Plus 72.9 %, and a
+52.5 % PhysicalAI-AV public-split scene score) are 以论文为准 and are
+not toy outputs.
+
+Shared tasks, a shared backbone-quality stand-in, and a shared
+reasoning-token cost are generated once per (regime, seed) and then
+read by every arm (common random numbers).
+
+Arms:
+  A_explicit  action waits for and conditions on the current reasoning
+  B_tacit     action does not attend to current r_t; on memory tasks,
+              reasoning may be emitted during the execution window
+  C_lose      no reasoning supervision (no ledger entry), or action
+              that attends to truncated / stale / scrambled reasoning
+
+Regimes and parameters were written before the first run.
+
+Labels: tie = identical on every seed; numerically zero = |paired mean|
+and sd both < 1e-9; |m| <= sd = near-tie; |m| > sd = consistent gap
+(small if |m| < 20 % of the smaller arm mean, else clear), with a
+sign count. ROUND_HALF_UP output.
+
+TacitVLA paper: body read; 以论文为准.
+"""
+from __future__ import annotations
+
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+SMALL_FRAC = 0.2000  # 20 % of the smaller-arm mean; printed as 0.2000
+
+# Declared stand-in parameters. Written before the first run.
+# Times are a latency stand-in, not paper milliseconds.
+N_EP = 40
+N_STEPS = 6
+T_ACTION = 8.0000
+T_REASON = 12.0000
+WINDOW = 20.0000
+P_SHORT = 0.8500
+P_SHORT_NOSUP = 0.7000
+TARGETS = (2, 3, 4, 5)
+# C with no ledger always presses this many times (a fixed prior).
+C_FIXED_PRESSES = 4
+# Named alternative (same seeds, not adopted): a longer reasoning cost
+# that no longer fits in the execution window.
+ALT_T_REASON = 25.0000
+
+ARMS = ("A_explicit", "B_tacit", "C_lose")
+
+REGIMES = {
+    "short_reactive": (
+        "short-horizon / no memory; A and B may near-tie on success, "
+        "with B consistent lower stand-in latency - keep"
+    ),
+    "memory_ledger": (
+        "memory / ledger where C has no entry; B consistent higher "
+        "success than C at comparable latency - keep"
+    ),
+    "stale_memory": (
+        "hard memory cell; C or stale reasoning loses - keep"
+    ),
+}
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < SMALL_FRAC * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def rng_for(*parts):
+    material = "tacitvla-latency|" + "|".join(str(p) for p in parts)
+    return random.Random(material)
+
+
+def shared_bank(regime, seed, n_ep=N_EP):
+    """Shared tasks, uniforms, targets and stale draws (CRN)."""
+    rng = rng_for(regime, seed, "bank")
+    episodes = []
+    for i in range(n_ep):
+        target = TARGETS[i % len(TARGETS)]
+        u_short = rng.random()
+        # Stale / scrambled target: a different legal count, drawn once.
+        stale_choices = [t for t in TARGETS if t != target]
+        stale_target = stale_choices[rng.randrange(len(stale_choices))]
+        episodes.append(
+            {
+                "target": target,
+                "u_short": u_short,
+                "stale_target": stale_target,
+            }
+        )
+    return episodes
+
+
+def latency(arm, t_reason=T_REASON, window=WINDOW):
+    """Action-ready latency. Tacit generation adds no wait if it fits."""
+    if arm == "A_explicit":
+        return T_ACTION + t_reason
+    if arm == "B_tacit":
+        return T_ACTION
+    # C_lose: no-supervision does not wait; stale-attending does wait.
+    # The caller picks which C variant applies in that regime.
+    raise AssertionError("C latency is regime-specific")
+
+
+def short_success(episode, p):
+    return 1 if episode["u_short"] < p else 0
+
+
+def press_until(target, n_steps=N_STEPS):
+    """Press once per step while the available count is below target."""
+    count = 0
+    for _ in range(n_steps):
+        if count < target:
+            count += 1
+    return count
+
+
+def evaluate(regime, seed, t_reason=T_REASON, window=WINDOW, n_ep=N_EP):
+    episodes = shared_bank(regime, seed, n_ep=n_ep)
+    a_hits, b_hits, c_hits = [], [], []
+    a_lat, b_lat, c_lat = [], [], []
+    tacit_fits = t_reason <= window
+    if regime == "short_reactive":
+        for ep in episodes:
+            a_hits.append(short_success(ep, P_SHORT))
+            b_hits.append(short_success(ep, P_SHORT))
+            c_hits.append(short_success(ep, P_SHORT_NOSUP))
+            a_lat.append(T_ACTION + t_reason)
+            b_lat.append(T_ACTION)
+            c_lat.append(T_ACTION)
+    elif regime == "memory_ledger":
+        # Target is in the shared instruction. A conditions on the
+        # current running count; B uses only past ledger entries, which
+        # is enough to decide whether another press is needed. C has
+        # no ledger entry and always presses C_FIXED_PRESSES times.
+        for ep in episodes:
+            target = ep["target"]
+            a_count = press_until(target)
+            b_count = press_until(target)
+            c_count = min(C_FIXED_PRESSES, N_STEPS)
+            a_hits.append(1 if a_count == target else 0)
+            b_hits.append(1 if b_count == target else 0)
+            c_hits.append(1 if c_count == target else 0)
+            a_lat.append(T_ACTION + t_reason)
+            b_lat.append(T_ACTION if tacit_fits else T_ACTION + (t_reason - window))
+            c_lat.append(T_ACTION)
+    elif regime == "stale_memory":
+        # Hard memory cell: the target is only in the reasoning / first
+        # ledger entry, not in the instruction. A waits and reads it.
+        # B writes the entry during the first execution window and then
+        # uses that past ledger; with N_STEPS > max(TARGETS) it can
+        # still reach the count (it does not attend to current r_t).
+        # C attends to a stale / scrambled target and waits for it.
+        for ep in episodes:
+            target = ep["target"]
+            stale = ep["stale_target"]
+            a_count = press_until(target)
+            b_count = press_until(target)
+            c_count = press_until(stale)
+            a_hits.append(1 if a_count == target else 0)
+            b_hits.append(1 if b_count == target else 0)
+            c_hits.append(1 if c_count == target else 0)
+            a_lat.append(T_ACTION + t_reason)
+            b_lat.append(T_ACTION if tacit_fits else T_ACTION + (t_reason - window))
+            c_lat.append(T_ACTION + t_reason)
+    else:
+        raise AssertionError(regime)
+    return {
+        "n_ep": n_ep,
+        "tacit_fits": tacit_fits,
+        "A_success": sum(a_hits) / n_ep,
+        "B_success": sum(b_hits) / n_ep,
+        "C_success": sum(c_hits) / n_ep,
+        "A_latency": sum(a_lat) / n_ep,
+        "B_latency": sum(b_lat) / n_ep,
+        "C_latency": sum(c_lat) / n_ep,
+    }
+
+
+def official_rows(name, t_reason=T_REASON, window=WINDOW, n_ep=N_EP):
+    return [evaluate(name, seed, t_reason=t_reason, window=window, n_ep=n_ep) for seed in SEEDS]
+
+
+def print_regime(title, rows):
+    print(f"regime {title}  (mean+-sd over seeds)")
+    print(f"  n_ep={rows[0]['n_ep']} n_steps={N_STEPS} tacit_fits={int(rows[0]['tacit_fits'])}")
+    a_s = [r["A_success"] for r in rows]
+    b_s = [r["B_success"] for r in rows]
+    c_s = [r["C_success"] for r in rows]
+    a_l = [r["A_latency"] for r in rows]
+    b_l = [r["B_latency"] for r in rows]
+    c_l = [r["C_latency"] for r in rows]
+    print(f"  A_explicit success {num(mean_sd(a_s)[0])}+-{num(mean_sd(a_s)[1])}")
+    print(f"  B_tacit success {num(mean_sd(b_s)[0])}+-{num(mean_sd(b_s)[1])}")
+    print(f"  C_lose success {num(mean_sd(c_s)[0])}+-{num(mean_sd(c_s)[1])}")
+    print(f"  A_explicit latency {num(mean_sd(a_l)[0])}+-{num(mean_sd(a_l)[1])}")
+    print(f"  B_tacit latency {num(mean_sd(b_l)[0])}+-{num(mean_sd(b_l)[1])}")
+    print(f"  C_lose latency {num(mean_sd(c_l)[0])}+-{num(mean_sd(c_l)[1])}")
+    print(f"  paired B-A success: {verdict(b_s, a_s)}")
+    print(f"  paired B-A latency: {verdict(b_l, a_l)}")
+    print(f"  paired B-C success: {verdict(b_s, c_s)}")
+    print(f"  paired B-C latency: {verdict(b_l, c_l)}")
+    print(f"  paired C-A success: {verdict(c_s, a_s)}")
+    print(f"  paired C-B success: {verdict(c_s, b_s)}")
+
+
+def main():
+    print("Stdlib stand-in of reasoning latency vs ledger memory; not a TacitVLA eval")
+    print(
+        f"declared T_ACTION={num(T_ACTION)} T_REASON={num(T_REASON)} "
+        f"WINDOW={num(WINDOW)} N_EP={N_EP} N_STEPS={N_STEPS} "
+        f"P_SHORT={num(P_SHORT)} P_SHORT_NOSUP={num(P_SHORT_NOSUP)} "
+        f"C_FIXED_PRESSES={C_FIXED_PRESSES} SMALL_FRAC={num(SMALL_FRAC)} "
+        f"seeds={','.join(str(s) for s in SEEDS)}"
+    )
+    print(
+        "declared arms: A_explicit waits for and conditions on current reasoning; "
+        "B_tacit does not attend to current r_t and may emit reasoning during the "
+        "execution window on memory tasks; "
+        "C_lose is no reasoning supervision or attends to stale / scrambled reasoning"
+    )
+    print(f"declared targets={','.join(str(t) for t in TARGETS)}")
+    print(f"hand_calc T_ACTION + T_REASON = {num(T_ACTION + T_REASON)}")
+    print(f"hand_calc WINDOW - T_REASON = {num(WINDOW - T_REASON)}")
+    print(f"hand_calc explicit_over_tacit_latency = {num((T_ACTION + T_REASON) / T_ACTION)}")
+    print(f"hand_calc 20 percent small-vs-clear factor = {num(SMALL_FRAC)}")
+    print("paper_figure explicit_latency_ratio_up_to = 3.4x (以论文为准, not a toy output)")
+    print("paper_figure no_reasoning_latency_success_gain_pct = 17.1 (以论文为准, not a toy output)")
+    print("paper_figure RoboMME_Counting_success_pct = 82.7 vs 66.8 (以论文为准, not a toy output)")
+    print("paper_figure RMBench_success_pct = 77.5 vs 56.5 (以论文为准, not a toy output)")
+    print("paper_figure LIBERO_Plus_success_pct = 72.9 (以论文为准, not a toy output)")
+    print("paper_figure PhysicalAI_AV_public_split_scene_score_pct = 52.5 (以论文为准, not a toy output)")
+    print("Regimes and parameters were written before the first run")
+    print(
+        "Common random numbers: tasks, uniforms, targets and stale draws "
+        "are shared across arms at each regime and seed"
+    )
+    print(
+        "Assumptions: stdlib latency and ledger stand-in, not RoboMME, "
+        "not RMBench, not LIBERO-Plus, not PhysicalAI-AV, not VLA-Adapter, "
+        "not RTC, not CoT-VLA, not ChatVLA-2, not ThinkAct"
+    )
+    print("Paper 3.4x / 17.1 % / 82.7 % / 77.5 % / 72.9 % / 52.5 % 以论文为准")
+    print("GPU / RoboMME / PhysicalAI-AV: 本页未运行")
+    print(f"declared short_reactive: {REGIMES['short_reactive']}")
+    print_regime("short_reactive", official_rows("short_reactive"))
+    print(f"declared expectation memory_ledger: {REGIMES['memory_ledger']}")
+    print_regime("memory_ledger", official_rows("memory_ledger"))
+    print(f"declared expectation stale_memory: {REGIMES['stale_memory']}")
+    print_regime("stale_memory", official_rows("stale_memory"))
+
+    print(f"alternative same seeds ALT_T_REASON={num(ALT_T_REASON)} (not adopted)")
+    print(f"hand_calc ALT_T_REASON - WINDOW = {num(ALT_T_REASON - WINDOW)}")
+    print_regime(
+        "memory_ledger alt_t_reason=25.0000",
+        official_rows("memory_ledger", t_reason=ALT_T_REASON),
+    )
+
+    print("No GPU eval was started")
+    print(
+        "No winner is universal: short-horizon success may near-tie, with tacit "
+        "lower latency; do not retune so that tacit must beat explicit on success"
+    )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+
+<SimOutput source="model">
+
+```text
+Stdlib stand-in of reasoning latency vs ledger memory; not a TacitVLA eval
+declared T_ACTION=8.0000 T_REASON=12.0000 WINDOW=20.0000 N_EP=40 N_STEPS=6 P_SHORT=0.8500 P_SHORT_NOSUP=0.7000 C_FIXED_PRESSES=4 SMALL_FRAC=0.2000 seeds=0,1,2,3,4
+declared arms: A_explicit waits for and conditions on current reasoning; B_tacit does not attend to current r_t and may emit reasoning during the execution window on memory tasks; C_lose is no reasoning supervision or attends to stale / scrambled reasoning
+declared targets=2,3,4,5
+hand_calc T_ACTION + T_REASON = 20.0000
+hand_calc WINDOW - T_REASON = 8.0000
+hand_calc explicit_over_tacit_latency = 2.5000
+hand_calc 20 percent small-vs-clear factor = 0.2000
+paper_figure explicit_latency_ratio_up_to = 3.4x (以论文为准, not a toy output)
+paper_figure no_reasoning_latency_success_gain_pct = 17.1 (以论文为准, not a toy output)
+paper_figure RoboMME_Counting_success_pct = 82.7 vs 66.8 (以论文为准, not a toy output)
+paper_figure RMBench_success_pct = 77.5 vs 56.5 (以论文为准, not a toy output)
+paper_figure LIBERO_Plus_success_pct = 72.9 (以论文为准, not a toy output)
+paper_figure PhysicalAI_AV_public_split_scene_score_pct = 52.5 (以论文为准, not a toy output)
+Regimes and parameters were written before the first run
+Common random numbers: tasks, uniforms, targets and stale draws are shared across arms at each regime and seed
+Assumptions: stdlib latency and ledger stand-in, not RoboMME, not RMBench, not LIBERO-Plus, not PhysicalAI-AV, not VLA-Adapter, not RTC, not CoT-VLA, not ChatVLA-2, not ThinkAct
+Paper 3.4x / 17.1 % / 82.7 % / 77.5 % / 72.9 % / 52.5 % 以论文为准
+GPU / RoboMME / PhysicalAI-AV: 本页未运行
+declared short_reactive: short-horizon / no memory; A and B may near-tie on success, with B consistent lower stand-in latency - keep
+regime short_reactive  (mean+-sd over seeds)
+  n_ep=40 n_steps=6 tacit_fits=1
+  A_explicit success 0.8000+-0.0468
+  B_tacit success 0.8000+-0.0468
+  C_lose success 0.7100+-0.0576
+  A_explicit latency 20.0000+-0.0000
+  B_tacit latency 8.0000+-0.0000
+  C_lose latency 8.0000+-0.0000
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A latency: -12.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C success: 0.0900+-0.0454: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C latency: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A success: -0.0900+-0.0454: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: -0.0900+-0.0454: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+declared expectation memory_ledger: memory / ledger where C has no entry; B consistent higher success than C at comparable latency - keep
+regime memory_ledger  (mean+-sd over seeds)
+  n_ep=40 n_steps=6 tacit_fits=1
+  A_explicit success 1.0000+-0.0000
+  B_tacit success 1.0000+-0.0000
+  C_lose success 0.2500+-0.0000
+  A_explicit latency 20.0000+-0.0000
+  B_tacit latency 8.0000+-0.0000
+  C_lose latency 8.0000+-0.0000
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A latency: -12.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C success: 0.7500+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C latency: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A success: -0.7500+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: -0.7500+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+declared expectation stale_memory: hard memory cell; C or stale reasoning loses - keep
+regime stale_memory  (mean+-sd over seeds)
+  n_ep=40 n_steps=6 tacit_fits=1
+  A_explicit success 1.0000+-0.0000
+  B_tacit success 1.0000+-0.0000
+  C_lose success 0.0000+-0.0000
+  A_explicit latency 20.0000+-0.0000
+  B_tacit latency 8.0000+-0.0000
+  C_lose latency 20.0000+-0.0000
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A latency: -12.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C success: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C latency: -12.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A success: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative same seeds ALT_T_REASON=25.0000 (not adopted)
+hand_calc ALT_T_REASON - WINDOW = 5.0000
+regime memory_ledger alt_t_reason=25.0000  (mean+-sd over seeds)
+  n_ep=40 n_steps=6 tacit_fits=0
+  A_explicit success 1.0000+-0.0000
+  B_tacit success 1.0000+-0.0000
+  C_lose success 0.2500+-0.0000
+  A_explicit latency 33.0000+-0.0000
+  B_tacit latency 13.0000+-0.0000
+  C_lose latency 8.0000+-0.0000
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A latency: -20.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C success: 0.7500+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C latency: 5.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A success: -0.7500+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: -0.7500+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No GPU eval was started
+No winner is universal: short-horizon success may near-tie, with tacit lower latency; do not retune so that tacit must beat explicit on success
+```
+
+</SimOutput>
+
+### 读这些情形
+
+本页标签按这个顺序使用下列说法。**打平，每个种子都完全相同** 只在配对的逐种子差在每个种子上都为零时使用；**数值上为零（浮点残差），等同打平** 在配对均值的绝对值与 sd 都低于 1e-9 时使用，该行没有同号计数；**接近打平** 当 `|m| <= sd`；然后用较小臂均值的 20 %（印成 0.2000）以及同号计数（k/N 同号）区分**小**与**明显**。
+
+- **short_reactive**。A 与 B 的成功率都是 `0.8000+-0.0468`。配对 B-A 成功率是 `0.0000+-0.0000: tie: identical on every seed`。A 的动作就绪延迟是 `20.0000+-0.0000`，B 是 `8.0000+-0.0000`。配对 B-A 延迟是 `-12.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds`。事先声明的 A/B 成功率接近打平以「每个种子都完全相同」的打平**成立**，且 B 的延迟稳定更低，并予**保留**。C 在无监督下的成功率是 `0.7100+-0.0576`；那一格不是事先声明的主张。
+- **memory_ledger**。A 与 B 的成功率都是 `1.0000+-0.0000`。C 没有账本条目、只用固定先验按 4 次，成功率是 `0.2500+-0.0000`。配对 B-C 成功率是 `0.7500+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds`。B 与 C 的延迟都是 `8.0000+-0.0000`，打平且每个种子都完全相同，延迟可比。事先声明的、在可比延迟下 B 相对 C 的稳定成功率优势**成立**，并予**保留**。B-A 成功率仍是每个种子都完全相同的打平；没有为了让 tacit 在成功率上打败 explicit 而重调。
+- **stale_memory**。目标只存在于推理 / 第一条账本记录里。A 与 B 的成功率仍是 `1.0000+-0.0000`。C attend 过期 / 打乱的目标，成功率是 `0.0000+-0.0000`。配对 C-B 成功率是 `-1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds`。事先声明的输掉**成立**，并予**保留**。C 也会等待（`20.0000+-0.0000`），因为它 attend 了那段过期文本。
+
+**事后对照，同一组种子**。在 `memory_ledger` 库上跑了 `ALT_T_REASON = 25.0000`，并且**未采用**。打印的手算溢出是 `ALT_T_REASON - WINDOW = 5.0000`。B 的延迟变成 `13.0000+-0.0000`，不再与 C 的 `8.0000+-0.0000` 打平。官方的 `T_REASON = 12.0000` 仍装得进 `WINDOW = 20.0000`。官方参数没有为了让 tacit 在成功率上打败 explicit 而重调。
+
+本页**不宣布普遍赢家**。短视野成功率可能接近打平，同时 tacit 延迟更低；缺账本会在记忆格上显现；过期推理会输掉。GPU / RoboMME / PhysicalAI-AV 均为 **本页未运行**。
+
+**180 分钟工作计划**。30+25+50+40+35=180。30 分钟读摘要、PDF 扉页标记（实习匕首号、同等指导星号）以及第 4.1–4.2 节；25 分钟写出三个臂，以及论文数字 3.4× / 17.1 % / 82.7 %（以论文为准）；50 分钟跑玩具并读三个官方情形；40 分钟比较玩具延迟比 2.5000 与论文最多 3.4×（以论文为准，不是同一个数）；35 分钟做练习。
+
+### 练习
+
+1. 为什么论文里最多 3.4× 的延迟数字要以论文为准，它与玩具打印的手算 `explicit_over_tacit_latency = 2.5000` 有何不同？请指向 `paper_figure` 行。
+2. 在 `short_reactive` 上，B-A 成功率是 `0.0000+-0.0000`（打平：每个种子都完全相同），而 B-A 延迟是 `-12.0000+-0.0000`（明显，5/5）。为什么成功率可以接近打平（这里是每个种子都完全相同的打平），延迟却仍对 tacit 有利，以及为什么这一格要**保留**，而不是重调成 tacit 必须在成功率上打败 explicit？
+3. 在 `memory_ledger` 里，B-C 成功率是 `0.7500+-0.0000`（明显，5/5），B-C 延迟在 `8.0000+-0.0000` 上打平，每个种子都完全相同。C 缺了 B 仍有的什么，以及为什么这次比较要强调「可比延迟」？
+4. 在 `stale_memory` 里，C 的成功率是 `0.0000+-0.0000`。为什么 attend 过期 / 打乱的目标会在这道难记忆格上输掉，以及为什么这一输要**保留**？
+5. 在把玩具当成 RoboMME 或 PhysicalAI-AV 结果之前（**本页未运行**），说出一项必须保持以论文为准的论文数字，以及这个标准库账本替身与论文动作专家的一个差别。
+
 <Summary>
 
 用 GPU 训练，在设备上部署。int8 用 `val = scale × (q − zero_point)`，且 0 必须能精确表示；一个离群值把 per-tensor 的 scale 从 0.00390 推到 0.03150，per-channel 仍是 0.00390。只有在有 int8 通路的硬件上量化才会提速。延迟预算把 73 ms（π0 板上）或 108.8 ms（带 RTC 的 π0.5）换算成某个控制频率下的 d；设 `inference_delay` 时向上取整。SmolVLA（0.45B）、π0 级（3.3B）、OpenVLA 级（7B）只算权重的内存用的是论文参数量，排除了激活、KV 缓存和图像缓冲；6.3 的阈值 g ≥ (E[ℓ_S] / Δt) / n 告诉你异步何时能藏住推理、何时（g_min 大于 1）藏不住。GPU、TensorRT、Jetson 步骤只读。
 
 - VLA-Adapter：在共享演示上，带 Bridge Attention 的小策略在 short_id 成功率上与更大的普通头接近打平（5.6000±7.9009），并在参数量与乘加代理上稳定更省（−2393.0000±0.0000 与 −2036.0000±0.0000，明显，5/5）；打乱条件在 need_vl 上明显更差（−41.9000±12.6461，5/5）；precise 上小主干成功率输给大头（−20.2000±14.4075，已保留）；论文 0.5B / 8 小时以论文为准，GPU 本页未运行。
+
+- TacitVLA：在共享任务上，不 attend 当前推理的动作专家在 short_reactive 上与显式推理的成功率打平（`0.0000+-0.0000`），替身延迟稳定更低（`-12.0000+-0.0000`，明显，5/5）；在 memory_ledger 上相对没有账本的 C，成功率稳定更高且延迟可比（`0.7500+-0.0000`，明显，5/5；延迟打平）；过期推理在难记忆格上输掉（`-1.0000+-0.0000`，明显，5/5）；论文 3.4× / 17.1 % / 82.7 % 以论文为准，GPU 本页未运行。
 
 </Summary>

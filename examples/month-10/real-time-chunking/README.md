@@ -12,9 +12,13 @@ picks, five regimes plus a budget sweep, prefix violations counted (0 in every a
 
 ```bash
 python3 forge_tree_mctd_toy.py   # compare with ../expected/forge_tree_mctd_toy.txt
+python3 vela_spline_action_toy.py   # compare with ../expected/vela_spline_action_toy.txt
 ```
 
 OpenVLA / Octo / LIBERO 本页未运行; paper numbers 以论文为准.
+
+`vela_spline_action_toy.py` — a standard-library Vela stand-in: a fixed-rate action chunk of length K vs a compact cubic Hermite curve with motion-dependent temporal support vs the same K spread over a longer horizon, on shared continuous references (five seeds). Title spelling Parametrization. Paper LIBERO-X / EBench / cooking scores 以论文为准. GPU / real cooking / EBench 本页未运行. Not RTC seams, not FORGE-Tree, not pi0 flow-matching.
+/ 标准库 Vela 替身：固定速率块、运动相关样条、过粗视野对照；论文分数以论文为准。
 
 Optional, not run here / 本页未运行 (needs a GPU and a robot or dataset; follow the LeRobot v0.6.x RTC docs, flags may change):
 

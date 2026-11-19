@@ -7166,6 +7166,35 @@ export const resources: Record<string, Resource> = {
     license: { zh: "预印本（arXiv 非独占分发许可），© 原作者；仅提供外链", en: "Preprint (arXiv non-exclusive distribution license), © the authors; external link only" },
     extra: true,
   },
+  "tacitvla-paper": {
+    id: "tacitvla-paper",
+    url: "https://arxiv.org/abs/2610.17540",
+    title: { zh: "TacitVLA：无推理延迟的推理视觉-语言-动作模型", en: "TacitVLA: Reasoning Vision-Language-Action Models Without Reasoning Latency" },
+    author: "Jack Lu, Yurong You, Boyi Li, Yulong Cao, Thomas Tian, Chaowei Xiao, Xiangyu Chen, Wenjie Luo, Boris Ivanovic, Marco Pavone, Yan Wang",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "arXiv 2610.17540 v1（提交于 2026-10-13）。摘要作者顺序十一人如上。PDF 扉页另有标记：Lu 的匕首号是在 NVIDIA 的实习（不是通讯、不是共同一作）；Pavone 与 Yan Wang 的星号是同等指导（不是通讯）；不要发明通讯作者标记。单位为 NVIDIA、New York University、University of California, Berkeley、Johns Hopkins University 与 Stanford University。Comments 只有项目主页，没有会议，本条目不发明会议。PDF 页眉还印有 2026-10-14，当作编译 / 页眉日期披露，不是第二版。动作专家不 attend 当前这次调用生成的推理；推理监督仍可改进主干；长视野记忆任务上推理可在动作执行期间生成。论文中最多 3.4× 更低延迟、在无推理架构延迟下最多 +17.1 % 成功率，以及 RoboMME Counting 82.7 % 对 66.8 %、RMBench 77.5 % 对 56.5 %、LIBERO-Plus 72.9 %、PhysicalAI-AV 公开划分场景分 52.5 %，都以论文为准，不是玩具输出。已读摘要、HTML 正文与 PDF。GPU / RoboMME / PhysicalAI-AV：本页未运行。",
+      en: "arXiv 2610.17540 v1 (submitted 2026-10-13). Eleven authors in abstract order as above. The PDF title page, not the poorly attached HTML footnote, adds Lu’s dagger as an internship at NVIDIA (not corresponding, not equal first author) and stars on Pavone and Yan Wang as equal advising (not corresponding); this entry invents no corresponding-author mark. Affiliations are NVIDIA, New York University, University of California, Berkeley, Johns Hopkins University, and Stanford University. Comments: project page only; no venue, and this entry invents none. The PDF header also prints 2026-10-14, disclosed as a compiled / header date, not a second version. The action expert never attends to the reasoning generated for the current call; reasoning supervision can still improve the backbone; on long-horizon memory tasks the reasoning text can be generated during action execution. Paper figures — up to 3.4× lower latency, up to +17.1 % success at a no-reasoning architecture’s latency, RoboMME Counting 82.7 % vs 66.8 %, RMBench 77.5 % vs 56.5 %, LIBERO-Plus 72.9 %, and a 52.5 % PhysicalAI-AV public-split scene score — are 以论文为准 and are not toy outputs. Abs, HTML body and PDF were read. GPU / RoboMME / PhysicalAI-AV: 本页未运行.",
+    },
+    license: { zh: "预印本（arXiv 非独占分发许可），© 原作者；仅提供外链", en: "Preprint (arXiv non-exclusive distribution license), © the authors; external link only" },
+    extra: true,
+  },
+  "vela-paper": {
+    id: "vela-paper",
+    url: "https://arxiv.org/abs/2610.05230",
+    title: { zh: "Vela：用自适应动作曲线参数化扩展视觉-语言-动作模型", en: "Vela: Scaling Vision-Language-Action Models with Adaptive Action Curve Parametrization" },
+    author: "Yifan Li, Jiaxu Wang, Dongming Wu, Yicheng Jiang, Ryan Ji, Xiangyu Yue, Yanwei Fu",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "arXiv 2610.05230 v1（提交于 2026-10-04）。摘要作者顺序七人如上。标题的可见拼写是 Parametrization（不是 Parameterization）。PDF 扉页另有标记：Li 与 Wang 同等贡献；Yue 与 Fu 两位都是通讯作者，两个标记都保留。单位为 Fudan University、Shanghai Innovation Institute、The Chinese University of Hong Kong，以及 NovaXBot（Ryan Ji）。摘要没有 Comments 字段，也没有会议，本条目不发明会议。Vela 把未来运动表示为连续轨迹：紧凑的样条动作加上随运动而变的时间支撑，让固定输出预算在视野与局部分辨率之间权衡，而不是固定速率的动作块。LIBERO-X、EBench 以及真实烹饪（蛋饼、土豆丝）分数都以论文为准，不是玩具输出。已读摘要、HTML 正文与 PDF。GPU / 真实烹饪 / EBench：本页未运行。",
+      en: "arXiv 2610.05230 v1 (submitted 2026-10-04). Seven authors in abstract order as above. The visible title spelling is Parametrization (not Parameterization). The PDF title page, not the abs line, adds Li and Wang as equal contribution and marks both Yue and Fu as corresponding authors; both marks are kept. Affiliations are Fudan University, Shanghai Innovation Institute, The Chinese University of Hong Kong, and NovaXBot (Ryan Ji). There is no Comments field and no venue, and this entry invents none. Vela represents future motion as continuous trajectories: a compact spline-based action with motion-dependent temporal support, so a fixed output budget can trade horizon against local resolution instead of a fixed-rate action chunk. LIBERO-X, EBench, and real cooking (egg-cake, potato shredding) scores are 以论文为准 and are not toy outputs. Abs, HTML body and PDF were read. GPU / real cooking / EBench: 本页未运行.",
+    },
+    license: { zh: "预印本（arXiv 非独占分发许可），© 原作者；仅提供外链", en: "Preprint (arXiv non-exclusive distribution license), © the authors; external link only" },
+    extra: true,
+  },
+
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {
