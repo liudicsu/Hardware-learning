@@ -34,6 +34,7 @@ check lifecycle_sm_toy.txt "$PY" "$M8/ros2-hardware-interface/lifecycle_sm_toy.p
 check actuator_fault_monitor_toy.txt "$PY" "$M8/safety-reliability/actuator_fault_monitor_toy.py"
 
 check imagine_rank_toy.txt "$PY" "$M8/sim-benchmarks/imagine_rank_toy.py"
+check libero_x_robustness_ladder_toy.txt "$PY" "$M8/sim-benchmarks/libero_x_robustness_ladder_toy.py"
 
 check safety_pl_assign_toy.txt "$PY" "$M8/safety-reliability/safety_pl_assign_toy.py" "$M8/safety-reliability/plr_inputs.json"
 

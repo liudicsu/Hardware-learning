@@ -1,0 +1,87 @@
+Stdlib stand-in of a five-level cumulative robustness ladder; not a LIBERO-X eval
+declared P_BASE=0.8000 N_EP=40 N_SCENES=8 N_SLOTS=4 SMALL_FRAC=0.2000 seeds=0,1,2,3,4
+declared arms: A_unperturbed in-distribution suite mean; B_ladder cumulative L1-L5; C_leak reuses L1 outcomes as if they were L5
+declared penalties L1=0.0200 L2=0.1200 L3=0.1800 L4=0.1600 L5=0.1400
+hand_calc cumulative_penalty L1 = 0.0200
+hand_calc cumulative_penalty L2 = 0.1400
+hand_calc cumulative_penalty L3 = 0.3200
+hand_calc cumulative_penalty L4 = 0.4800
+hand_calc cumulative_penalty L5 = 0.6200
+hand_calc 20 percent small-vs-clear factor = 0.2000
+paper_figure demonstrations = 2,520 (以论文为准, not a toy output)
+paper_figure tasks = 600 (以论文为准, not a toy output)
+paper_figure scenes = 100 (以论文为准, not a toy output)
+paper_figure L1_to_L2_average_success_drop_pct = 9.8 (Figure 5; a drop, not a suite mean, not L1-to-L5, 以论文为准, not a toy output)
+Regimes and parameters were written before the first run
+Common random numbers: scenes, slots, instructions, competence and uniforms are shared across arms at each regime and seed
+Assumptions: stdlib policy stand-in, not lerobot-eval, not LIBERO-Plus, not the five-suite table
+Paper dataset sizes and the 9.8 % L1 to L2 drop 以论文为准
+GPU lerobot-eval / real LIBERO-X: 本页未运行
+declared l1_jitter: A and B may near-tie on success - keep
+declared cumulative_shift: B consistent lower success than A's unperturbed mean - keep
+declared leak_misreport: C mis-reports (leak) - keep
+declared expectation l1_jitter: L1-like minor jitter; A and B may near-tie on success - keep
+regime l1_jitter  (mean+-sd over seeds)
+  n_ep=40 n_scenes=8 n_slots=4
+  A_unperturbed success 0.8100+-0.0285
+  B_ladder L1 success 0.7950+-0.0371
+  B_ladder L2 success 0.6950+-0.0647
+  B_ladder L3 success 0.5650+-0.0487
+  B_ladder L4 success 0.3750+-0.0637
+  B_ladder L5 success 0.2300+-0.0326
+  B_ladder drop_L1_to_L5 0.5650+-0.0224
+  C_leak reported_as_L5 0.7950+-0.0371
+  paired B-A L1_success: -0.0150+-0.0224: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+  paired C-B leaked_L5_minus_true_L5: 0.5650+-0.0224: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A leaked_L5_minus_unperturbed: -0.0150+-0.0224: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+declared expectation cumulative_shift: cumulative L3-L5 shifts; B consistent lower success than A's unperturbed mean - keep
+regime cumulative_shift  (mean+-sd over seeds)
+  n_ep=40 n_scenes=8 n_slots=4
+  A_unperturbed success 0.8100+-0.0675
+  B_ladder L1 success 0.8000+-0.0661
+  B_ladder L2 success 0.6650+-0.1055
+  B_ladder L3 success 0.4200+-0.1483
+  B_ladder L4 success 0.3100+-0.0859
+  B_ladder L5 success 0.1850+-0.0576
+  B_ladder drop_L1_to_L5 0.6150+-0.0224
+  C_leak reported_as_L5 0.8000+-0.0661
+  paired B-A L3_success: -0.3900+-0.1009: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A L4_success: -0.5000+-0.0530: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A L5_success: -0.6250+-0.0250: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B leaked_L5_minus_true_L5: 0.6150+-0.0224: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A leaked_L5_minus_unperturbed: -0.0100+-0.0137: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+declared expectation leak_misreport: C mis-reports by reusing L1 outcomes as if they were L5 - keep
+regime leak_misreport  (mean+-sd over seeds)
+  n_ep=40 n_scenes=8 n_slots=4
+  A_unperturbed success 0.8050+-0.0798
+  B_ladder L1 success 0.7800+-0.0737
+  B_ladder L2 success 0.6050+-0.0371
+  B_ladder L3 success 0.4450+-0.0694
+  B_ladder L4 success 0.3100+-0.0978
+  B_ladder L5 success 0.1500+-0.0559
+  B_ladder drop_L1_to_L5 0.6300+-0.0671
+  C_leak reported_as_L5 0.7800+-0.0737
+  paired B-A L1_success: -0.0250+-0.0250: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+  paired B-A L5_success: -0.6550+-0.0737: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B leaked_L5_minus_true_L5: 0.6300+-0.0671: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A leaked_L5_minus_unperturbed: -0.0250+-0.0250: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 2 of 5 equal
+alternative same seeds HARSH_PENALTY=0.7000 unstructured (not adopted)
+hand_calc harsh residual success floor if competence=0 = 0.1000
+regime cumulative_shift alt_harsh=0.7000  (mean+-sd over seeds)
+  n_ep=40 n_scenes=8 n_slots=4
+  A_unperturbed success 0.8100+-0.0675
+  B_ladder L1 success 0.8000+-0.0661
+  B_ladder L2 success 0.6650+-0.1055
+  B_ladder L3 success 0.4200+-0.1483
+  B_ladder L4 success 0.3100+-0.0859
+  B_ladder L5 success 0.1850+-0.0576
+  B_ladder drop_L1_to_L5 0.6150+-0.0224
+  C_leak reported_as_L5 0.8000+-0.0661
+  C_harsh unstructured success 0.0750+-0.0177
+  paired B-A L3_success: -0.3900+-0.1009: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A L4_success: -0.5000+-0.0530: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A L5_success: -0.6250+-0.0250: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B leaked_L5_minus_true_L5: 0.6150+-0.0224: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A leaked_L5_minus_unperturbed: -0.0100+-0.0137: near-tie / small gap, within seed noise (|m| <= sd); no seed has the opposite sign, 3 of 5 equal
+No GPU eval was started
+No winner is universal: L1-like jitter can near-tie; the hidden drop is the cumulative ladder, not a retune toward the unperturbed mean

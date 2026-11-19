@@ -29,6 +29,7 @@ fi
 
 # ---- 7.1 integrator energy stand-in (stdlib, no mujoco) ----------------------------------
 check mujoco_integrator_energy_toy.txt "$PY" "$M7/mujoco-so101/mujoco_integrator_energy_toy.py"
+check friction_cone_elliptic_pyramid_toy.txt "$PY" "$M7/mujoco-so101/friction_cone_elliptic_pyramid_toy.py"
 
 # ---- 7.2 RL foundations (stdlib) ----------------------------------------------------------
 check ppo_reach.txt "$PY" "$M7/rl-foundations/ppo_reach.py"

@@ -994,24 +994,28 @@ const month7Lessons: Lesson[] = [
     slug: "mujoco-so101",
     title: { zh: "MuJoCo 里的 SO-101：模型、接触与时间步", en: "MuJoCo and the SO-101: models, contacts and the timestep" },
     summary: {
-      zh: "先认清 MJCF 的 body、joint、geom、actuator 以及它和 URDF 的对应；在简化夹爪场景里用位置执行器合拢并举起方块；再扫描 timestep 与 solref，看清软接触加大步长如何让方块滑落、穿透加深。对照 Menagerie 的 robotstudio_so101（≥3.1.3，6 自由度，Apache-2.0）。再用标准库替身比较显式、半隐式与对速度相关力隐式的积分：中等步长下的能量漂移、稳定步长判据，以及翻滚刚体上显式陀螺项的能量增长。",
-      en: "Read MJCF body, joint, geom and actuator against URDF; close a soft-contact gripper on a free cube with position actuators and lift it; then sweep timestep and solref to see soft contacts plus a large step drop the cube and deepen penetration. Map it onto Menagerie's robotstudio_so101 (≥3.1.3, 6 DoF, Apache-2.0). Then compare explicit, semi-implicit and implicit-in-velocity integration on a stdlib stand-in: energy drift at a moderate step, a stable-step criterion, and energy gain from explicit gyroscopic terms on a tumbling body.",
+      zh: "先认清 MJCF 的 body、joint、geom、actuator 以及它和 URDF 的对应；在简化夹爪场景里用位置执行器合拢并举起方块；再扫描 timestep 与 solref，看清软接触加大步长如何让方块滑落、穿透加深。对照 Menagerie 的 robotstudio_so101（≥3.1.3，6 自由度，Apache-2.0）。再用标准库替身比较显式、半隐式与对速度相关力隐式的积分：中等步长下的能量漂移、稳定步长判据，以及翻滚刚体上显式陀螺项的能量增长。 再用标准库替身按 4.0.1 文档比较椭圆与金字塔摩擦锥：无摩擦时接纳率打平，中位形打印并保留集合差异，大切向需求时无上界摩擦失败；mujoco.step 本页未运行。",
+      en: "Read MJCF body, joint, geom and actuator against URDF; close a soft-contact gripper on a free cube with position actuators and lift it; then sweep timestep and solref to see soft contacts plus a large step drop the cube and deepen penetration. Map it onto Menagerie's robotstudio_so101 (≥3.1.3, 6 DoF, Apache-2.0). Then compare explicit, semi-implicit and implicit-in-velocity integration on a stdlib stand-in: energy drift at a moderate step, a stable-step criterion, and energy gain from explicit gyroscopic terms on a tumbling body. Then compare the documented 4.0.1 elliptic and pyramidal friction cones on a stdlib stand-in: frictionless admission may tie, a mid-regime set difference is printed and kept, and unbounded friction loses at high tangential demand; mujoco.step 本页未运行.",
     },
-    minutes: 420,
+    minutes: 600,
     objectives: [
       { zh: "能说出 MJCF 里 body、joint、geom、actuator 各自管什么，并对照 URDF 的 link/joint。", en: "Name what body, joint, geom and actuator each do in MJCF, and match them to URDF link/joint." },
       { zh: "能说明 Menagerie robotstudio_so101 要求 MuJoCo ≥ 3.1.3、有 6 个转动关节、许可证 Apache-2.0。", en: "State that Menagerie robotstudio_so101 needs MuJoCo ≥ 3.1.3, has 6 hinge DoF, and is Apache-2.0." },
       { zh: "能读懂 grip_sweep.py 的 3×3 表：timeconst=0.08 且 dt≥0.005 时 SLIP，穿透从约 0.05 mm 长到约 33 mm。", en: "Read the 3×3 grip_sweep.py table: SLIP when timeconst=0.08 and dt≥0.005, penetration from ~0.05 mm up to ~33 mm." },
       { zh: "能解释 solref 时间常数、impratio 与 cone=elliptic 在接触求解里各自偏向什么。", en: "Explain what the solref time constant, impratio and cone=elliptic each bias in the contact solver." },
       { zh: "能区分 MuJoCo 文档中的半隐式 Euler 与只对速度相关力隐式的 implicit/implicitfast，写出半隐式线性振子的稳定步长 h* = 2/ω0，并在标准库替身上读出中等步长、过大切步与翻转 D 时的能量漂移（不是 grip_sweep 的接触扫描）。", en: "Distinguish MuJoCo's semi-implicit Euler from implicit/implicitfast (implicit only in velocity-dependent forces), write the semi-implicit linear-oscillator limit h* = 2/ω0, and read energy drift at a moderate step, a too-large step and a flipped D on the stdlib stand-in (not the grip_sweep contact table)." },
+      { zh: "能按 4.0.1 文档说出椭圆与金字塔摩擦锥、常规有摩擦接触的约束维数（椭圆 3、金字塔 4），并在标准库替身上读出无摩擦打平、中位形集合差异与大切向时无上界摩擦失败（不是 grip_sweep，也不是抓取规划里的库仑锥；mujoco.step 本页未运行）。", en: "State from the 4.0.1 docs the elliptic and pyramidal friction cones and the constraint dimensions of regular frictional contact (3 elliptic, 4 pyramidal), and on the stdlib stand-in read the frictionless tie, the mid-regime set difference and the high-tangential unbounded-friction loss (not grip_sweep, and not the grasp-planning Coulomb cone; mujoco.step 本页未运行)." },
+
     ],
     prereqs: ["urdf-tf", "gazebo-sim", "so101-arm", "control-modelling"],
-    resources: ["mujoco", "menagerie-so101", "so-arm100-sim", "mujoco-modeling", "mujoco-mjx", "mujoco-computation"],
+    resources: ["mujoco", "menagerie-so101", "so-arm100-sim", "mujoco-modeling", "mujoco-mjx", "mujoco-computation", "mujoco-computation-401"],
     tasks: [
       { id: "run", text: { zh: "安装 mujoco 后运行 grip_sweep.py，手算 held 7/9，并指出哪两格是 SLIP", en: "After installing mujoco, run grip_sweep.py, confirm held 7/9, and name the two SLIP cells" } },
       { id: "solref", text: { zh: "把 TIMECONSTS 改成 (0.002, 0.01, 0.05) 再跑，记录穿透如何随时间常数变化", en: "Change TIMECONSTS to (0.002, 0.01, 0.05), re-run, and record how penetration tracks the time constant" } },
       { id: "menagerie", text: { zh: "打开 Menagerie robotstudio_so101 的 README 与 so101.xml，数出 6 个 hinge，记下 option 里的 timestep、cone、impratio", en: "Open Menagerie robotstudio_so101 README and so101.xml, count 6 hinges, and note timestep, cone and impratio in option" } },
       { id: "viewer", text: { zh: "（本机）用 python -m mujoco.viewer --mjcf grip_scene.xml 看合拢；本页未运行 GUI", en: "(On your machine) open grip_scene.xml with python -m mujoco.viewer; GUI not run on this page" } },
+      { id: "friction-cone-compare", text: { zh: "运行 friction_cone_elliptic_pyramid_toy.py，核对本页未改 grip_sweep.py，并写出无摩擦打平、中位形分歧与大切向时 C 失败的成对标签", en: "Run friction_cone_elliptic_pyramid_toy.py, confirm grip_sweep.py is unchanged, and write the paired labels for the frictionless tie, the mid-regime discrepancy and the high-tangential C loss" } },
+
     ],
   },
   {
@@ -1351,10 +1355,10 @@ const month8Lessons: Lesson[] = [
     slug: "sim-benchmarks",
     title: { zh: "仿真基准：LIBERO 套件与 SimplerEnv 相关性", en: "Simulation benchmarks: LIBERO suites and SimplerEnv correlation" },
     summary: {
-      zh: "基准纪律：套件地图、默认评估协议、如何报告、仿真分≠真机分。LIBERO 5 套件 / 130 任务；默认四标准套件 × 每任务 10 集。CPU 玩具聚合假套件分数与 Wilson；再按论文读 Ctrl-World（在可控世界模型里滚动策略、给策略排名），用 imagine_rank_toy 在共享任务与初始条件上给五个合成策略排名：与策略无关的偏差保持 Kendall τ = +1.00，打中某种失败模式的偏差会翻转排名。GPU lerobot-eval 与世界模型本页未运行。不替代 8.7。",
-      en: "Benchmark discipline: suite map, default eval protocol, how to report, sim score ≠ real-robot score. LIBERO 5 suites / 130 tasks; default four standard suites × 10 episodes/task. CPU toy aggregates fake suite scores + Wilson; then read Ctrl-World per the paper (rolling policies inside a controllable world model to rank them) and rank five synthetic policies on shared tasks and initial conditions with imagine_rank_toy: a policy-blind bias keeps Kendall τ = +1.00, biases that hit one failure mode flip the ranking. GPU lerobot-eval and the world model 本页未运行. Does not replace 8.7.",
+      zh: "基准纪律：套件地图、默认评估协议、如何报告、仿真分≠真机分。LIBERO 5 套件 / 130 任务；默认四标准套件 × 每任务 10 集。CPU 玩具聚合假套件分数与 Wilson；再按论文读 Ctrl-World（在可控世界模型里滚动策略、给策略排名），用 imagine_rank_toy 在共享任务与初始条件上给五个合成策略排名：与策略无关的偏差保持 Kendall τ = +1.00，打中某种失败模式的偏差会翻转排名。再按论文读 LIBERO-X（arXiv 2602.06556 v1）的五级累积鲁棒性阶梯：2,520 / 600 / 100 与 Figure 5 中 9.8 % 的 L1 到 L2 降幅以论文为准；标准库替身保留 L1 接近打平和 L3–L5 的一致下降，泄漏的 L5 会误报。GPU lerobot-eval、世界模型与真正的 LIBERO-X 本页未运行。不替代 8.7。",
+      en: "Benchmark discipline: suite map, default eval protocol, how to report, sim score ≠ real-robot score. LIBERO 5 suites / 130 tasks; default four standard suites × 10 episodes/task. CPU toy aggregates fake suite scores + Wilson; then read Ctrl-World per the paper (rolling policies inside a controllable world model to rank them) and rank five synthetic policies on shared tasks and initial conditions with imagine_rank_toy: a policy-blind bias keeps Kendall τ = +1.00, biases that hit one failure mode flip the ranking. Then read LIBERO-X (arXiv 2602.06556 v1) as a five-level cumulative robustness ladder: 2,520 / 600 / 100 and the 9.8 % L1-to-L2 drop in Figure 5 are 以论文为准; the stdlib stand-in keeps an L1 near-tie and a consistent L3–L5 drop, while a leaked L5 mis-reports. GPU lerobot-eval, the world model and a real LIBERO-X eval 本页未运行. Does not replace 8.7.",
     },
-    minutes: 330,
+    minutes: 510,
     objectives: [
       { zh: "能说出 LIBERO 有 5 个套件、共 130 个任务，以及默认四标准套件、每任务 10 集。", en: "State that LIBERO has 5 suites / 130 tasks, and the default of four standard suites at 10 episodes/task." },
       { zh: "能说明毕业门槛仍是 8.7，LIBERO 只是加分报告。", en: "State that the graduation bar stays 8.7 and LIBERO is bonus reporting only." },
@@ -1362,15 +1366,18 @@ const month8Lessons: Lesson[] = [
       { zh: "能说明 SimplerEnv（arXiv 2405.05941）讨论仿真与真机相关性，本课不重跑其 GPU 实验。", en: "State that SimplerEnv (arXiv 2405.05941) studies sim↔real correlation and that this lesson does not re-run its GPU experiments." },
       { zh: "能按论文说出 Ctrl-World（arXiv 2510.10125）的做法：策略在可控多视角世界模型里与之交替滚动，用想象结果给策略排名；模型往往低估执行成功率，44.7 % 的提升以论文为准。", en: "State per the paper how Ctrl-World (arXiv 2510.10125) works: a policy rolls out inside a controllable multi-view world model to rank policies; the model tends to underestimate execution success, and the 44.7 % improvement is per the paper." },
       { zh: "能算 Kendall τ（5 个策略 10 对，翻转 3 对 → 0.4），并读 imagine_rank_toy：uniform_drop τ = +1.00，tight_tol +0.60，no_slide +0.40（P2 升到第一），no_retry +0.80。", en: "Compute Kendall τ (5 policies, 10 pairs, 3 flipped → 0.4) and read imagine_rank_toy: uniform_drop τ = +1.00, tight_tol +0.60, no_slide +0.40 (P2 rises to first), no_retry +0.80." },
+      { zh: "能按论文说出 LIBERO-X（arXiv 2602.06556 v1）的五级评估、2,520 / 600 / 100 以及 Figure 5 中 9.8 % 的 L1 到 L2 降幅（以论文为准，不是套件均值，也不是 L1 到 L5 的降幅），并在标准库替身上读出 L1 接近打平、L3–L5 一致下降与泄漏误报；不是 LIBERO-Plus；GPU 评估本页未运行。", en: "State per the paper LIBERO-X (arXiv 2602.06556 v1) five-level evaluation, the 2,520 / 600 / 100 figures, and the 9.8 % L1-to-L2 drop in Figure 5 (以论文为准: a drop, not a suite mean, and not the L1-to-L5 decline), and on the stdlib stand-in read the L1 near-tie, the consistent L3–L5 drop and the leak mis-report; this is not LIBERO-Plus; GPU eval 本页未运行." },
     ],
     prereqs: ["policy-evaluation", "capstone", "vla-finetune"],
-    resources: ["lerobot-libero", "simplerenv-paper", "libero-paper", "ctrl-world-paper"],
+    resources: ["lerobot-libero", "simplerenv-paper", "libero-paper", "ctrl-world-paper", "libero-x-paper"],
     tasks: [
       { id: "run", text: { zh: "运行 suite_score_table.py，核对 n_suites=5 与 expected/suite_score_table.txt", en: "Run suite_score_table.py; confirm n_suites=5 matches expected/suite_score_table.txt" } },
       { id: "protocol", text: { zh: "用自己的话写出默认评估协议（四套件 × 每任务 10 集）", en: "In your words: the default eval protocol (four suites × 10 episodes/task)" } },
       { id: "imagine", text: { zh: "运行 imagine_rank_toy.py，写出每种世界模型偏差的 Kendall τ，并说明哪种偏差与策略无关", en: "Run imagine_rank_toy.py, write down Kendall τ for each world-model bias, and say which bias is policy-blind" } },
       { id: "bar", text: { zh: "写一句：为什么 LIBERO 不能代替 8.7 统一门", en: "One sentence: why LIBERO cannot replace the 8.7 shared bar" } },
       { id: "optional", text: { zh: "（选做，本页未运行）按文档在本机 GPU 试跑 lerobot-eval --env.type=libero", en: "(Optional, not run here) try lerobot-eval --env.type=libero on a local GPU per the docs" } },
+      { id: "libero-x-ladder", text: { zh: "运行 libero_x_robustness_ladder_toy.py，写出 L1 接近打平、L3–L5 下降与泄漏误报的成对标签，并说明 9.8 % 是论文 Figure 5 的 L1 到 L2 降幅、不是玩具输出", en: "Run libero_x_robustness_ladder_toy.py, write the paired labels for the L1 near-tie, the L3–L5 drop and the leak mis-report, and state that the 9.8 % figure is the paper's Figure 5 L1-to-L2 drop, not a toy output" } },
+
     ],
   },
 ];
