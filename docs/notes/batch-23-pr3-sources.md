@@ -16,7 +16,7 @@ Author order and contribution marks (以原文为准):
 - ChatVLA-2 authors in abstract-page order, also the PDF order: Zhongyi Zhou, Yichen Zhu, Junjie Wen, Chaomin Shen, Yi Xu. The PDF marks Zhou and Zhu with an asterisk usually read as equal contribution, and marks Yichen Zhu with a dagger as corresponding author. Those asterisks are visible on the PDF; the arXiv HTML conversion shows both footnotes as a dagger and drops the asterisk; the order is still the same as the PDF. The abstract page lists the five names without those marks.
 - Hi Robot authors in abstract-page order, also the PDF and HTML order: Lucy Xiaoyang Shi, Brian Ichter, Michael Equi, Liyiming Ke, Karl Pertsch, Quan Vuong, James Tanner, Anna Walling, Haohuan Wang, Niccolo Fusai, Adrian Li-Bell, Danny Driess, Lachy Groom, Sergey Levine, Chelsea Finn. No equal-contribution mark on the PDF or the HTML. Correspondence is to Physical Intelligence at research@physicalintelligence.company, not a personal corresponding-author mark on one name. Affiliations Physical Intelligence / Stanford / UC Berkeley appear on the PDF and do not change the order.
 
-Cards: `chatvla2-paper`, `hirobot-paper`.
+Cards: `chatvla2-paper`, `hirobot-paper`. Paper figures are 以原文为准. Real-robot, GPU, and paper-task success rates: 本页未运行.
 
 ## Toys and first-run results
 
@@ -55,4 +55,5 @@ None on the pre-declared cells. The in-domain / atomic "may near-tie" cells came
 New batch-23 PR3 block in `tools/check_diagrams.mjs` (toys, expected, CRN, label order, difference directions, sources, plans, README, declared regimes, post-first-run code change) plus `tools/test_b23p3_chatvla2_hi_robot_toys.py`. Tipped site-total, host-minute, month-total and Current-header locks only (40860→41220, M9 4110→4290, M6 3840→4020, llm-skill-planning 240→420, policy-evaluation 540→720). No lock relaxed.
 
 - README `/40 860/` and `约 40 860 分钟` → `/41 220/` and `约 41 220 分钟`.
-- Curriculum sum checks `40860` → `41220`; month-total lists M9 4110→4290, M6 3840→4020.
+- Curriculum sum checks `40860` → `41220`; the current month-total table and the live M6/M9 sum checks 3840→4020 and 4110→4290 (including the obs3 / b17p3 host-minute 540→720 on policy-evaluation, and the m8 presence check 180/240/300→180/420/300 after the last 240-minute host moved).
+- Tightened the b17p3 Summary number lock the same way OpenVLA-OFT was scoped: the Hi Robot Summary bullet is checked against `hi_robot_hierarchical_feedback_toy.txt`; Magma numbers still have to appear in the Magma expected output.
