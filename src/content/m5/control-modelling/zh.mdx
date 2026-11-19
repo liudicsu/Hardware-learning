@@ -1379,6 +1379,511 @@ payload_mismatch FC=0
 4. 固定种子，把 `KP` 设为 1600、`KD` 设为 80。重新计算 `H*`，并在运行前预测 `slow_quasi_static` 里 B−A rms 会怎样变化。
 5. 在真实机械臂之前（本页未运行），写出你如何辨识负载质量和摩擦，以及如何在跟踪日志里区分负载错误和未建模摩擦。
 
+## Nyquist 稳定性判据：绕 −1 的圈数
+
+<Resource id="wiki-nyquist-stability" />
+
+来源是 Wikipedia 的 **Nyquist stability criterion** 页面（修订 1376383390，2026 年 9 月 24 日 05:20，Asia/Shanghai；以原文为准）。Nyquist 图是 G(jω) 在复平面上的像。单位反馈下，临界点是 −1 + j0。幅角原理写成 N = Z − P，也就是绕 −1 的顺时针圈数等于闭环右半平面极点数减去开环右半平面极点数，从而 Z = N + P。闭环稳定当且仅当 Z = 0。若 G 本身已经开环不稳定，图像必须为每个开环右半平面极点提供一圈逆时针绕行（N = −P）。该文还写到，Bode 图是更不一般的工具，尽管有时更便于设计（以原文为准）。Wikipedia 词条标题 “Nyquist plot” 只是重定向，不是第二份正文，本页也不把它当作正文来引用。
+
+这一节**不是**重新讲授本页已有的 Bode 增益裕度和相位裕度：那些裕度是沿特定射线（单位增益射线和 −180° 射线）到 −1 的距离，在回路开环不稳定或有多个增益穿越时不能代替圈数。它**不是**现有辅助程序里的采样 Nyquist 频率（那里的 “Nyquist frequency” 是 fs/2）。它**不**改写 `joint_freq.py`、Smith 预估器玩具或计算力矩玩具，也**不是** Python 终端课里的混叠 Nyquist 内容。
+
+<Formula label="Nyquist 关系">N = Z − P，Z = N + P，闭环稳定当且仅当 Z = 0</Formula>
+
+玩具是只用标准库、只在 CPU 上跑的模型：三个声明的线性对象、已经吸进每个开环 G 的回路增益 K，以及共享的 ω 网格。围线是确定性的：每个种子看到的是同一组对象和同一张网格（公共随机数 Common random numbers：无，因为围线是确定性的；仍然打印种子 0 到 4 共五个，以便判定辅助函数保持一致；输出用 ROUND_HALF_UP）。正式网格是每十倍频 80 个点，从 0.0010 到 10000.0000 rad/s（n_grid = 561）。A 臂（A_bode_first）在第一个增益穿越处的相位裕度至少为 pm_min_deg = 30.0000° 时接受回路，并忽略其他穿越和开环右半平面极点。B 臂（B_nyquist）当且仅当 Z = N + P 等于 0 时接受，其中 N 是 G + 1 绕原点顺时针绕数的最接近整数。C 臂（C_bode_any）只要有一个相位裕度看起来健康就接受，并把 P 当成 0。指标是 call（臂判定为稳定则为 1.0000）和 miss（该判定是误接受，也就是臂说稳定但 Z 不是 0，则为 1.0000）。对象层的阶跃也用显式欧拉积分：声明的阶跃稳定性界限是 |y| 在 y_clip = 20.0000 处截断，ISE 积分到 t_end = 20.0000 s，欧拉步长 dt = 0.0010 s（手算）。这些阶跃数字是对象的诊断，不是臂的指标。
+
+三个对象都在首次运行前写定，并予保留。**ol_stable_joint** 是开环稳定的二阶、关节式对象 G(s) = 2 × 6^2 / (s^2 + 2 × 0.5000 × 6 s + 6^2)，因此 num = (72.0,)，den = (1.0, 6.0, 36.0)，wn = 6.0000，zeta = 0.5000，K = 2.0000，P = 0；声明 A 与 B 在 call 上一致，并可能接近打平。**ol_unstable** 是 G(s) = 8(s + 0.2)/((s − 1)(s + 4))，因此 num = (8.0, 1.6)，den = (1.0, 3.0, −4.0)，P = 1；声明 A 只看单一裕度的稳定判定会输，B 会标出缺失的绕行（Z = N + P 不是 0）。**nmp_encircle** 是非最小相位回路 G(s) = (1 − s/0.2)/((s + 1)(s + 2))，因此 num = (−5.0, 1.0)，den = (1.0, 3.0, 2.0)，P = 0；声明 C 会输，因为一个看起来健康的相位裕度仍然伴随着对 −1 的绕行。
+
+<CodeSource path="examples/month-5/control-modelling/nyquist_stability_criterion_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic Nyquist stability-criterion toy.
+
+Stdlib only. Shared declared linear plants, a shared controller (already
+absorbed as a loop gain K in each open-loop G), and a shared omega grid.
+The contour is deterministic: every seed sees the same plants and the same
+grid. Seeds are still printed (five) so the verdict helpers stay uniform.
+
+Arms:
+  A_bode_first — accept the loop if the first gain-crossover phase margin
+                 is at least the declared threshold; ignore other crossings
+                 and open-loop right-half-plane poles
+  B_nyquist — accept iff Z = N + P equals 0, with N the clockwise
+              encirclements of -1+j0 and P the open-loop RHP pole count
+  C_bode_any — accept if any one gain-crossover phase margin looks healthy,
+               and treat P as 0 (a still-weaker Bode-only call)
+
+Not a rewrite of the page's Bode helpers, not a Smith/computed-torque
+re-teach, and not the sampling Nyquist frequency (fs/2) used by the existing
+helper. Real plant / analyzer: 本页未运行.
+
+Regimes and parameters were written before the first run.
+
+Labels: tie = identical on every seed; numerically zero = |paired mean| and sd
+both < 1e-9; |m| <= sd = near-tie; |m| > sd = consistent gap (small if |m| < 20 %
+of the smaller arm mean, else clear), with a sign count. ROUND_HALF_UP output.
+"""
+import cmath
+import math
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+
+# Declared contour and Bode-threshold parameters.
+PTS_PER_DEC = 80
+LOG_W_MIN = -3  # 10^-3
+LOG_W_MAX = 4   # 10^4
+PM_MIN_DEG = 30.0
+# Step diagnostic (plant-level, not an arm metric). Euler integration bound.
+DT = 0.001
+T_END = 20.0
+Y_CLIP = 20.0
+
+METRICS = ("call", "miss")
+ARMS = ("A_bode_first", "B_nyquist", "C_bode_any")
+PAIRS = (("B", "A"), ("C", "B"), ("C", "A"))
+
+# Plants: (name, num, den, declared_P, declared expectation)
+# num/den are highest-power first. Delay is not used in the official plants.
+PLANTS = {
+    "ol_stable_joint": {
+        "num": (72.0,),           # 2 * 6^2
+        "den": (1.0, 6.0, 36.0),  # s^2 + 2*0.5*6 s + 6^2
+        "P": 0,
+        "expect": "A and B agree on call and may near-tie - keep",
+    },
+    "ol_unstable": {
+        "num": (8.0, 1.6),        # 8*(s + 0.2)
+        "den": (1.0, 3.0, -4.0),  # (s - 1)*(s + 4)
+        "P": 1,
+        "expect": "A's single-margin stable call loses; B flags the missing encirclement (Z = N + P != 0) - keep",
+    },
+    "nmp_encircle": {
+        "num": (-5.0, 1.0),       # 1 - s/0.2
+        "den": (1.0, 3.0, 2.0),   # (s + 1)*(s + 2)
+        "P": 0,
+        "expect": "C loses (one healthy phase margin, but the plot encircles -1) - keep",
+    },
+}
+
+# Alternative coarser grid (printed, not adopted).
+ALT_PTS_PER_DEC = 20
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    x = float(x)
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < 0.2 * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def poly_eval(coeffs, s):
+    acc = 0j
+    for a in coeffs:
+        acc = acc * s + a
+    return acc
+
+
+def G_jw(numc, denc, w):
+    s = 1j * w
+    return poly_eval(numc, s) / poly_eval(denc, s)
+
+
+def omega_grid(pts_per_dec, log_min=LOG_W_MIN, log_max=LOG_W_MAX):
+    # Inclusive end: (log_max-log_min)*pts_per_dec + 1 points.
+    n = (log_max - log_min) * pts_per_dec
+    return [10 ** (log_min + i * (log_max - log_min) / n) for i in range(n + 1)]
+
+
+def unwrap_phase(angles):
+    out = []
+    prev = None
+    acc = 0.0
+    for a in angles:
+        if prev is None:
+            acc = a
+        else:
+            d = a - prev
+            while d > math.pi:
+                d -= 2 * math.pi
+            while d < -math.pi:
+                d += 2 * math.pi
+            acc += d
+        out.append(acc)
+        prev = a
+    return out
+
+
+def bode_margins(numc, denc, grid):
+    mag = []
+    raw = []
+    for w in grid:
+        g = G_jw(numc, denc, w)
+        mag.append(abs(g))
+        raw.append(cmath.phase(g))
+    un = unwrap_phase(raw)
+    pms = []
+    gms = []
+    for i in range(len(grid) - 1):
+        if (mag[i] - 1.0) * (mag[i + 1] - 1.0) <= 0 and mag[i] != mag[i + 1]:
+            t = (1.0 - mag[i]) / (mag[i + 1] - mag[i])
+            ph = un[i] + t * (un[i + 1] - un[i])
+            # log interpolation of omega
+            w = grid[i] * (grid[i + 1] / grid[i]) ** t
+            pms.append((ph * 180.0 / math.pi + 180.0, w))
+        # phase crossing of -180 deg on the unwrapped branch nearest odd multiples
+        # GM at the first phase == -pi (plus 2pi k) crossing.
+        target = -math.pi
+        # search nearest odd-pi using the unwrapped value crossing -pi, -3pi, ...
+        for k in range(-6, 7):
+            tgt = -math.pi + 2 * math.pi * k
+            if (un[i] - tgt) * (un[i + 1] - tgt) <= 0 and un[i] != un[i + 1]:
+                t = (tgt - un[i]) / (un[i + 1] - un[i])
+                w = grid[i] * (grid[i + 1] / grid[i]) ** t
+                magc = mag[i] + t * (mag[i + 1] - mag[i])
+                if magc > 1e-18:
+                    gm_db = -20.0 * math.log10(magc)
+                    gms.append((gm_db, w, magc))
+                break
+    return pms, gms
+
+
+def winding_N(numc, denc, grid):
+    # D-contour image: omega from -inf to +inf, then close through the origin
+    # (strictly proper G(j inf) = 0). Clockwise encirclements of -1.
+    pos = [G_jw(numc, denc, w) for w in grid]
+    neg = [G_jw(numc, denc, -w) for w in grid[::-1]]
+    curve = neg + pos
+    rel = [z + 1.0 for z in curve]
+    dang = 0.0
+    for a, b in zip(rel, rel[1:] + rel[:1]):
+        if abs(a) < 1e-18 or abs(b) < 1e-18:
+            continue
+        q = b / a
+        dang += math.atan2(q.imag, q.real)
+    return -dang / (2.0 * math.pi)
+
+
+def rhp_poles_quadratic(denc):
+    # den = s^2 + a s + b, roots of s^2 + a s + b = 0.
+    if len(denc) != 3 or denc[0] != 1.0:
+        raise ValueError("official plants are monic second-order")
+    a, b = denc[1], denc[2]
+    disc = a * a - 4.0 * b
+    if disc >= 0:
+        r1 = (-a + math.sqrt(disc)) / 2.0
+        r2 = (-a - math.sqrt(disc)) / 2.0
+        return int(r1.real > 0) + int(r2.real > 0), (r1, r2)
+    real = -a / 2.0
+    imag = math.sqrt(-disc) / 2.0
+    return int(real > 0) + int(real > 0), (complex(real, imag), complex(real, -imag))
+
+
+def simulate_step(numc, denc, dt=DT, t_end=T_END, y_clip=Y_CLIP):
+    """Unity-feedback step, controllable canonical form, forward Euler.
+
+    Closed-loop input is r - y. |y| is clipped at y_clip; ISE is integrated
+    to t_end. The clip is the declared step-stability bound.
+    """
+    # Plant: strictly proper monic second order, y = C x, ẋ = A x + B u
+    # Companion: ẋ1 = x2, ẋ2 = -a0 x1 - a1 x2 + u, y = b0 x1 + b1 x2
+    # den = [1, a1, a0], num padded to [b1, b0]
+    a1, a0 = denc[1], denc[2]
+    if len(numc) == 1:
+        b1, b0 = 0.0, numc[0]
+    else:
+        b1, b0 = numc[0], numc[1]
+    x1 = 0.0
+    x2 = 0.0
+    ise = 0.0
+    clipped = 0
+    nstep = int(round(t_end / dt))
+    y = 0.0
+    for _ in range(nstep):
+        u = 1.0 - y
+        dx1 = x2
+        dx2 = -a0 * x1 - a1 * x2 + u
+        x1 += dt * dx1
+        x2 += dt * dx2
+        y = b0 * x1 + b1 * x2
+        if y > y_clip:
+            y = y_clip
+            clipped = 1
+        elif y < -y_clip:
+            y = -y_clip
+            clipped = 1
+        ise += (y - 1.0) ** 2 * dt
+    return ise, clipped, y
+
+
+def analyze(plant, pts_per_dec):
+    numc = plant["num"]
+    denc = plant["den"]
+    grid = omega_grid(pts_per_dec)
+    pms, gms = bode_margins(numc, denc, grid)
+    N_raw = winding_N(numc, denc, grid)
+    N = int(round(N_raw))
+    P_calc, roots = rhp_poles_quadratic(denc)
+    P = plant["P"]
+    if P_calc != P:
+        # still use the declared P; surface the check in the printed line
+        pass
+    Z = N + P
+    first_pm = pms[0][0] if pms else None
+    any_healthy = any(pm >= PM_MIN_DEG for pm, _w in pms)
+    first_healthy = (first_pm is not None) and (first_pm >= PM_MIN_DEG)
+    ise, clipped, y_end = simulate_step(numc, denc)
+    return {
+        "pms": pms,
+        "gms": gms,
+        "N_raw": N_raw,
+        "N": N,
+        "P": P,
+        "P_calc": P_calc,
+        "roots": roots,
+        "Z": Z,
+        "first_pm": first_pm,
+        "first_healthy": first_healthy,
+        "any_healthy": any_healthy,
+        "ise": ise,
+        "clipped": clipped,
+        "y_end": y_end,
+        "n_grid": len(grid),
+    }
+
+
+def arm_scores(info):
+    A_call = 1.0 if info["first_healthy"] else 0.0
+    B_call = 1.0 if info["Z"] == 0 else 0.0
+    C_call = 1.0 if info["any_healthy"] else 0.0
+    truth_stable = info["Z"] == 0
+    def miss(call):
+        return 1.0 if (call == 1.0 and not truth_stable) else 0.0
+    return {
+        "A_bode_first": {"call": A_call, "miss": miss(A_call)},
+        "B_nyquist": {"call": B_call, "miss": miss(B_call)},
+        "C_bode_any": {"call": C_call, "miss": miss(C_call)},
+    }
+
+
+def fmt_pms(pms):
+    if not pms:
+        return "none"
+    return ";".join(f"{num(pm)}deg@w={num(w)}" for pm, w in pms)
+
+
+def fmt_gms(gms):
+    if not gms:
+        return "none"
+    # unique-ish by omega
+    seen = []
+    for gm, w, magc in gms:
+        rec = f"{num(gm)}dB@w={num(w)}"
+        if rec not in seen:
+            seen.append(rec)
+    return ";".join(seen)
+
+
+def main():
+    print("Nyquist stability-criterion toy: shared declared linear plants and a shared omega grid (synthetic; not a rewrite of the Bode helpers, not Smith, not computed torque, not the sampling Nyquist frequency)")
+    print("Real plant / analyzer: 本页未运行")
+    print(
+        f"seeds={len(SEEDS)} pts_per_dec={PTS_PER_DEC} log_w={LOG_W_MIN}_to_{LOG_W_MAX} "
+        f"pm_min_deg={num(PM_MIN_DEG)} dt={num(DT)} t_end={num(T_END)} y_clip={num(Y_CLIP)} "
+        f"alt_pts_per_dec={ALT_PTS_PER_DEC} (declared)"
+    )
+    print("Regimes and parameters were written before the first run")
+    print("Common random numbers: none; the contour is deterministic and every seed sees the same plants and the same omega grid")
+    print(f"hand_calc Z = N + P, closed-loop stable iff Z = 0")
+    print(f"hand_calc step-stability bound: |y| clipped at {num(Y_CLIP)}; ISE integrated to t_end={num(T_END)} with Euler step dt={num(DT)}")
+    print(f"hand_calc ol_stable_joint wn=6.0000 zeta=0.5000 K=2.0000")
+    print(f"hand_calc card range omega = {10 ** LOG_W_MIN:.4f} to {10 ** LOG_W_MAX:.4f}")
+    for name, plant in PLANTS.items():
+        print(
+            f"declared {name}: num={plant['num']} den={plant['den']} P={plant['P']}: {plant['expect']}"
+        )
+
+    official = {name: analyze(plant, PTS_PER_DEC) for name, plant in PLANTS.items()}
+    alternative = {name: analyze(plant, ALT_PTS_PER_DEC) for name, plant in PLANTS.items()}
+
+    for name, plant in PLANTS.items():
+        info = official[name]
+        print(f"plant {name}")
+        print(
+            f"  N_raw={num(info['N_raw'])} N={info['N']} P={info['P']} P_calc={info['P_calc']} "
+            f"Z={info['Z']} first_pm={num(info['first_pm']) if info['first_pm'] is not None else 'none'} "
+            f"pms={fmt_pms(info['pms'])} gms={fmt_gms(info['gms'])} "
+            f"n_grid={info['n_grid']} step_ise={num(info['ise'])} clipped={info['clipped']} "
+            f"y_end={num(info['y_end'])}"
+        )
+        scores = arm_scores(info)
+        # Deterministic: repeat the same scores on every seed.
+        store = {arm: {m: [scores[arm][m]] * len(SEEDS) for m in METRICS} for arm in ARMS}
+        for arm in ARMS:
+            for m in METRICS:
+                mu, sd = mean_sd(store[arm][m])
+                print(f"  {arm} {m}: {num(mu)}+-{num(sd)}")
+        for left, right in PAIRS:
+            la = [a for a in ARMS if a.startswith(left + "_")][0]
+            ra = [a for a in ARMS if a.startswith(right + "_")][0]
+            for m in METRICS:
+                print(f"  paired {left}-{right} {m}: {verdict(store[la][m], store[ra][m])}")
+
+    print("alternative pts_per_dec=20 (printed, not adopted)")
+    for name in PLANTS:
+        o, a = official[name], alternative[name]
+        o_scores, a_scores = arm_scores(o), arm_scores(a)
+        print(
+            f"  {name} official N={o['N']} Z={o['Z']} first_pm={num(o['first_pm']) if o['first_pm'] is not None else 'none'}; "
+            f"alternative N={a['N']} Z={a['Z']} first_pm={num(a['first_pm']) if a['first_pm'] is not None else 'none'}"
+        )
+        for arm in ARMS:
+            same = o_scores[arm] == a_scores[arm]
+            print(
+                f"  {name} {arm} official call={num(o_scores[arm]['call'])} miss={num(o_scores[arm]['miss'])}; "
+                f"alternative call={num(a_scores[arm]['call'])} miss={num(a_scores[arm]['miss'])}; same_labels={'yes' if same else 'no'}"
+            )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Nyquist stability-criterion toy: shared declared linear plants and a shared omega grid (synthetic; not a rewrite of the Bode helpers, not Smith, not computed torque, not the sampling Nyquist frequency)
+Real plant / analyzer: 本页未运行
+seeds=5 pts_per_dec=80 log_w=-3_to_4 pm_min_deg=30.0000 dt=0.0010 t_end=20.0000 y_clip=20.0000 alt_pts_per_dec=20 (declared)
+Regimes and parameters were written before the first run
+Common random numbers: none; the contour is deterministic and every seed sees the same plants and the same omega grid
+hand_calc Z = N + P, closed-loop stable iff Z = 0
+hand_calc step-stability bound: |y| clipped at 20.0000; ISE integrated to t_end=20.0000 with Euler step dt=0.0010
+hand_calc ol_stable_joint wn=6.0000 zeta=0.5000 K=2.0000
+hand_calc card range omega = 0.0010 to 10000.0000
+declared ol_stable_joint: num=(72.0,) den=(1.0, 6.0, 36.0) P=0: A and B agree on call and may near-tie - keep
+declared ol_unstable: num=(8.0, 1.6) den=(1.0, 3.0, -4.0) P=1: A's single-margin stable call loses; B flags the missing encirclement (Z = N + P != 0) - keep
+declared nmp_encircle: num=(-5.0, 1.0) den=(1.0, 3.0, 2.0) P=0: C loses (one healthy phase margin, but the plot encircles -1) - keep
+plant ol_stable_joint
+  N_raw=4.498e-17 N=0 P=0 P_calc=0 Z=0 first_pm=49.3542 pms=49.3542deg@w=9.1061 gms=none n_grid=561 step_ise=2.2962 clipped=0 y_end=0.6667
+  A_bode_first call: 1.0000+-0.0000
+  A_bode_first miss: 0.0000+-0.0000
+  B_nyquist call: 1.0000+-0.0000
+  B_nyquist miss: 0.0000+-0.0000
+  C_bode_any call: 1.0000+-0.0000
+  C_bode_any miss: 0.0000+-0.0000
+  paired B-A call: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A miss: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B call: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B miss: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A call: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A miss: 0.0000+-0.0000: tie: identical on every seed
+plant ol_unstable
+  N_raw=6.019e-17 N=0 P=1 P_calc=1 Z=1 first_pm=90.1206 pms=90.1206deg@w=0.5364;110.3383deg@w=6.8347 gms=none n_grid=561 step_ise=3350.9884 clipped=1 y_end=20.0000
+  A_bode_first call: 1.0000+-0.0000
+  A_bode_first miss: 1.0000+-0.0000
+  B_nyquist call: 0.0000+-0.0000
+  B_nyquist miss: 0.0000+-0.0000
+  C_bode_any call: 1.0000+-0.0000
+  C_bode_any miss: 1.0000+-0.0000
+  paired B-A call: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A miss: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B call: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B miss: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A call: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A miss: 0.0000+-0.0000: tie: identical on every seed
+plant nmp_encircle
+  N_raw=2.0000 N=2 P=0 P_calc=0 Z=2 first_pm=84.9799 pms=84.9799deg@w=0.3888;-50.6024deg@w=4.4553 gms=-4.4362dB@w=1.6125 n_grid=561 step_ise=5985.5519 clipped=1 y_end=20.0000
+  A_bode_first call: 1.0000+-0.0000
+  A_bode_first miss: 1.0000+-0.0000
+  B_nyquist call: 0.0000+-0.0000
+  B_nyquist miss: 0.0000+-0.0000
+  C_bode_any call: 1.0000+-0.0000
+  C_bode_any miss: 1.0000+-0.0000
+  paired B-A call: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A miss: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B call: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B miss: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A call: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A miss: 0.0000+-0.0000: tie: identical on every seed
+alternative pts_per_dec=20 (printed, not adopted)
+  ol_stable_joint official N=0 Z=0 first_pm=49.3542; alternative N=0 Z=0 first_pm=49.3549
+  ol_stable_joint A_bode_first official call=1.0000 miss=0.0000; alternative call=1.0000 miss=0.0000; same_labels=yes
+  ol_stable_joint B_nyquist official call=1.0000 miss=0.0000; alternative call=1.0000 miss=0.0000; same_labels=yes
+  ol_stable_joint C_bode_any official call=1.0000 miss=0.0000; alternative call=1.0000 miss=0.0000; same_labels=yes
+  ol_unstable official N=0 Z=1 first_pm=90.1206; alternative N=0 Z=1 first_pm=90.0879
+  ol_unstable A_bode_first official call=1.0000 miss=1.0000; alternative call=1.0000 miss=1.0000; same_labels=yes
+  ol_unstable B_nyquist official call=0.0000 miss=0.0000; alternative call=0.0000 miss=0.0000; same_labels=yes
+  ol_unstable C_bode_any official call=1.0000 miss=1.0000; alternative call=1.0000 miss=1.0000; same_labels=yes
+  nmp_encircle official N=2 Z=2 first_pm=84.9799; alternative N=2 Z=2 first_pm=85.0077
+  nmp_encircle A_bode_first official call=1.0000 miss=1.0000; alternative call=1.0000 miss=1.0000; same_labels=yes
+  nmp_encircle B_nyquist official call=0.0000 miss=0.0000; alternative call=0.0000 miss=0.0000; same_labels=yes
+  nmp_encircle C_bode_any official call=1.0000 miss=1.0000; alternative call=1.0000 miss=1.0000; same_labels=yes
+```
+
+</SimOutput>
+
+在 **ol_stable_joint** 上，N_raw = 4.498e-17，所以 N = 0，P = 0，Z = 0。第一个也是唯一的相位裕度是 49.3542°，位于 ω = 9.1061 rad/s，高于 30.0000° 阈值；没有增益裕度穿越。闭环阶跃未被截断，step_ise = 2.2962，y_end = 0.6667，与手算的直流增益 G(0)/(1 + G(0)) = 2/3 相符。A、B、C 三臂的 call 都是 1.0000±0.0000，miss 都是 0.0000±0.0000。成对 B−A 的 call 与 miss 都是**打平**（每个种子都完全相同）。A 与 B 一致、并可能接近打平的声明成立（正式结果是精确打平，予以保留，不做重调）。
+
+在 **ol_unstable** 上，N_raw = 6.019e-17，所以 N = 0，P = 1，Z = 1。闭环不稳定：它本来需要 N = −1，也就是一圈逆时针绕行，但它没有。尽管如此，第一个相位裕度仍是 90.1206°，位于 ω = 0.5364 rad/s，第二个是 110.3383°，位于 ω = 6.8347 rad/s，都高于 30.0000°。阶跃碰到界限（clipped = 1，y_end = 20.0000，step_ise = 3350.9884）。A_bode_first 与 C_bode_any 都是 call 1.0000、miss 1.0000；B_nyquist 是 call 0.0000、miss 0.0000。成对 B−A 的 call 与 miss 都是 −1.0000±0.0000，属于**明显差距，不是打平**（5 个种子全部同号）。A 只看单一裕度的「稳定」判定会输，B 标出 Z = 1，与声明一致。
+
+在 **nmp_encircle** 上，N_raw = 2.0000，所以 N = 2，P = 0，Z = 2。第一个相位裕度是 84.9799°，位于 ω = 0.3888 rad/s，看起来健康，但第二次穿越是 −50.6024°，位于 ω = 4.4553 rad/s，增益裕度是 −4.4362 dB，位于 ω = 1.6125 rad/s。阶跃再次碰到界限（clipped = 1，y_end = 20.0000，step_ise = 5985.5519）。C_bode_any（以及只看第一次穿越的 A）是 call 1.0000、miss 1.0000；B 是 call 0.0000。成对 C−B 的 call 与 miss 都是 1.0000±0.0000，属于**明显差距，不是打平**（5 个种子全部同号）。C 会输的声明成立。
+
+**看过结果后做的选择**。 没有。三个对象、pm_min_deg = 30.0000°、正式的每十倍频 80 点网格、阶跃稳定性界限和三种情形都在首次运行前写定。同一组对象上打印、但未采纳的替代是每十倍频 20 个点的更疏网格：每臂的 call 与 miss 标签都不变（first_pm 只移动千分之几度：49.3542° 到 49.3549°，90.1206° 到 90.0879°，84.9799° 到 85.0077°；N 与 Z 不变）。
+
+本页**不宣布普遍赢家**。在开环稳定的二阶关节式对象上，健康的第一个相位裕度与 Nyquist 计数 Z = 0 是一致的；在开环不稳定对象上，或在一次健康穿越之后仍绕过 −1 的回路上，只看单一裕度的「稳定」判定是误接受，与 Z 相符的是绕数。真实对象或分析仪均**本页未运行**。
+
+**180 分钟安排:** 30 分钟读 Nyquist stability criterion 页上的 N = Z − P、−1 + j0 的作用，以及开环不稳定对象为什么需要逆时针绕行；25 分钟手算三个声明对象的 Z = N + P，以及 ol_stable_joint 的闭环直流增益 2/3（手算）；50 分钟运行玩具并阅读三个对象；40 分钟对照打印的每十倍频 20 点替代与正式网格；35 分钟做练习（30+25+50+40+35=180）。
+
+### 练习
+
+1. 用打印的对象行说明：ol_unstable 的 N = 0、P = 1，因此 Z = 1。若要 Z = 0，需要多少圈对 −1 的逆时针绕行？为什么第一个相位裕度 90.1206° 仍不够？
+2. 在 ol_stable_joint 上，第一个相位裕度是 49.3542°，位于 ω = 9.1061 rad/s，且 Z = 0。为什么这时 A 与 B 可以打平，又为什么仍不能据此在另外两个对象上跳过绕数？
+3. nmp_encircle 的第一个相位裕度是 84.9799°，第二个是 −50.6024°。为什么只看第一次穿越的 A 会误接受，又为什么把「任一健康裕度、并把 P 当 0」的 C 当作相对 B 的失败格？
+4. 打印的每十倍频 20 点替代没有改掉任何 call 与 miss 标签。为什么不能据此把正式的 80 点网格从页面上删掉？
+5. 在做任何真实对象或分析仪实验之前（本页未运行），写出你会怎样在同一条回路上区分 Bode「相位裕度看起来健康」和 Nyquist 对 −1 的绕行，以及你会先数哪些开环极点。
+
 <Summary>
 
 - 加上重力前馈后，关节为 `G(s) = 1 / (s (J s + B))`，一个自由积分加一个 `J/B = 0.08 s` 的滞后；第 3 个月的 0.05 N·m/deg 在模型里是 2.86 N·m/rad。
@@ -1387,4 +1892,5 @@ payload_mismatch FC=0
 - Smith 预估器：0.20 s 延迟下，忽略延迟的 PI 比使用真实模型的 Smith 预估器多超调 87.3189±0.1214 个百分点（明显，5 个种子同号）；没有延迟时三组**打平**（每个种子都完全相同）；0.04 s 延迟下普通 PI 调节更快（A−B −0.1920±0.0045，明显）；延迟模型偏 90–110 % 时每个指标都输——合成对象，不是实验台实验。
 - 计算力矩把逆动力学放进回路：在同一个 2R 机械臂上，快速耦合轨迹下明显胜过 PD + 重力（配对 rms −100.9081±33.6992 mrad，5/5）；慢速轨迹下只剩未建模摩擦，它明显落败（+16.7587±13.6344，声明的接近打平没有成立）；模型漏掉负载时明显落败（C−A +133.6632±28.8934）——`computed_torque_inverse_dynamics_toy.py`，是替身，不是实验室运行。
 
+Nyquist 稳定性：在共享的确定性围线上，开环稳定的二阶关节式对象上，健康的第一相位裕度与 Z = 0 打平（成对 B−A call 0.0000±0.0000，每个种子都完全相同）；开环不稳定对象即使第一相位裕度为 90.1206° 仍有 Z = 1，A 只看单一裕度的接受会输（成对 B−A miss −1.0000±0.0000，5/5）；非最小相位回路即使有一个健康相位裕度仍绕过 −1，C 会输（成对 C−B miss 1.0000±0.0000，5/5，保留）——合成围线，不是分析仪运行。
 </Summary>

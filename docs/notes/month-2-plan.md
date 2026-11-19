@@ -1,6 +1,16 @@
 # Month 2 plan / 第 2 个月计划
 
-Current / 当前：**M2 3750 min**, Batch-23 PR1. Earlier entries below retain their historical totals.
+Current / 当前：**M2 3930 min**, Batch-24 PR1. Earlier entries below retain their historical totals.
+
+## Batch-24 PR1 — Steinhart–Hart NTC on sensors-fusion (+180)
+
+Base `80c9b9d3b5d706eba950636c5916b473ef934d70` (batch-23 polish #196 merged; site **41220**). PR1 on M2 host: **M2 3750→3930 (+180)**; M5 moves in the same PR on its own plan. Site **41220→41580** (41580=41220+180+180), still 71 lessons.
+
+**H1 / 2.x sensors-fusion:** `sensors-fusion` 900→**1080**. Toy `steinhart_hart_ntc_sense_toy.py`: Steinhart–Hart NTC temperature sensing on a shared temperature list, divider/ADC stand-in and resistance-noise draw (common random numbers, 5 seeds). The only inverse R(T) is the one on the Steinhart–Hart equation page (oldid 1291894974); the Thermistor page (oldid 1380549254) is the secondary source for the B-parameter reduction and the 0.02 °C / example-coefficient claims (以原文为准, not toy outputs). Arms: a B-parameter model fitted only near 25.0000 °C (A), Steinhart–Hart coefficients from three declared points (B), and raw ADC counts treated as temperature (C). mid_range: A and B near-tie on rmse_C (paired B−A −0.0064±0.0142, 3 of 5 opposite) — held. wide_span: B clearly better than A (paired B−A −4.1852±0.4341, 5/5) — held. out_of_range: C loses to B (paired C−B 11.6515±0.2455, 5/5) — held. Distinct from the NTC inrush limiter; MPU TEMP_OUT unread. Real thermistor / bath / IMU TEMP_OUT 本页未运行.
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
+
+**Site accounting / 全站核算:** **41580=41220+180+180**; **M2=3930**, **71 lessons**.
 
 ## Batch-23 PR1 / 本月 H1 (+180)
 

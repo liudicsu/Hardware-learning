@@ -6926,6 +6926,66 @@ export const resources: Record<string, Resource> = {
     license: { zh: "预印本（arXiv 非独占分发许可），© 原作者；仅提供外链", en: "Preprint (arXiv non-exclusive distribution license), © the authors; external link only" },
     extra: true,
   },
+  "wiki-steinhart-hart": {
+    id: "wiki-steinhart-hart",
+    url: "https://en.wikipedia.org/w/index.php?title=Steinhart%E2%80%93Hart_equation&oldid=1291894974",
+    title: {
+      zh: "Wikipedia：Steinhart–Hart 方程",
+      en: "Wikipedia: Steinhart–Hart equation",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "把热敏电阻测到的电阻映到体温度的经验公式 1/T = A + B ln R + C (ln R)^3，T 用开尔文；系数可由三个已知 (R, T) 点解出。该页给出反函数 R = exp(cbrt(y − x/2) − cbrt(y + x/2))，其中 x = (1/C)(A − 1/T)，y = sqrt((B/(3C))^3 + x^2/4)。HTML 正文已核验（rev 1291894974）；以原文为准。真实热敏电阻与标定槽：本页未运行。",
+      en: "The empirical map from a measured thermistor resistance to bulk temperature is 1/T = A + B ln R + C (ln R)^3, with T in kelvin; the coefficients can be solved from three known (R, T) points. The page gives the inverse R = exp(cbrt(y − x/2) − cbrt(y + x/2)), with x = (1/C)(A − 1/T) and y = sqrt((B/(3C))^3 + x^2/4). HTML body checked (rev 1291894974); 以原文为准. Real thermistor and bath: 本页未运行.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "wiki-thermistor": {
+    id: "wiki-thermistor",
+    url: "https://en.wikipedia.org/w/index.php?title=Thermistor&oldid=1380549254",
+    title: {
+      zh: "Wikipedia：热敏电阻（thermistor）",
+      en: "Wikipedia: Thermistor",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "与 Steinhart–Hart 方程同一族的三阶正向公式（参数 a、b、c）；一阶线性模型 ΔR = k ΔT 只在有限区间内准确；B 参数式 1/T = 1/T_0 + (1/B) ln(R/R_0) 相当于把三次项取零。该页举出 25 °C 下 3 kΩ 器件的示例系数 a = 1.40e-3、b = 2.37e-4、c = 9.90e-8，并写道在 200 °C 范围内误差一般小于 0.02 °C（以原文为准）。这些示例系数和 0.02 °C 都不是本页玩具输出。HTML 正文已核验（rev 1380549254）；以原文为准。真实热敏电阻与标定槽：本页未运行。",
+      en: "The same third-order forward family as the Steinhart–Hart equation (parameters a, b, c); a first-order linear model ΔR = k ΔT is accurate only over a limited range; the B-parameter form 1/T = 1/T_0 + (1/B) ln(R/R_0) is the same family with the cubic term set to zero. The page gives example coefficients a = 1.40e-3, b = 2.37e-4, c = 9.90e-8 for a typical 3 kΩ-at-25 °C part, and states that the error is generally less than 0.02 °C over a 200 °C range (以原文为准). Those example coefficients and the 0.02 °C claim are not toy outputs on this page. HTML body checked (rev 1380549254); 以原文为准. Real thermistor and bath: 本页未运行.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
+  "wiki-nyquist-stability": {
+    id: "wiki-nyquist-stability",
+    url: "https://en.wikipedia.org/w/index.php?title=Nyquist_stability_criterion&oldid=1376383390",
+    title: {
+      zh: "Wikipedia：Nyquist 稳定性判据",
+      en: "Wikipedia: Nyquist stability criterion",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "Nyquist 图是 G(jω) 在复平面上的像；单位反馈下临界点是 −1 + j0。幅角原理写成 N = Z − P，顺时针绕 −1 的圈数等于闭环右半平面极点数减去开环右半平面极点数，Z = N + P；闭环稳定当且仅当 Z = 0。开环不稳定时，需要与 P 相等的逆时针绕行。Bode 图是更不一般的工具，尽管有时更便于设计。词条标题 “Nyquist plot” 只是重定向，不是第二份正文。HTML 正文已核验（rev 1376383390）；以原文为准。真实对象与分析仪：本页未运行。",
+      en: "The Nyquist plot is the image of G(jω) in the complex plane; for unity feedback the critical point is −1 + j0. The argument principle is written N = Z − P, so clockwise encirclements of −1 equal closed-loop right-half-plane poles minus open-loop right-half-plane poles, and Z = N + P; the closed loop is stable iff Z = 0. An open-loop-unstable plant needs as many counter-clockwise encirclements as P. Bode plots are a less general tool, even though they are sometimes more convenient for design. The title “Nyquist plot” is only a redirect, not a second body. HTML body checked (rev 1376383390); 以原文为准. Real plant and analyser: 本页未运行.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
 }
 
 export function resourceUrl(r: Resource, locale: "zh" | "en"): string {

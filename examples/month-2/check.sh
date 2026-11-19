@@ -42,4 +42,6 @@ check i2c_clock_stretch_toy.txt "$PY" "$M2/sensors-fusion/i2c_clock_stretch_toy.
 check madgwick_vs_complementary_balancer_toy.txt "$PY" "$M2/first-robots/madgwick_vs_complementary_balancer_toy.py"
 check optocoupler_ctr_isolation_toy.txt "$PY" "$M2/arduino-io/optocoupler_ctr_isolation_toy.py"
 
+check steinhart_hart_ntc_sense_toy.txt "$PY" "$M2/sensors-fusion/steinhart_hart_ntc_sense_toy.py"
+
 exit $fail
