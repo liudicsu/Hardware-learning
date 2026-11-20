@@ -23,6 +23,7 @@ check power_roundtrip_loss_toy.txt "$PY" "$M11/power-battery-emc/power_roundtrip
 check soc_coulomb_thermal_toy.txt "$PY" "$M11/power-battery-emc/soc_coulomb_thermal_toy.py"
 check clarke_park_toy.txt "$PY" "$M11/foc-actuator-lab/clarke_park_toy.py"
 check foc_current_loop_toy.txt "$PY" "$M11/foc-actuator-lab/foc_current_loop_toy.py"
+check foc_dq_decoupling_toy.txt "$PY" "$M11/foc-actuator-lab/foc_dq_decoupling_toy.py"
 check tactile_marker_toy.txt "$PY" "$M11/tactile-sensing/tactile_marker_toy.py"
 check tactile_debias_recal_toy.txt "$PY" "$M11/tactile-sensing/tactile_debias_recal_toy.py"
 check relative_traj_toy.txt "$PY" "$M11/umi-style-collection/relative_traj_toy.py"

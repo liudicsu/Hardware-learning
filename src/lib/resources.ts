@@ -3303,6 +3303,20 @@ export const resources: Record<string, Resource> = {
     license: { zh: "开源项目文档，© SimpleFOC；仅提供外链", en: "Open-source docs, © SimpleFOC; external link only" },
     extra: true,
   },
+  "simplefoc-foc-current-torque": {
+    id: "simplefoc-foc-current-torque",
+    url: "https://docs.simplefoc.com/foc_current_torque_mode",
+    title: { zh: "SimpleFOC：FOC 电流模式", en: "SimpleFOC: FOC current mode" },
+    author: "SimpleFOC",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "电流模式 PI 与 d/q 交叉耦合、电感滞后前馈。本站 11.2 公式体；以当期文档为准。",
+      en: "Current-mode PI and d/q cross-coupling / inductive-lag feedforward. Formula body for 11.2; follow the current docs.",
+    },
+    license: { zh: "开源项目文档，© SimpleFOC；仅提供外链", en: "Open-source docs, © SimpleFOC; external link only" },
+    extra: true,
+  },
   "anyskin-paper": {
     id: "anyskin-paper",
     url: "https://arxiv.org/abs/2409.08276",

@@ -20,6 +20,7 @@ Inverse path: dq → αβ (inverse Park) → abc (inverse Clarke) yields phase v
 <Resource id="simplefoc-foc-implementation" />
 <Resource id="simplefoc-alignment" />
 <Resource id="simplefoc-voltage-torque" />
+<Resource id="simplefoc-foc-current-torque" />
 <Resource id="simplefoc-home" />
 <Resource id="simplefoc" />
 
@@ -382,9 +383,10 @@ How to read it:
 
 ## SimpleFOC reading map
 
-- **Library**: Arduino SimpleFOC (docs say v2.4+); PlatformIO / many MCUs (including the ESP32 you already met in M2). Read `foc_implementation` (setPhaseVoltage / loopFOC), `alignment_procedure`, and `voltage_torque_control` — follow the current docs.
+- **Library**: Arduino SimpleFOC (docs say v2.4+); PlatformIO / many MCUs (including the ESP32 you already met in M2). Read `foc_implementation` (setPhaseVoltage / loopFOC), `alignment_procedure`, `voltage_torque_control`, and `foc_current_torque_mode` — follow the current docs.
 - **Sensors**: open-loop (no feedback, demo only), Hall, magnetic encoder.
 - **Two integration paths**: tune over serial with <Term id="simplefoc-commander">Commander</Term> first; only then consider a micro-ROS client that exposes the joint into a ROS 2 graph. Community FOC + micro-ROS practice exists, but **this page is not in CI and does not copy third-party BOM tables**; flash steps live in this folder's README and are marked 本页未运行.
+- **Current-mode feedforward**: `foc_current_torque_mode` is the formula body for the official current-mode d/q cross-coupling / lag terms in the section below. The already-linked `voltage_torque_control` page is the plant / voltage-mode contrast; it is not a substitute for adding this page.
 - **Versus SO-101**: bus servos already have their own servo inside; this lesson does not replace STS3215. Reach for FOC when you build a hub, a direct-drive joint, or need current-loop torque control.
 
 ## Optional: open-loop flash (本页未运行)
@@ -398,6 +400,491 @@ If you already have an ESP32 + a suitable driver board: build and flash the Simp
 - A full ros2_control hardware component for an FOC joint (8.4 is the interface lesson).
 - Cross-coupling decoupling (this toy omits it on both arms, never on one).
 
+## Current-mode d/q cross-coupling feedforward
+
+The R–L current-loop toy above omits cross-coupling on both arms, never on one; that description stays, and that toy is not retuned. This section is a separate cut: the opened SimpleFOC current-mode feedforward that compensates d/q cross-coupling and inductive lag, compared with PI-only current mode on a plant that does include those terms.
+
+**Primary formula body.** The current-mode page *FOC Current Mode* (`https://docs.simplefoc.com/foc_current_torque_mode`) is the formula body for the official arms. It was not already in this lesson's reading map; it is added here as a Resource. The already-linked `voltage_torque_control` page also restates the current-mode feedforward and supplies the plant model; that is not a substitute for adding the current-mode page.
+
+<Resource id="simplefoc-foc-current-torque" />
+
+When the d-axis target is 0, the PI-only laws on that page are u_q = PI_q(i_q - i_hat_q) and u_d = PI_d(-i_hat_d). If L_d and L_q are provided, the same page adds feedforward (以文档为准):
+
+u_q = PI_q(i_q - i_hat_q) + L_d i_d v_e, u_d = PI_d(-i_hat_d) - L_q i_q v_e,
+
+with v_e = n_pp · v. In this lesson the unhatted i_d and i_q in those feedforward terms are the current references (d-axis target 0), matching the page's own typography where i_q in the PI argument is the q-axis target.
+
+The same current-mode page states that in steady state, when the PI loops stabilise, cross-coupling and inductive lag "will be compensated even without the feed-forward terms. However, at highly dynamic conditions and at high speeds, the PI controllers alone may not be able to keep up…" (以文档为准; this is a library remark, not a toy output). That near-tie is pre-declared for the settled cell below and is kept whatever the frozen run prints.
+
+**Plant.** The already-linked *Torque Control Methods in FOC* page (`https://docs.simplefoc.com/voltage_torque_control`) models the motor as two R–L circuits in the d and q axes (以文档为准):
+
+u_d = R i_d + L_d di_d/dt - v_e L_q i_q, u_q = R i_q + L_q di_q/dt + v_e L_d i_d + U_bemf.
+
+The lesson-chosen back-EMF law, taken from that page's first formula and named before the first official run, is U_bemf = K_e · v, with v the mechanical speed. v is prescribed in each cell; i_q does not integrate rotor mechanics. Integrators have no anti-windup. V_LIM is a soft ud/uq clamp only, not a real PWM rail. Official SimpleFOC flash stays 本页未运行.
+
+Voltage-mode lag compensation u_d = -v_e L_q i_q, here paired with u_q = R i_q + U_bemf and no current PI, is a named, not-adopted contrast. It is not a replacement for the official current-mode arms.
+
+Wikipedia *Field-oriented control* (`https://en.wikipedia.org/w/index.php?title=Field-oriented_control&oldid=1354069032`) was opened as a qualitative cross-check only ("A decoupling term is sometimes added to the controller output to improve control performance to mitigate cross coupling…"). Its induction-machine equations are a different model and are not the formula body. 以 SimpleFOC 文档为准.
+
+Field weakening, MTPA, and SVPWM stay out of scope.
+
+### A stdlib comparison toy
+
+`foc_dq_decoupling_toy.py` is a stdlib CPU comparison on that shared coupled plant, with shared R, L_d, L_q, n_pp, PI gains, references, and common random numbers across five seeds.
+
+Lesson-chosen parameters, named before the first official run: R = 0.8000, L_d = 0.0020, L_q = 0.0024, n_pp = 7, K_e = 0.0400, dt = 1.000e-4, kp_d = kp_q = 5.0000, ki_d = ki_q = 1000.0000, V_LIM = 24.0000, id_ref = 0.0000, noise_i = 0.0200, seeds 0,1,2,3,4, SMALL_FRAC = 0.2000. Printed hand_calc: L_d/R = 0.0025, L_q/R = 0.0030, and 30+25+50+40+35=180.
+
+**Arms.** (A) PI-only current mode, no inductance feedforward. (B) official current-mode feedforward as written above (adopted). (C) wrong-sign d-axis compensation u_d = PI_d + L_q i_q v_e (lose arm). Named alternative `ALT_VOLTAGE_MODE_LAG`: voltage-mode u_d = -v_e L_q i_q and u_q = R i_q + U_bemf, with no current PI; printed on the same streams and not adopted.
+
+**Regimes, written before the first official run** (keep whatever the frozen run prints; do not retune R, L, or v_e after that freeze):
+
+- `low_speed_settled`: v = 8.0000, constant iq_ref = 1.0000, metric after warm = 0.0400 — A and B may near-tie on id or iq tracking (keep; an exact tie is also allowed).
+- `high_speed_iq_step`: v = 220.0000, iq_ref steps 0.5000 -> 2.0000 at t = 0.0100 — B consistent lower |id| error and/or better iq tracking than A (keep); wrong-sign C loses on this cell (keep).
+
+The metrics `id_rmse` and `iq_rmse` are plant-frame RMSE against the references over the declared window (lower is better). Labels use the printed order: exact tie; numerically zero (floating-point residue); near-tie (`|m| <= sd`); then small vs clear using 20 % of the smaller-arm mean (SMALL_FRAC = 0.2000), with a sign count. Official typography is ASCII minus and `+-`.
+
+### Run the stdlib toy
+
+```bash
+$ cd ~/Hardware-learning/examples/month-11/foc-actuator-lab
+$ python3 foc_dq_decoupling_toy.py
+```
+
+<CodeSource path="examples/month-11/foc-actuator-lab/foc_dq_decoupling_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""foc_dq_decoupling_toy.py: current-mode d/q feedforward on a coupled plant.
+
+stdlib CPU comparison. Official SimpleFOC flash is 本页未运行. This is not a
+run of the library, not a port of the firmware, and not a third PWM rail.
+
+Shared plant (opened SimpleFOC voltage-mode model):
+
+    u_d = R * i_d + L_d * di_d/dt - v_e * L_q * i_q
+    u_q = R * i_q + L_q * di_q/dt + v_e * L_d * i_d + U_bemf
+
+with v_e = n_pp * v and the opened first back-EMF law U_bemf = K_e * v,
+where v is mechanical speed. v is prescribed in each cell; i_q is a torque
+proxy and does not integrate rotor mechanics. Forward Euler needs
+dt << L/R; the printed hand_calc lines name L_d/R and L_q/R.
+
+Official current-mode laws, if L_d and L_q are provided (opened current-mode
+page; feedforward uses the unhatted i_d, i_q, which on that page are the
+same symbols as the current references; d-axis target is 0):
+
+    u_q = PI_q(i_q - i_hat_q) + L_d * i_d * v_e
+    u_d = PI_d(-i_hat_d) - L_q * i_q * v_e
+
+PI-only (no inductance feedforward) is the same without those extra terms.
+PI uses measured currents i_hat_d, i_hat_q. Integrators have no anti-windup.
+V_LIM is a soft ud/uq clamp only, not a real PWM DC-rail / duty limit.
+
+Arms, written before the first official run:
+  (A) PI-only current mode, no inductance feedforward
+  (B) official current-mode feedforward as written above (adopted)
+  (C) wrong-sign d-axis compensation: u_d = PI_d + L_q * i_q * v_e (lose arm)
+  ALT_VOLTAGE_MODE_LAG: voltage-mode u_d = -v_e * L_q * i_q and
+    u_q = R * i_q + U_bemf, with no current PI. Named, printed, not adopted.
+
+Common random numbers: each seed draws one current-noise sequence shared
+by all four arms. Five seeds. Metrics are plant-frame RMSE of i_d and i_q
+against the references over the declared window (lower is better).
+
+Regimes, written before the first official run (keep whatever the frozen
+first run prints; do not retune R, L, or v_e after that freeze):
+  low_speed_settled     low speed, modest constant i_q, settled window:
+                        A and B may near-tie on i_d or i_q tracking (keep;
+                        an exact tie is also allowed if the freeze prints it)
+  high_speed_iq_step    high v_e and a dynamic i_q step: B consistent lower
+                        |i_d| error and/or better i_q tracking than A (keep);
+                        wrong-sign C loses on this cell (keep)
+
+Label order: exact tie; numerically zero (floating-point residue); near-tie
+(|m| <= sd); then small vs clear using 20 % of the smaller-arm mean, with a
+sign count. Printed numbers use ASCII minus and +-.
+"""
+from __future__ import annotations
+
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+SMALL_FRAC = 0.2000  # 20 % of the smaller-arm mean; printed as 0.2000
+
+# Lesson-chosen parameters, named before the first official run.
+R = 0.8000
+L_D = 0.0020
+L_Q = 0.0024
+N_PP = 7
+K_E = 0.0400  # U_bemf = K_E * v; v is mechanical
+DT = 1e-4
+KP_D = 5.0000
+KI_D = 1000.0000
+KP_Q = 5.0000
+KI_Q = 1000.0000
+V_LIM = 24.0000  # soft ud/uq clamp only; not a real PWM rail
+ID_REF = 0.0000
+NOISE_I = 0.0200
+
+# low_speed_settled: modest i_q, slow / settled reference
+LOW_V = 8.0000
+LOW_IQ = 1.0000
+LOW_TOTAL = 0.0800
+LOW_WARM = 0.0400
+
+# high_speed_iq_step: high electrical speed and a step in i_q
+HIGH_V = 220.0000
+HIGH_IQ_BEFORE = 0.5000
+HIGH_IQ_AFTER = 2.0000
+HIGH_STEP_T = 0.0100
+HIGH_TOTAL = 0.0400
+HIGH_METRIC_START = 0.0100
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def fmt_minus(a, b):
+    """ASCII subtraction typography: 0.2000-(-2.0000), never 0.2000--2.0000."""
+    right = num(b)
+    if right.startswith("-"):
+        return f"{num(a)}-({right})"
+    return f"{num(a)}-{right}"
+
+
+def sign_note(diffs, m):
+    n = len(diffs)
+    opp = sum(1 for d in diffs if d * m < 0)
+    zero = sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def fmt_mean(xs):
+    m, s = mean_sd(xs)
+    return fmt_pair(m, s)
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return (
+            f"{fmt_pair(m, s)}: numerically zero (floating-point residue), "
+            "effectively a tie"
+        )
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < SMALL_FRAC * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def soft_clamp(u):
+    return max(-V_LIM, min(V_LIM, u))
+
+
+def noise_stream(seed, n_steps):
+    """One current-noise sequence per seed, reused by every arm (CRN)."""
+    rng = random.Random(seed)
+    return [(rng.gauss(0.0, NOISE_I), rng.gauss(0.0, NOISE_I)) for _ in range(n_steps)]
+
+
+def run_arm(arm, noise, v, iq_of_t, total, metric_start):
+    n = int(round(total / DT))
+    metric_i0 = int(round(metric_start / DT))
+    v_e = N_PP * v
+    u_bemf = K_E * v
+    id_p = 0.0
+    iq_p = 0.0
+    int_d = 0.0
+    int_q = 0.0
+    s_id = 0.0
+    s_iq = 0.0
+    n_m = 0
+    sat = 0
+    for k in range(n):
+        t = k * DT
+        iq_ref = iq_of_t(t)
+        n_d, n_q = noise[k]
+        id_hat = id_p + n_d
+        iq_hat = iq_p + n_q
+        err_d = ID_REF - id_hat
+        err_q = iq_ref - iq_hat
+        if arm == "ALT":
+            pi_d = 0.0
+            pi_q = 0.0
+        else:
+            int_d += err_d * DT  # no anti-windup (omitted)
+            int_q += err_q * DT
+            pi_d = KP_D * err_d + KI_D * int_d
+            pi_q = KP_Q * err_q + KI_Q * int_q
+        # Unhatted i_d, i_q in the opened feedforward are the references.
+        ff_d = -L_Q * iq_ref * v_e
+        ff_q = L_D * ID_REF * v_e
+        if arm == "A":
+            ud, uq = pi_d, pi_q
+        elif arm == "B":
+            ud, uq = pi_d + ff_d, pi_q + ff_q
+        elif arm == "C":
+            ud, uq = pi_d - ff_d, pi_q + ff_q
+        elif arm == "ALT":
+            ud, uq = ff_d, R * iq_ref + u_bemf
+        else:
+            raise ValueError(arm)
+        ud_c = soft_clamp(ud)
+        uq_c = soft_clamp(uq)
+        if ud_c != ud or uq_c != uq:
+            sat += 1
+        did = (ud_c - R * id_p + v_e * L_Q * iq_p) / L_D
+        diq = (uq_c - R * iq_p - v_e * L_D * id_p - u_bemf) / L_Q
+        id_p += did * DT
+        iq_p += diq * DT
+        if k >= metric_i0:
+            s_id += (id_p - ID_REF) ** 2
+            s_iq += (iq_p - iq_ref) ** 2
+            n_m += 1
+    return {
+        "id_rmse": math.sqrt(s_id / n_m),
+        "iq_rmse": math.sqrt(s_iq / n_m),
+        "sat": float(sat),
+        "n_m": n_m,
+    }
+
+
+def collect(arm, v, iq_of_t, total, metric_start):
+    n = int(round(total / DT))
+    rows = []
+    for seed in SEEDS:
+        noise = noise_stream(seed, n)
+        rows.append(run_arm(arm, noise, v, iq_of_t, total, metric_start))
+    return rows
+
+
+def print_arm_means(label, rows):
+    print(
+        f"{label} id_rmse={fmt_mean([r['id_rmse'] for r in rows])} "
+        f"iq_rmse={fmt_mean([r['iq_rmse'] for r in rows])} "
+        f"sat_hits={fmt_mean([r['sat'] for r in rows])}"
+    )
+
+
+def print_regime(name, expectation, v, iq_of_t, total, metric_start, extra_lines):
+    print(f"regime {name}")
+    print(expectation)
+    for line in extra_lines:
+        print(line)
+    series = {}
+    for arm in ("A", "B", "C", "ALT"):
+        series[arm] = collect(arm, v, iq_of_t, total, metric_start)
+        label = "ALT_VOLTAGE_MODE_LAG" if arm == "ALT" else arm
+        print_arm_means(label, series[arm])
+    print("adopted=B not_adopted=ALT_VOLTAGE_MODE_LAG")
+    for key in ("id_rmse", "iq_rmse"):
+        xs = {arm: [r[key] for r in series[arm]] for arm in series}
+        print(f"paired B-A {key}: {verdict(xs['B'], xs['A'])}")
+        print(f"paired C-A {key}: {verdict(xs['C'], xs['A'])}")
+        print(f"paired C-B {key}: {verdict(xs['C'], xs['B'])}")
+        print(
+            f"paired ALT-B {key}: {verdict(xs['ALT'], xs['B'])} (not adopted)"
+        )
+
+
+def low_iq(_t):
+    return LOW_IQ
+
+
+def high_iq(t):
+    return HIGH_IQ_AFTER if t >= HIGH_STEP_T else HIGH_IQ_BEFORE
+
+
+def main():
+    print("foc_dq_decoupling_toy")
+    print(
+        "stdlib CPU shared dq plant; official SimpleFOC flash 本页未运行"
+    )
+    print(
+        "U_bemf law: U_bemf = K_e * v (mechanical); "
+        "v_e = n_pp * v; v prescribed, no rotor mechanics"
+    )
+    print("anti_windup=omitted")
+    print("pwm_rail_limit=omitted")  # V_LIM is a soft ud/uq clamp only
+    print(
+        "feedforward uses unhatted i_d, i_q = current references "
+        "(d-axis target 0)"
+    )
+    print(
+        f"R={num(R)} L_d={num(L_D)} L_q={num(L_Q)} n_pp={N_PP} K_e={num(K_E)}"
+    )
+    print(
+        f"dt={num(DT)} kp_d={num(KP_D)} ki_d={num(KI_D)} "
+        f"kp_q={num(KP_Q)} ki_q={num(KI_Q)}"
+    )
+    print(
+        f"V_LIM={num(V_LIM)} id_ref={num(ID_REF)} noise_i={num(NOISE_I)}"
+    )
+    print("seeds=" + ",".join(str(s) for s in SEEDS) + " common_random_numbers=true")
+    print(f"SMALL_FRAC={num(SMALL_FRAC)}")
+    print(
+        f"hand_calc L_d/R = {num(L_D)}/{num(R)} = {num(L_D / R)}"
+    )
+    print(
+        f"hand_calc L_q/R = {num(L_Q)}/{num(R)} = {num(L_Q / R)}"
+    )
+    print("hand_calc 30+25+50+40+35=180")
+
+    v_e_low = N_PP * LOW_V
+    u_bemf_low = K_E * LOW_V
+    coup_low = v_e_low * L_Q * LOW_IQ
+    print_regime(
+        "low_speed_settled",
+        "declared: A and B may near-tie on id or iq tracking when settled "
+        "at low speed (keep)",
+        LOW_V,
+        low_iq,
+        LOW_TOTAL,
+        LOW_WARM,
+        [
+            f"v={num(LOW_V)} iq_ref={num(LOW_IQ)} (constant) "
+            f"total={num(LOW_TOTAL)} warm={num(LOW_WARM)}",
+            f"hand_calc v_e = n_pp*v = {N_PP}*{num(LOW_V)} = {num(v_e_low)}",
+            f"hand_calc U_bemf = K_e*v = {num(K_E)}*{num(LOW_V)} = {num(u_bemf_low)}",
+            f"hand_calc v_e*L_q*iq_ref = {num(v_e_low)}*{num(L_Q)}*{num(LOW_IQ)} "
+            f"= {num(coup_low)}",
+        ],
+    )
+
+    v_e_high = N_PP * HIGH_V
+    u_bemf_high = K_E * HIGH_V
+    coup_high = v_e_high * L_Q * HIGH_IQ_AFTER
+    print_regime(
+        "high_speed_iq_step",
+        "declared: B consistent lower |id| error and/or better iq tracking "
+        "than A; wrong-sign C loses (keep)",
+        HIGH_V,
+        high_iq,
+        HIGH_TOTAL,
+        HIGH_METRIC_START,
+        [
+            f"v={num(HIGH_V)} iq_ref steps {num(HIGH_IQ_BEFORE)} -> "
+            f"{num(HIGH_IQ_AFTER)} at t={num(HIGH_STEP_T)}; "
+            f"total={num(HIGH_TOTAL)} metric from t={num(HIGH_METRIC_START)}",
+            f"hand_calc v_e = n_pp*v = {N_PP}*{num(HIGH_V)} = {num(v_e_high)}",
+            f"hand_calc U_bemf = K_e*v = {num(K_E)}*{num(HIGH_V)} = {num(u_bemf_high)}",
+            f"hand_calc v_e*L_q*iq_after = {num(v_e_high)}*{num(L_Q)}*"
+            f"{num(HIGH_IQ_AFTER)} = {num(coup_high)}",
+        ],
+    )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+foc_dq_decoupling_toy
+stdlib CPU shared dq plant; official SimpleFOC flash 本页未运行
+U_bemf law: U_bemf = K_e * v (mechanical); v_e = n_pp * v; v prescribed, no rotor mechanics
+anti_windup=omitted
+pwm_rail_limit=omitted
+feedforward uses unhatted i_d, i_q = current references (d-axis target 0)
+R=0.8000 L_d=0.0020 L_q=0.0024 n_pp=7 K_e=0.0400
+dt=1.000e-4 kp_d=5.0000 ki_d=1000.0000 kp_q=5.0000 ki_q=1000.0000
+V_LIM=24.0000 id_ref=0.0000 noise_i=0.0200
+seeds=0,1,2,3,4 common_random_numbers=true
+SMALL_FRAC=0.2000
+hand_calc L_d/R = 0.0020/0.8000 = 0.0025
+hand_calc L_q/R = 0.0024/0.8000 = 0.0030
+hand_calc 30+25+50+40+35=180
+regime low_speed_settled
+declared: A and B may near-tie on id or iq tracking when settled at low speed (keep)
+v=8.0000 iq_ref=1.0000 (constant) total=0.0800 warm=0.0400
+hand_calc v_e = n_pp*v = 7*8.0000 = 56.0000
+hand_calc U_bemf = K_e*v = 0.0400*8.0000 = 0.3200
+hand_calc v_e*L_q*iq_ref = 56.0000*0.0024*1.0000 = 0.1344
+A id_rmse=0.0073+-1.947e-4 iq_rmse=0.0070+-0.0006 sat_hits=0.0000+-0.0000
+B id_rmse=0.0073+-1.944e-4 iq_rmse=0.0070+-0.0006 sat_hits=0.0000+-0.0000
+C id_rmse=0.0073+-1.950e-4 iq_rmse=0.0070+-0.0006 sat_hits=0.0000+-0.0000
+ALT_VOLTAGE_MODE_LAG id_rmse=8.147e-8+-0.0000 iq_rmse=2.021e-8+-0.0000 sat_hits=0.0000+-0.0000
+adopted=B not_adopted=ALT_VOLTAGE_MODE_LAG
+paired B-A id_rmse: -1.355e-7+-3.902e-7: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+paired C-A id_rmse: 1.384e-7+-3.902e-7: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+paired C-B id_rmse: 2.739e-7+-7.804e-7: near-tie / small gap, within seed noise (|m| <= sd); 1 of 5 seeds has the opposite sign
+paired ALT-B id_rmse: -0.0073+-1.944e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds (not adopted)
+paired B-A iq_rmse: -1.002e-8+-1.002e-7: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+paired C-A iq_rmse: 1.008e-8+-1.002e-7: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+paired C-B iq_rmse: 2.010e-8+-2.004e-7: near-tie / small gap, within seed noise (|m| <= sd); 3 of 5 seeds have the opposite sign
+paired ALT-B iq_rmse: -0.0070+-0.0006: clear gap, not a tie (|m| > sd); same sign on all 5 seeds (not adopted)
+regime high_speed_iq_step
+declared: B consistent lower |id| error and/or better iq tracking than A; wrong-sign C loses (keep)
+v=220.0000 iq_ref steps 0.5000 -> 2.0000 at t=0.0100; total=0.0400 metric from t=0.0100
+hand_calc v_e = n_pp*v = 7*220.0000 = 1540.0000
+hand_calc U_bemf = K_e*v = 0.0400*220.0000 = 8.8000
+hand_calc v_e*L_q*iq_after = 1540.0000*0.0024*2.0000 = 7.3920
+A id_rmse=0.3641+-0.0007 iq_rmse=0.2690+-0.0006 sat_hits=0.0000+-0.0000
+B id_rmse=0.0975+-0.0009 iq_rmse=0.2069+-0.0007 sat_hits=0.0000+-0.0000
+C id_rmse=0.6614+-0.0007 iq_rmse=0.3453+-0.0005 sat_hits=0.0000+-0.0000
+ALT_VOLTAGE_MODE_LAG id_rmse=0.3172+-0.0000 iq_rmse=0.2653+-0.0000 sat_hits=0.0000+-0.0000
+adopted=B not_adopted=ALT_VOLTAGE_MODE_LAG
+paired B-A id_rmse: -0.2667+-0.0008: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired C-A id_rmse: 0.2973+-1.129e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired C-B id_rmse: 0.5639+-0.0009: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired ALT-B id_rmse: 0.2197+-0.0009: clear gap, not a tie (|m| > sd); same sign on all 5 seeds (not adopted)
+paired B-A iq_rmse: -0.0621+-1.596e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired C-A iq_rmse: 0.0763+-1.115e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired C-B iq_rmse: 0.1384+-2.698e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired ALT-B iq_rmse: 0.0584+-0.0007: clear gap, not a tie (|m| > sd); same sign on all 5 seeds (not adopted)
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How to read the frozen first-run output (keep these labels; do not retune). After that freeze, the surrounding lesson wording and work plan were added, and `|m| <= sd` in the prose was wrapped in backticks so MDX would not treat the less-than sign as a tag; official expected/ was not retuned.
+
+- `low_speed_settled`: hand_calc v_e = 56.0000, U_bemf = 0.3200, v_e*L_q*iq_ref = 0.1344. A id_rmse = **0.0073+-1.947e-4**, B **0.0073+-1.944e-4**. Paired B-A id_rmse **-1.355e-7+-3.902e-7**, **near-tie** (`|m| <= sd`), 1 of 5 seeds has the opposite sign. Paired B-A iq_rmse **-1.002e-8+-1.002e-7**, **near-tie**, 3 of 5 seeds have the opposite sign. Declared may near-tie; held; kept.
+- `high_speed_iq_step`: hand_calc v_e = 1540.0000, U_bemf = 8.8000, v_e*L_q*iq_after = 7.3920. A id_rmse = **0.3641+-0.0007**, B **0.0975+-0.0009**, C **0.6614+-0.0007**. Paired B-A id_rmse **-0.2667+-0.0008**, **clear**, same sign on all 5 seeds (B lower |id| error). Paired B-A iq_rmse **-0.0621+-1.596e-4**, **clear**, same sign on all 5 seeds. Paired C-B id_rmse **0.5639+-0.0009**, **clear**, same sign on all 5 seeds; C also worse on iq_rmse **0.1384+-2.698e-4**, **clear**. Wrong-sign lose held; kept.
+- Named alternative `ALT_VOLTAGE_MODE_LAG` is printed on the same streams and was **not adopted**. On the settled cell a perfect-model voltage inversion can look tight (ALT id_rmse **8.147e-8+-0.0000**) because the plant matches the inversion and the command does not use noisy current feedback; that is not a reason to drop the official current-mode loop. On the dynamic cell ALT is clearly worse than B (ALT-B id_rmse **0.2197+-0.0009**, **clear**, same sign on all 5 seeds; iq_rmse **0.0584+-0.0007**, **clear**).
+- Every arm, both cells: `sat_hits=0.0000+-0.0000`. V_LIM is a soft ud/uq clamp only, **not** a real PWM rail; integrators have **no anti-windup**; v is prescribed and i_q does **not** integrate rotor mechanics.
+
+**180-minute work plan:** 30+25+50+40+35=180 (printed hand_calc). 30 min read the current-mode page and write the PI-only vs feedforward laws; 25 min write the plant from `voltage_torque_control` and name U_bemf = K_e · v; 50 min run the toy and read the two regimes; 40 min contrast the named voltage-mode alternative and the wrong-sign lose; 35 min exercises.
+
+### Exercises
+
+1. From the printed hand_calc, what is v_e L_q i_q at the settled cell and at the post-step high-speed current?
+2. Why can A and B near-tie when settled, and why does the opened current-mode page itself say that?
+3. Why is `ALT_VOLTAGE_MODE_LAG` not adopted even if it looks tight on a settled, exact-model cell?
+
 <Summary>
 
 **Takeaways**
@@ -408,6 +895,7 @@ If you already have an ESP32 + a suitable driver board: build and flash the Simp
 - θ_e★ is not fed to the controller; R–L ≠ reinforcement learning.
 - Commander serial first, then maybe micro-ROS; flashing is 本页未运行.
 - No required BLDC buy; does not replace SO-101 bus servos.
+- Current-mode d/q feedforward (`foc_dq_decoupling_toy.py`): at low speed, settled, A and B near-tie on id_rmse (-1.355e-7+-3.902e-7); on a high-speed i_q step, B is clearly better (id_rmse B-A -0.2667+-0.0008) and wrong-sign C loses (C-B 0.5639+-0.0009).
 
 **Common mistakes**
 
@@ -418,6 +906,7 @@ If you already have an ESP32 + a suitable driver board: build and flash the Simp
 - Treating the V_LIM soft clamp as a real PWM rail limit, or assuming this toy has anti-windup.
 - Assuming iq changes OMEGA_M (mechanics are not modelled here).
 - Treating a third-party blog BOM as a site fact.
+- Treating `voltage_torque_control` or `ALT_VOLTAGE_MODE_LAG` as a substitute for the official current-mode feedforward, or assuming PI-only can never compensate in steady state.
 
 **Self-check**
 
@@ -425,6 +914,7 @@ If you already have an ESP32 + a suitable driver board: build and flash the Simp
 - Why should balanced three-phase sum_abc be 0?
 - Why can controller-frame RMSE stay small under a wrong offset?
 - When do you need FOC instead of a bus servo?
+- When does the opened current-mode page say PI-only may still compensate, and when may it not keep up?
 
 **Next**
 
