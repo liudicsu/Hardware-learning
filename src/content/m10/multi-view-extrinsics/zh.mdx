@@ -583,7 +583,7 @@ GPU / SpatialVLA weights / robot: 本页未运行; Qu et al. 2501.15830 以论�
 
 **实际打开的来源（arXiv 2609.37150 的 abs、HTML 与 PDF v1）**。
 
-- **Tianhang Pan、Xuanhao Wang、Yiwen Pang、Bo Zhou、Jun Yang、Min-Ling Zhang、Shimin Di（全部 7 位，按 arXiv 2609.37150 abs 顺序），"CoRe-VLA: Preserving Cross-View Coordination in VLAs under Camera Shifts"**（v1，2026-09-29 提交）。Jun Yang 同时挂第 1、第 2 单位（东南大学，以及国家集成电路设计自动化技术创新中心）。PDF 上的印刷标题与 abs 是同一篇论文。扉页印有 Tianhang Pan 与 Shimin Di 在 seu.edu.cn 的邮箱（准确的花括号排印见官方玩具输出）。扉页上看不见通讯作者剑号，也看不见同等贡献星标——邮箱行不是通讯作者标记，也不从 HTML 去推断。abs 没有 Comments 字段，也没有 journal-ref 字段（学科：cs.RO）。abs 里的错字 "exsit-ing" 不抄到这里。
+- **Tianhang Pan、Xuanhao Wang、Yiwen Pang、Bo Zhou、Jun Yang、Min-Ling Zhang、Shimin Di（全部 7 位，按 arXiv 2609.37150 abs 顺序），"CoRe-VLA: Preserving Cross-View Coordination in VLAs under Camera Shifts"**（v1，2026-09-29 提交）。Jun Yang 同时挂第 1、第 2 单位（东南大学，以及国家集成电路设计自动化技术创新中心）。PDF 上的印刷标题与 abs 是同一篇论文。扉页印有 Tianhang Pan 与 Shimin Di 在 seu.edu.cn 的邮箱（准确的花括号排印见官方玩具输出）。扉页上看不见通讯作者剑号，也看不见同等贡献星标——邮箱行不是通讯作者标记，也不从 HTML 去推断。abs 的 Comments 字段是 “15 pages, 9 figures”，没有 journal-ref 字段（学科：cs.RO）。abs 里的错字 "exsit-ing" 不抄到这里。
 - CoRe-VLA 是即插即用框架，**不微调 VLA**，也不再采集新的多视图成对数据集：它重建场景点云，并**从 VLA 的训练视角渲染观测**。**R2C Restoration**（Render-to-Camera）用来减轻渲染带来的视觉退化；**ETCA**（Execution-Trajectory-Conditioned Alignment）处理变时延下的异步动作块执行（此处点名；玩具并不实现 ETCA）。
 - **论文数字（以论文为准）**。在 **1.6 m** 的真机相机平移上，把 π0.5 的成功率从 **13.3 %** 提到 **83.3 %**（摘要）。这些数字**不是**玩具输出。
 - 真实 RGB-D、点云渲染器和 VLA 权重，**本页未运行**。
@@ -1063,7 +1063,7 @@ No winner is universal: with no shift the raw and restored views may near-tie; a
 
 **看到结果之后做的选择**。 官方参数在第一次正式运行之后没有改过。同一组种子上的具名备选，未采用：`SHIFT = 0.4000` m（手算：官方 `0.2000` m，备选 `0.4000` m）。这个更大的平移仍然给出明显的 B-A `rmse_px` 差距（`-156.4236+-0.2585`，5/5）和同样的次序优势，但更多点会离开画面；因此没有采用，因为官方 `0.2000` m 的格子已经撑住事先声明的大平移胜利，而且它也不是论文里的 1.6 m。
 
-**第一次运行之后的代码改动**。 第一次正式运行之后，这些页面上的唯一改动是按 `check_quotes.py` 的要求，在每个新的 SimOutput 围栏外侧补上空行（开标签之后、闭标签之前各一行）。官方 expected/ 没有改写，在 2026-11-20 09:36:09 Asia/Shanghai 冻结后重跑仍字节一致。官方数字没有改写。运行玩具的 bash 片段里的 `cd` 已经写在第一稿里。
+**第一次运行之后的代码改动**。 第一次正式运行之后，这些页面先是按 `check_quotes.py` 的要求，在每个新的 SimOutput 围栏外侧补上空行（开标签之后、闭标签之前各一行）。后来又改正文，把 live abs 的 Comments 字段记为 “15 pages, 9 figures”，并仍然写明没有 journal-ref 字段。官方 expected/ 没有改写，在 2026-11-20 09:36:09 Asia/Shanghai 冻结后重跑仍字节一致。官方数字没有改写。运行玩具的 bash 片段里的 `cd` 已经写在第一稿里。
 
 本页**不宣布普遍赢家**。没有平移时，原始视图和还原视图可以接近打平或有效打平；大幅的外部相机平移才是正确外参还原起作用的地方；泄漏的单位外参会让这次平移得不到纠正。13.3 %、83.3 % 和 1.6 m 等论文数字以论文为准。真实 RGB-D / 点云渲染器 / VLA 权重，**本页未运行**。
 

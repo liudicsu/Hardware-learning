@@ -2229,7 +2229,7 @@ InternVLA-M1 weights / SimplerEnv / LIBERO / real robot: 本页未运行; paper 
 
 **实际打开的来源（arXiv 2611.22395 的 abs、HTML 与 PDF v1）**。
 
-- **Mehul Arora、Dhruv Agarwal、Ambuj Agrawal（全部 3 位，按 arXiv 2611.22395 abs 顺序），"CoBoVLA: Decoupling Language from Action with Discrete Codes for Robust and Interpretable Robot Manipulation"**（v1，2026-11-17 提交；也称 CodeBookVLA）。扉页上的单位是加州大学圣迭戈分校（Arora、Agarwal）和卡内基梅隆大学（Agrawal）。扉页上看不见同等贡献或通讯作者排印。正文里的 “contributions are as follows” 是条目列表，不是脚注标记。abs 没有 Comments 字段，也没有 journal-ref 字段（学科：cs.CV 与 cs.RO）。
+- **Mehul Arora、Dhruv Agarwal、Ambuj Agrawal（全部 3 位，按 arXiv 2611.22395 abs 顺序），"CoBoVLA: Decoupling Language from Action with Discrete Codes for Robust and Interpretable Robot Manipulation"**（v1，2026-11-17 提交；也称 CodeBookVLA）。扉页上的单位是加州大学圣迭戈分校（Arora、Agarwal）和卡内基梅隆大学（Agrawal）。扉页上看不见同等贡献或通讯作者排印。正文里的 “contributions are as follows” 是条目列表，不是脚注标记。abs 的 Comments 字段是 “16 pages, 3 figures, 4 tables, and supplemental material included”，没有 journal-ref 字段（学科：cs.CV 与 cs.RO）。
 - CoBoVLA 是一个 250M 参数的 VLA（以论文为准），分三个阶段：文本编码器把指令映射成离散的**步骤码**（训练时让同一指令的复述共享这些码）；视觉规划器用当前步骤码加上图像 / 状态得到**动作码**；一个**永远不看语言**的执行器再把动作码变成电机命令。失败可以定位到某一个阶段。用量化前的连续向量替换步骤码，会在两个基准上都降低成功率（以论文为准；玩具可以展示稳定的损失，而不是论文里的那些百分比）。
 - **论文数字（以论文为准）**。 指令被正确编码时成功率是 **91 %**，否则是 **27.2 %**；在 LIBERO-Goal 上是 **91.4 %**，相对 SmolVLA 的 **82.8 %**；在 LIBERO-Para（4,092 条未见复述）上是 **81.1 %**，相对经过复述微调的 SmolVLA LoRA 的 **36.5 %**；每步控制 **17 ms**（摘要）。这些数字**不是**玩具输出。
 - 真实 LIBERO、LIBERO-Para 和 GPU，**本页未运行**。
@@ -2666,7 +2666,7 @@ No winner is universal: canonical wording may near-tie; unseen paraphrases are w
 
 **看到结果之后做的选择**。 官方参数在第一次正式运行之后没有改过。同一组种子上的具名备选，未采用：用量化前的连续向量替换离散步骤码。在规范措辞上，这一备选会让 C 成功（`1.0000+-0.0000`），因而**保不住**官方的失败格；在复述上它仍输给 B（配对 B-C 成功率 `1.0000+-0.0000`，明显，5/5），与 A 一样。因此没有采用，因为官方 C 是外来码失败格，它按声明会在规范措辞上就失败。
 
-**第一次运行之后的代码改动**。 第一次正式运行之后，这些页面上的唯一改动是按 `check_quotes.py` 的要求，在每个新的 SimOutput 围栏外侧补上空行（开标签之后、闭标签之前各一行）。官方 expected/ 没有改写，在 2026-11-20 09:36:09 Asia/Shanghai 冻结后重跑仍字节一致。官方数字没有改写。运行玩具的 bash 片段里的 `cd` 已经写在第一稿里。
+**第一次运行之后的代码改动**。 第一次正式运行之后，这些页面先是按 `check_quotes.py` 的要求，在每个新的 SimOutput 围栏外侧补上空行（开标签之后、闭标签之前各一行）。后来又改正文，把 live abs 的 Comments 字段记为 “16 pages, 3 figures, 4 tables, and supplemental material included”，并仍然写明没有 journal-ref 字段。官方 expected/ 没有改写，在 2026-11-20 09:36:09 Asia/Shanghai 冻结后重跑仍字节一致。官方数字没有改写。运行玩具的 bash 片段里的 `cd` 已经写在第一稿里。
 
 本页**不宣布普遍赢家**。规范措辞可以接近打平或完全打平；未见复述才是离散共享步骤码起作用的地方；外来码或用量化前连续向量替换离散码，都得不到这一稳健性。91 %、27.2 %、91.4 %、82.8 %、81.1 %、36.5 % 和 17 ms 等论文数字以论文为准。真实 LIBERO / LIBERO-Para / GPU，**本页未运行**。
 
