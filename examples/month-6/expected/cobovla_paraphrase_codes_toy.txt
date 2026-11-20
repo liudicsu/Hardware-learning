@@ -1,0 +1,64 @@
+Synthetic CoBoVLA paraphrase-code stand-in; not a LIBERO or GPU VLA run
+declared NGRAM=2 SMALL_FRAC=0.2000 seeds=0,1,2,3,4
+hand_calc 20 percent small-vs-clear factor = 0.2000
+hand_calc NGRAM=2
+hand_calc alternative: continuous pre-quantization uses 2-gram scores in place of a discrete code (not adopted)
+hand_calc tasks=pick_cup,open_drawer,place_bowl
+hand_calc canonical pick_cup: 'pick the red cup'
+hand_calc 2-gram cosine 'grab the crimson mug': pick_cup=0.0778, open_drawer=0.1633, place_bowl=0.0000; coupled_choice=open_drawer
+hand_calc 2-gram cosine 'lift the scarlet tumbler': pick_cup=0.0000, open_drawer=0.0659, place_bowl=0.0000; coupled_choice=open_drawer
+hand_calc canonical open_drawer: 'open the drawer'
+hand_calc 2-gram cosine 'pull the cupboard open': pick_cup=0.2925, open_drawer=0.2301, place_bowl=0.1113; coupled_choice=pick_cup
+hand_calc 2-gram cosine 'slide the bin out': pick_cup=0.0000, open_drawer=0.0000, place_bowl=0.1622; coupled_choice=place_bowl
+hand_calc canonical place_bowl: 'place the bowl on the plate'
+hand_calc 2-gram cosine 'set the dish on the saucer': pick_cup=0.0000, open_drawer=0.1690, place_bowl=0.0613; coupled_choice=open_drawer
+hand_calc 2-gram cosine 'rest the basin on the saucer': pick_cup=0.0754, open_drawer=0.1581, place_bowl=0.1147; coupled_choice=open_drawer
+declared arms: A_coupled scores char 2-grams against canonical wording only; B_codes uses a synonym table then an actor that never sees the words; C_foreign feeds a different task's step codes
+paper_authors=Mehul Arora, Dhruv Agarwal, Ambuj Agrawal (abs / title-page order; 以论文为准)
+paper_title_page=no equal-contribution or corresponding typography; prose contributions list is not a footnote mark (以论文为准)
+paper_version=arXiv 2611.22395 v1, submitted 2026-11-17
+paper_figures=success 91 % when correctly encoded and 27.2 % otherwise; 91.4 % on LIBERO-Goal vs 82.8 % SmolVLA; 81.1 % on LIBERO-Para (4,092 unseen paraphrases) vs 36.5 % paraphrase-fine-tuned SmolVLA LoRA; 17 ms per control step (arXiv 2611.22395 v1; 以论文为准, not toy outputs)
+Regimes and parameters were written before the first run
+Common random numbers: the tasks, canonical instructions, official paraphrases and scene order are shared across arms at each regime and seed
+Assumptions: character 2-gram cosine is a wording-sensitive stand-in, not a trained text encoder; B's synonym table is the stand-in for paraphrase-shared step codes; the actor never sees the words; C uses a fixed foreign-code derangement; success is whether the acted task matches the intended task
+Paper figures 以论文为准
+Real LIBERO / LIBERO-Para / GPU: 本页未运行
+declared canonical: A and B may near-tie on task success - keep
+declared paraphrase: B consistent more stable behaviour / higher stand-in success than A - keep
+declared C_foreign: C loses because it is given step codes from a different task - lose kept
+declared expectation canonical: A and B may near-tie on task success - keep
+regime canonical  (mean+-sd over seeds)
+  A_coupled success 1.0000+-0.0000
+  B_codes success 1.0000+-0.0000
+  C_foreign success 0.0000+-0.0000
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C success: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A success: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+declared expectation paraphrase: B consistent more stable behaviour / higher stand-in success than A - keep
+regime paraphrase  (mean+-sd over seeds)
+  A_coupled success 0.0000+-0.0000
+  B_codes success 1.0000+-0.0000
+  C_foreign success 0.0000+-0.0000
+  paired B-A success: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C success: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A success: 0.0000+-0.0000: tie: identical on every seed
+alternative same seeds continuous pre-quantization vector (not adopted)
+hand_calc official C uses foreign discrete codes vs alternative continuous pre-quantization vector
+declared expectation canonical_continuous: alternative continuous pre-quantization vector, same seeds, not adopted
+regime canonical_continuous  (mean+-sd over seeds)
+  A_coupled success 1.0000+-0.0000
+  B_codes success 1.0000+-0.0000
+  C_foreign success 1.0000+-0.0000
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C success: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A success: 0.0000+-0.0000: tie: identical on every seed
+declared expectation paraphrase_continuous: alternative continuous pre-quantization vector, same seeds, not adopted
+regime paraphrase_continuous  (mean+-sd over seeds)
+  A_coupled success 0.0000+-0.0000
+  B_codes success 1.0000+-0.0000
+  C_foreign success 0.0000+-0.0000
+  paired B-A success: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C success: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A success: 0.0000+-0.0000: tie: identical on every seed
+No real LIBERO, LIBERO-Para, or GPU VLA was started
+No winner is universal: canonical wording may near-tie; unseen paraphrases are where discrete shared step codes matter, and foreign or pre-quantization-replaced codes leave that robustness unearned

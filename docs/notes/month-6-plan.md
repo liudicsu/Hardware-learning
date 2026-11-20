@@ -1,5 +1,17 @@
 # Month 6 plan: Robot learning, specialisation & getting hired
 
+Current / 当前：**M6 4380 min**, Batch-26 PR3. Earlier entries below retain their historical totals.
+
+## Batch-26 PR3 — CoBoVLA paraphrase-robust codes on vla-models (+180)
+
+Base `600d5898535a0d81ea8c7c81e72897ea0ea7e060` (batch-26 PR2 #205 squash-merged; site **44100**). PR3 on M6 host: **M6 4200→4380 (+180)**; M10 moves in the same PR on its own plan. Site **44100→44460** (44460=44100+180+180), still 71 lessons. M6 becoming the uniquely heaviest month at 4380 (30 min above M8/M11) is an already accepted and already disclosed choice.
+
+- **H6 / 6.3 vla-models: 1410→1590 (+180).** CoBoVLA paraphrase-robust language / action codes (`cobovla_paraphrase_codes_toy.py`; common random numbers, 5 seeds; shared tasks and paraphrases). Paper: Mehul Arora, Dhruv Agarwal, Ambuj Agrawal, arXiv 2611.22395 v1, submitted 2026-11-17; PDF sha256 `d436d26f72d26b5027f19f425be25d93d01fcb196a81ceeafa9eecda5e87bf53`. Abs Comments: “16 pages, 3 figures, 4 tables, and supplemental material included”; no journal-ref field (subjects cs.CV + cs.RO). PDF title page: no equal-contribution or corresponding typography; the prose contributions list is not a footnote mark. Official NGRAM=2, SMALL_FRAC=0.2000, six unseen paraphrases. canonical: B-A success `0.0000+-0.0000`, **tie: identical on every seed** (declared may-near-tie held). paraphrase: B-A success `1.0000+-0.0000`, **clear**, 5/5 (held). C_foreign success `0.0000+-0.0000` lose held on both official regimes. Alternative continuous pre-quantization vector on the same seeds, not adopted (canonical C would then succeed and drop the official lose cell). No official toy or expected/ change after the first run 2026-11-20 09:36:09 Asia/Shanghai. Paper 91 % / 27.2 % / 91.4 % / 81.1 % / 17 ms 以论文为准. Real LIBERO / GPU 本页未运行. ≠ RDT2 / VQ-BeT / CoT-VLA / LIBERO-X.
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
+
+**Site accounting / 全站核算:** **44460=44100+180+180**; **M6=4380**, **71 lessons**.
+
 Current / 当前：**M6 4200 min**, Batch-26 PR2. Earlier entries below retain their historical totals.
 
 ## Batch-26 PR2 — Reward-DAgger robot-gated progress interventions on behaviour-cloning (+180)

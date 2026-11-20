@@ -573,10 +573,516 @@ GPU / SpatialVLA weights / robot: 本页未运行; Qu et al. 2501.15830 以论�
 5. Before any GPU run (本页未运行), write why this toy must not be quoted as a SpatialVLA SimplerEnv / WidowX result.
 
 
+## CoRe-VLA: restoring the training view under camera shifts
+
+The chain-closure section above checks `AX = ZB` between two static cameras, and the SpatialVLA section uses **Ego3D** (camera-frame 3-D, which that paper uses so a *robot–camera* extrinsic is not required) plus adaptive action grids. Those remain in force. This section is a **different** failure: an **external** camera is **shifted** at deployment, so the third-person view is no longer the one the VLA was trained on, and cross-view coordination can break (the robot may lean on the wrist view and start the wrong subtask). CoRe-VLA does not contradict Ego3D; it answers a different question.
+
+<Resource id="corevla-html" />
+
+<Resource id="corevla-pdf" />
+
+**Source actually opened (arXiv 2609.37150 abs, HTML and PDF v1).**
+
+- **Tianhang Pan, Xuanhao Wang, Yiwen Pang, Bo Zhou, Jun Yang, Min-Ling Zhang and Shimin Di (all 7, in arXiv 2609.37150 abs order), "CoRe-VLA: Preserving Cross-View Coordination in VLAs under Camera Shifts"** (v1, submitted 2026-09-29). Jun Yang carries affiliations 1 and 2 (Southeast University, and the National Center of Technology Innovation for EDA). The typographic PDF title is the same paper. The title page prints the emails of Tianhang Pan and Shimin Di at seu.edu.cn (the exact brace-group typography is in the official toy output). **No** corresponding-author dagger and **no** equal-contribution star are visible on the title page — the email line is not a corresponding-author mark, and the HTML is not used to invent one. The abs Comments field is “15 pages, 9 figures”; there is no journal-ref field (subjects: cs.RO). The abs typo "exsit-ing" is not copied here.
+- CoRe-VLA is a plug-and-play framework that **does not fine-tune the VLA** and does not collect a new multi-view paired set: it reconstructs a scene point cloud and **renders the observation from the VLA's training viewpoint**. **R2C Restoration** (Render-to-Camera) reduces rendering-induced visual degradation; **ETCA** (Execution-Trajectory-Conditioned Alignment) is about asynchronous chunk execution under variable latency (named here; the toy does not re-implement ETCA).
+- **Reported results (以论文为准):** raising π0.5 from **13.3 %** to **83.3 %** at a **1.6 m** real-robot camera shift (abs). Those figures are **not** toy outputs.
+- Real RGB-D, a point-cloud renderer and VLA weights: **本页未运行**.
+- This section is **not** a redo of `AX=ZB` chain-closure, **not** SpatialVLA Ego3D / adaptive grids, **not** hand–eye `AX=XB`, and **not** AnyCamVLA.
+
+### Restore the training view
+
+<Formula label="Training-view restore (stand-in)">lift the shifted pixels with the shifted-camera extrinsics, then reproject to the training viewpoint</Formula>
+
+<Formula label="Agreement">rmse_px is the RMSE against the noiseless training-view projection; order_acc is 1 when the object nearer the principal point matches the training view</Formula>
+
+The toy keeps only the geometry: a shared table of markers and two objects, a training camera, and a lateral mount translation that keeps the training orientation (the camera is shifted, not re-aimed). Arm A treats the shifted image as if it were the training view. Arm B lifts with the **correct** shifted extrinsics and reprojects to the training viewpoint (a stand-in for reconstruct-and-render). Arm C uses a leaked identity that pretends the shift did not happen.
+
+**Worked example — labelled hand calculations, also printed by the toy.** With the declared pinhole `FX = FY = 400.0000`, `CX = CY = 160.0000`, and training eye `(0.0000, -0.8000, 0.6000)` m, the noiseless training-view pixels of the cup and the bowl are `(136.4172, 152.1053)` and `(246.4702, 152.1053)`. Distances to the principal point are `24.8691` px and `86.8298` px, so the training view's closer object is the cup. At the official shift `0.2000` m, the noiseless shifted RMSE against the training view is `78.5675` px and the closer object becomes the bowl. The official shift is **not** the paper's 1.6 m figure.
+
+### Fair setup
+
+`corevla_training_view_restore_toy.py` is **synthetic** and stdlib only. **Model assumptions:** pinhole projection with known depth; a fixed training orientation under a lateral translation; RMSE is against the noiseless training-view projection; `order_acc` follows the object nearer the principal point; render noise is `RENDER_SIGMA = 0.5000` px, shared across arms.
+
+| Arm | What it is |
+|---|---|
+| A_shifted | uses the shifted external view as if it were the training view |
+| B_restore | lifts with the correct shifted-camera extrinsics and reprojects to the training viewpoint |
+| C_wrong | "restores" with a leaked identity that pretends the shift is zero |
+
+**Common random numbers:** for each (regime, seed) the markers, the training and shifted extrinsics, and the render-noise draws are generated once and shared by all three arms. Five seeds `0,1,2,3,4`. Metrics are `rmse_px` and `order_acc`, as mean+-sd over seeds.
+
+| Regime | Setting | What was pre-declared |
+|---|---|---|
+| no_shift | `SHIFT = 0.0000` m | A and B may **near-tie** on agreement with the training-view observation — **keep** |
+| large_shift | official `SHIFT = 0.2000` m | B **consistent** better agreement than A — **keep** |
+
+In the large-shift regime C was pre-declared to **lose** or mis-report, because it pretends the shift did not happen — **keep**.
+
+A named alternative on the same seeds, **not adopted**, is `SHIFT = 0.4000` m.
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-10/multi-view-extrinsics
+python3 corevla_training_view_restore_toy.py
+```
+
+<CodeSource path="examples/month-10/multi-view-extrinsics/corevla_training_view_restore_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic CoRe-VLA training-view restore stand-in.
+
+Stdlib only. Shared 3-D markers, shared training and shifted extrinsics,
+and shared render-noise draws (common random numbers). Not a real RGB-D
+or point-cloud renderer and not VLA weights.
+
+This is not AX=ZB chain-closure, not SpatialVLA Ego3D / adaptive grids,
+not hand-eye AX=XB, and not AnyCamVLA.
+
+Arms:
+  A_shifted -- use the shifted external view as if it were the training view.
+  B_restore -- lift the shifted view with the correct shifted-camera
+    extrinsics and reproject to the training viewpoint (a geometric
+    stand-in for reconstruct-and-render). R2C Restoration is named on
+    the page; this toy does not re-implement ETCA.
+  C_wrong -- "restore" with a leaked identity that pretends the shift
+    did not happen (wrong extrinsics).
+
+A named alternative on the same seeds, not adopted, is a larger
+camera shift of 0.4000 m instead of the official 0.2000 m.
+
+Regimes and parameters were written before the first run.
+
+Labels: tie = identical on every seed; numerically zero = |paired mean| and sd
+both < 1e-9; |m| <= sd = near-tie; |m| > sd = consistent gap (small if |m| < 20 %
+of the smaller arm mean, else clear), with a sign count. ROUND_HALF_UP output.
+
+Paper figures such as 13.3 %, 83.3 % and 1.6 m stay 以论文为准 and are not
+toy outputs. Real RGB-D / point-cloud renderer / VLA weights: 本页未运行.
+"""
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+SMALL_FRAC = 0.2000  # 20 % of the smaller-arm mean; printed as 0.2000
+
+# Declared camera and official shift (not the paper's 1.6 m real-robot shift).
+FX = 400.0000
+FY = 400.0000
+CX = 160.0000
+CY = 160.0000
+TRAIN_EYE = (0.0000, -0.8000, 0.6000)
+LOOK_TARGET = (0.0000, 0.0000, 0.0500)
+WORLD_UP = (0.0000, 0.0000, 1.0000)
+# Official large shift: a translated mount that keeps the training orientation.
+SHIFT_OFFICIAL = 0.2000
+# Named alternative, same seeds, not adopted: a larger translation of 0.4000 m.
+SHIFT_ALT = 0.4000
+SHIFT_NONE = 0.0000
+RENDER_SIGMA = 0.5000  # shared pixel noise, pixels
+# Fixed table markers and two task objects (metres). Written before the first run.
+POINTS = {
+    "cup": (-0.0600, 0.0500, 0.0400),
+    "bowl": (0.2200, 0.0500, 0.0400),
+    "m0": (-0.2000, -0.1000, 0.0000),
+    "m1": (0.2000, -0.1000, 0.0000),
+    "m2": (-0.2000, 0.2000, 0.0000),
+    "m3": (0.2000, 0.2000, 0.0000),
+}
+POINT_NAMES = ("cup", "bowl", "m0", "m1", "m2", "m3")
+OBJECT_NAMES = ("cup", "bowl")
+
+ARMS = ("A_shifted", "B_restore", "C_wrong")
+METRICS = ("rmse_px", "order_acc")
+PAIRS = (("B", "A"), ("B", "C"), ("C", "A"))
+ARM_FROM_LETTER = {"A": "A_shifted", "B": "B_restore", "C": "C_wrong"}
+
+# name: (shift_m, declared expectation); written before the first run
+REGIMES = {
+    "no_shift": (
+        SHIFT_NONE,
+        "A and B may near-tie on agreement with the training-view observation - keep",
+    ),
+    "large_shift": (
+        SHIFT_OFFICIAL,
+        "B consistent better agreement with the training-view observation than A - keep",
+    ),
+}
+
+
+def vec_sub(a, b):
+    return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
+
+
+def vec_add(a, b):
+    return (a[0] + b[0], a[1] + b[1], a[2] + b[2])
+
+
+def vec_dot(a, b):
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+
+
+def vec_cross(a, b):
+    return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
+
+
+def vec_norm(a):
+    s = math.sqrt(vec_dot(a, a))
+    return (a[0] / s, a[1] / s, a[2] / s)
+
+
+def mat_vec(R, v):
+    return (
+        R[0][0] * v[0] + R[0][1] * v[1] + R[0][2] * v[2],
+        R[1][0] * v[0] + R[1][1] * v[1] + R[1][2] * v[2],
+        R[2][0] * v[0] + R[2][1] * v[1] + R[2][2] * v[2],
+    )
+
+
+def look_at(eye, target, up=WORLD_UP):
+    z_axis = vec_norm(vec_sub(target, eye))
+    x_axis = vec_norm(vec_cross(z_axis, up))
+    y_axis = vec_cross(z_axis, x_axis)
+    return (x_axis, y_axis, z_axis)
+
+
+def rotate_inv(R, v):
+    # R has rows equal to the camera axes in the world; p_world = eye + R^T p_cam.
+    return (
+        R[0][0] * v[0] + R[1][0] * v[1] + R[2][0] * v[2],
+        R[0][1] * v[0] + R[1][1] * v[1] + R[2][1] * v[2],
+        R[0][2] * v[0] + R[1][2] * v[1] + R[2][2] * v[2],
+    )
+
+
+TRAIN_R = look_at(TRAIN_EYE, LOOK_TARGET)
+
+
+def shifted_eye(shift_m):
+    return (TRAIN_EYE[0] + shift_m, TRAIN_EYE[1], TRAIN_EYE[2])
+
+
+def project(point, eye, R):
+    p_cam = mat_vec(R, vec_sub(point, eye))
+    u = FX * p_cam[0] / p_cam[2] + CX
+    v = FY * p_cam[1] / p_cam[2] + CY
+    return (u, v, p_cam[2])
+
+
+def unproject(u, v, depth, eye, R):
+    p_cam = ((u - CX) / FX * depth, (v - CY) / FY * depth, depth)
+    return vec_add(eye, rotate_inv(R, p_cam))
+
+
+def closer_object(uvz):
+    best_name, best_d = None, None
+    for name in OBJECT_NAMES:
+        u, v, _ = uvz[name]
+        dist = math.hypot(u - CX, v - CY)
+        if best_d is None or dist < best_d:
+            best_name, best_d = name, dist
+    return best_name
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < SMALL_FRAC * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def shared_noise(seed, shift_m):
+    rng = random.Random(f"render/{seed}/{shift_m:.4f}")
+    return {name: (rng.gauss(0.0, RENDER_SIGMA), rng.gauss(0.0, RENDER_SIGMA)) for name in POINT_NAMES}
+
+
+def train_uvz():
+    return {name: project(POINTS[name], TRAIN_EYE, TRAIN_R) for name in POINT_NAMES}
+
+
+def observe(shift_m, noise):
+    eye = shifted_eye(shift_m)
+    # Fixed training orientation: the mount is translated, not re-aimed.
+    out = {}
+    for name in POINT_NAMES:
+        u, v, z = project(POINTS[name], eye, TRAIN_R)
+        du, dv = noise[name]
+        out[name] = (u + du, v + dv, z)
+    return out
+
+
+def restore(obs, lift_shift_m):
+    eye = shifted_eye(lift_shift_m)
+    restored = {}
+    for name in POINT_NAMES:
+        u, v, z = obs[name]
+        world = unproject(u, v, z, eye, TRAIN_R)
+        ru, rv, rz = project(world, TRAIN_EYE, TRAIN_R)
+        restored[name] = (ru, rv, rz)
+    return restored
+
+
+def rmse_against_train(uvz, train):
+    acc = 0.0
+    for name in POINT_NAMES:
+        acc += (uvz[name][0] - train[name][0]) ** 2 + (uvz[name][1] - train[name][1]) ** 2
+    return math.sqrt(acc / len(POINT_NAMES))
+
+
+def run_seed(shift_m, seed):
+    train = train_uvz()
+    true_order = closer_object(train)
+    noise = shared_noise(seed, shift_m)
+    obs = observe(shift_m, noise)
+    a_uvz = obs
+    b_uvz = restore(obs, shift_m)
+    c_uvz = restore(obs, SHIFT_NONE)
+    rows = {}
+    for arm, uvz in (("A_shifted", a_uvz), ("B_restore", b_uvz), ("C_wrong", c_uvz)):
+        rows[arm] = {
+            "rmse_px": rmse_against_train(uvz, train),
+            "order_acc": 1.0 if closer_object(uvz) == true_order else 0.0,
+        }
+    rows["true_order"] = true_order
+    return rows
+
+
+def run_regime(shift_m):
+    per_arm = {arm: {metric: [] for metric in METRICS} for arm in ARMS}
+    for seed in SEEDS:
+        row = run_seed(shift_m, seed)
+        for arm in ARMS:
+            for metric in METRICS:
+                per_arm[arm][metric].append(row[arm][metric])
+    return per_arm
+
+
+def print_regime(label, shift_m, declared):
+    res = run_regime(shift_m)
+    print(f"declared expectation {label}: {declared}")
+    print(f"regime {label}  shift_m={num(shift_m)}  (mean+-sd over seeds)")
+    for arm in ARMS:
+        parts = [f"{arm}"]
+        for metric in METRICS:
+            m, s = mean_sd(res[arm][metric])
+            parts.append(f"{metric} {fmt_pair(m, s)}")
+        print("  " + " ".join(parts))
+    for left, right in PAIRS:
+        la, ra = ARM_FROM_LETTER[left], ARM_FROM_LETTER[right]
+        for metric in METRICS:
+            print(f"  paired {left}-{right} {metric}: {verdict(res[la][metric], res[ra][metric])}")
+    return res
+
+
+def hand_calc_lines():
+    train = train_uvz()
+    true_order = closer_object(train)
+    cup = train["cup"]
+    bowl = train["bowl"]
+    d_cup = math.hypot(cup[0] - CX, cup[1] - CY)
+    d_bowl = math.hypot(bowl[0] - CX, bowl[1] - CY)
+    # One official large-shift projection, noiseless, for the worked example.
+    large = observe(SHIFT_OFFICIAL, {name: (0.0, 0.0) for name in POINT_NAMES})
+    large_order = closer_object(large)
+    large_rmse = rmse_against_train(large, train)
+    print(f"hand_calc 20 percent small-vs-clear factor = {num(SMALL_FRAC)}")
+    print(f"hand_calc FX=FY={num(FX)} CX=CY={num(CX)}")
+    print(f"hand_calc TRAIN_EYE=({num(TRAIN_EYE[0])}, {num(TRAIN_EYE[1])}, {num(TRAIN_EYE[2])}) m")
+    print(f"hand_calc official SHIFT={num(SHIFT_OFFICIAL)} m along +x, fixed training orientation")
+    print(f"hand_calc alternative SHIFT={num(SHIFT_ALT)} m (not adopted)")
+    print(f"hand_calc RENDER_SIGMA={num(RENDER_SIGMA)} px")
+    print(
+        "hand_calc noiseless training cup uv="
+        f"({num(cup[0])}, {num(cup[1])}), bowl uv=({num(bowl[0])}, {num(bowl[1])})"
+    )
+    print(
+        "hand_calc training principal-point distances cup="
+        f"{num(d_cup)} px, bowl={num(d_bowl)} px, closer={true_order}"
+    )
+    print(
+        "hand_calc noiseless official-shift RMSE vs training view = "
+        f"{num(large_rmse)} px, closer={large_order}"
+    )
+
+
+def main():
+    print("Synthetic CoRe-VLA training-view restore stand-in; not a real RGB-D or VLA run")
+    print(
+        "declared "
+        f"SHIFT_OFFICIAL={num(SHIFT_OFFICIAL)} SHIFT_ALT={num(SHIFT_ALT)} "
+        f"SHIFT_NONE={num(SHIFT_NONE)} RENDER_SIGMA={num(RENDER_SIGMA)} "
+        f"FX={num(FX)} FY={num(FY)} CX={num(CX)} CY={num(CY)} "
+        f"SMALL_FRAC={num(SMALL_FRAC)} seeds={','.join(str(s) for s in SEEDS)}"
+    )
+    hand_calc_lines()
+    print("declared arms: A_shifted uses the shifted view as training; B_restore lifts with the correct shift and reprojects; C_wrong uses a leaked identity")
+    print("paper_authors=Tianhang Pan, Xuanhao Wang, Yiwen Pang, Bo Zhou, Jun Yang, Min-Ling Zhang, Shimin Di (abs / title-page order; 以论文为准)")
+    print("paper_title_page=emails {tianhang.pan,shimin.di}@seu.edu.cn; no corresponding-author dagger and no equal-contribution star (以论文为准)")
+    print("paper_version=arXiv 2609.37150 v1, submitted 2026-09-29")
+    print("paper_figures=pi0.5 success 13.3 % to 83.3 % at a 1.6 m real-robot camera shift (arXiv 2609.37150 v1; 以论文为准, not toy outputs)")
+    print("Regimes and parameters were written before the first run")
+    print("Common random numbers: the scene markers, training extrinsics, shifted extrinsics and render-noise draws are shared across arms at each regime and seed")
+    print("Assumptions: pinhole stand-in with known depth; fixed training orientation under a lateral mount translation; leaked-identity C pretends the shift is zero; RMSE is against the noiseless training-view projection; order_acc is 1 when the object nearer the principal point matches the training view")
+    print("R2C Restoration is named; this toy does not re-implement ETCA")
+    print("Paper figures 以论文为准")
+    print("Real RGB-D / point-cloud renderer / VLA weights: 本页未运行")
+    print("declared no_shift: A and B may near-tie on agreement with the training-view observation - keep")
+    print("declared large_shift: B consistent better agreement with the training-view observation than A - keep")
+    print("declared C_wrong on large_shift: C loses or mis-reports because it pretends the shift did not happen - lose kept")
+    for name, (shift_m, declared) in REGIMES.items():
+        print_regime(name, shift_m, declared)
+    print(f"alternative same seeds SHIFT={num(SHIFT_ALT)} m (not adopted)")
+    print(f"hand_calc official SHIFT={num(SHIFT_OFFICIAL)} m vs alternative {num(SHIFT_ALT)} m")
+    print_regime("large_shift_alt", SHIFT_ALT, "alternative larger shift, same seeds, not adopted")
+    print("No real RGB-D, point-cloud renderer, or VLA weight was started")
+    print("No winner is universal: with no shift the raw and restored views may near-tie; a large external-camera translation is where correct-extrinsic restore matters, and a leaked identity leaves that shift uncorrected")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic CoRe-VLA training-view restore stand-in; not a real RGB-D or VLA run
+declared SHIFT_OFFICIAL=0.2000 SHIFT_ALT=0.4000 SHIFT_NONE=0.0000 RENDER_SIGMA=0.5000 FX=400.0000 FY=400.0000 CX=160.0000 CY=160.0000 SMALL_FRAC=0.2000 seeds=0,1,2,3,4
+hand_calc 20 percent small-vs-clear factor = 0.2000
+hand_calc FX=FY=400.0000 CX=CY=160.0000
+hand_calc TRAIN_EYE=(0.0000, -0.8000, 0.6000) m
+hand_calc official SHIFT=0.2000 m along +x, fixed training orientation
+hand_calc alternative SHIFT=0.4000 m (not adopted)
+hand_calc RENDER_SIGMA=0.5000 px
+hand_calc noiseless training cup uv=(136.4172, 152.1053), bowl uv=(246.4702, 152.1053)
+hand_calc training principal-point distances cup=24.8691 px, bowl=86.8298 px, closer=cup
+hand_calc noiseless official-shift RMSE vs training view = 78.5675 px, closer=bowl
+declared arms: A_shifted uses the shifted view as training; B_restore lifts with the correct shift and reprojects; C_wrong uses a leaked identity
+paper_authors=Tianhang Pan, Xuanhao Wang, Yiwen Pang, Bo Zhou, Jun Yang, Min-Ling Zhang, Shimin Di (abs / title-page order; 以论文为准)
+paper_title_page=emails {tianhang.pan,shimin.di}@seu.edu.cn; no corresponding-author dagger and no equal-contribution star (以论文为准)
+paper_version=arXiv 2609.37150 v1, submitted 2026-09-29
+paper_figures=pi0.5 success 13.3 % to 83.3 % at a 1.6 m real-robot camera shift (arXiv 2609.37150 v1; 以论文为准, not toy outputs)
+Regimes and parameters were written before the first run
+Common random numbers: the scene markers, training extrinsics, shifted extrinsics and render-noise draws are shared across arms at each regime and seed
+Assumptions: pinhole stand-in with known depth; fixed training orientation under a lateral mount translation; leaked-identity C pretends the shift is zero; RMSE is against the noiseless training-view projection; order_acc is 1 when the object nearer the principal point matches the training view
+R2C Restoration is named; this toy does not re-implement ETCA
+Paper figures 以论文为准
+Real RGB-D / point-cloud renderer / VLA weights: 本页未运行
+declared no_shift: A and B may near-tie on agreement with the training-view observation - keep
+declared large_shift: B consistent better agreement with the training-view observation than A - keep
+declared C_wrong on large_shift: C loses or mis-reports because it pretends the shift did not happen - lose kept
+declared expectation no_shift: A and B may near-tie on agreement with the training-view observation - keep
+regime no_shift  shift_m=0.0000  (mean+-sd over seeds)
+  A_shifted rmse_px 0.7012+-0.1065 order_acc 1.0000+-0.0000
+  B_restore rmse_px 0.7012+-0.1065 order_acc 1.0000+-0.0000
+  C_wrong rmse_px 0.7012+-0.1065 order_acc 1.0000+-0.0000
+  paired B-A rmse_px: -4.863e-15+-1.254e-14: numerically zero (floating-point residue), effectively a tie
+  paired B-A order_acc: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C rmse_px: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C order_acc: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A rmse_px: -4.863e-15+-1.254e-14: numerically zero (floating-point residue), effectively a tie
+  paired C-A order_acc: 0.0000+-0.0000: tie: identical on every seed
+declared expectation large_shift: B consistent better agreement with the training-view observation than A - keep
+regime large_shift  shift_m=0.2000  (mean+-sd over seeds)
+  A_shifted rmse_px 78.5488+-0.1307 order_acc 0.0000+-0.0000
+  B_restore rmse_px 0.6137+-0.1714 order_acc 1.0000+-0.0000
+  C_wrong rmse_px 78.5488+-0.1307 order_acc 0.0000+-0.0000
+  paired B-A rmse_px: -77.9351+-0.2948: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A order_acc: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C rmse_px: -77.9351+-0.2948: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C order_acc: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A rmse_px: 0.0000+-1.005e-14: numerically zero (floating-point residue), effectively a tie
+  paired C-A order_acc: 0.0000+-0.0000: tie: identical on every seed
+alternative same seeds SHIFT=0.4000 m (not adopted)
+hand_calc official SHIFT=0.2000 m vs alternative 0.4000 m
+declared expectation large_shift_alt: alternative larger shift, same seeds, not adopted
+regime large_shift_alt  shift_m=0.4000  (mean+-sd over seeds)
+  A_shifted rmse_px 157.1513+-0.2164 order_acc 0.0000+-0.0000
+  B_restore rmse_px 0.7278+-0.1350 order_acc 1.0000+-0.0000
+  C_wrong rmse_px 157.1513+-0.2164 order_acc 0.0000+-0.0000
+  paired B-A rmse_px: -156.4236+-0.2585: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A order_acc: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C rmse_px: -156.4236+-0.2585: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C order_acc: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A rmse_px: 1.137e-14+-1.557e-14: numerically zero (floating-point residue), effectively a tie
+  paired C-A order_acc: 0.0000+-0.0000: tie: identical on every seed
+No real RGB-D, point-cloud renderer, or VLA weight was started
+No winner is universal: with no shift the raw and restored views may near-tie; a large external-camera translation is where correct-extrinsic restore matters, and a leaked identity leaves that shift uncorrected
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used on this page, in this order: **tie: identical on every seed** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when |paired mean| and its sd are both below the toy's numerically-zero threshold (hand calc: 1e-9; no sign count on such a line); **near-tie / small gap, within seed noise** when |paired mean| ≤ sd; otherwise a **consistent** gap (|paired mean| > sd), called **small but consistent gap, not a tie** when |m| is under 20 % of the smaller-arm mean (hand calc; the toy prints `0.2000`) and **clear gap, not a tie** otherwise. Every consistent line carries a same-sign count over the 5 seeds.
+
+- **no_shift.** A, B and C all print `rmse_px 0.7012+-0.1065` and `order_acc 1.0000+-0.0000`. Paired B-A `order_acc` is `0.0000+-0.0000`: **tie: identical on every seed**. Paired B-A `rmse_px` is `-4.863e-15+-1.254e-14`: **numerically zero (floating-point residue), effectively a tie**. The pre-declared "may near-tie" **held** (the official cells are an exact tie and a numerically-zero effective tie, which are stricter). C also ties here, because a leaked identity is accidentally the correct extrinsics when the shift is zero.
+- **large_shift.** A prints `rmse_px 78.5488+-0.1307` and `order_acc 0.0000+-0.0000`; B prints `rmse_px 0.6137+-0.1714` and `order_acc 1.0000+-0.0000`; C matches A. Paired B-A `rmse_px` is `-77.9351+-0.2948`, a **clear gap, not a tie** (same sign on all 5 seeds): B has the smaller error. Paired B-A `order_acc` is `1.0000+-0.0000`, a **clear gap, not a tie** (5/5): B recovers the training-view closer object and A does not. The pre-declared consistent restore win **held**.
+- **Leaked identity.** On `large_shift`, paired B-C `rmse_px` is also `-77.9351+-0.2948` and paired B-C `order_acc` is `1.0000+-0.0000`, both **clear** (5/5). C coincides with A (`0.0000+-1.005e-14` on `rmse_px`, a numerically-zero effective tie). The pre-declared lose **held**: C does not restore the training view.
+
+**Choices made after seeing results.** None of the official parameters were changed after the first official run. Named alternative on the same seeds, not adopted: `SHIFT = 0.4000` m (`hand_calc` official `0.2000` m vs alternative `0.4000` m). That larger translation still gives a clear B-A `rmse_px` gap (`-156.4236+-0.2585`, 5/5) and the same order win, with more points leaving the image; it was not adopted, because the official `0.2000` m cell already holds the declared large-shift win and is not the paper's 1.6 m figure.
+
+**Code changes after the first run.** After the first official run, these pages first gained the blank lines that `check_quotes.py` requires around each new SimOutput fence (one blank line after the opening tag and one before the closing tag). A later wording fix recorded the live abs Comments field as “15 pages, 9 figures” and still states that there is no journal-ref field. Official expected/ was not rewritten and remained byte-identical on rerun after the 2026-11-20 09:36:09 Asia/Shanghai freeze. Official numbers were not rewritten. The `cd` in the run-the-toy bash snippet was already in the first official draft.
+
+The page **does not declare a universal winner**: with no shift the raw and restored views may near-tie or effectively tie; a large external-camera translation is where correct-extrinsic restore matters, and a leaked identity leaves that shift uncorrected. Paper figures such as 13.3 %, 83.3 % and 1.6 m stay 以论文为准. Real RGB-D / point-cloud renderer / VLA weights: **本页未运行**.
+
+**180-minute work plan:** 30+25+50+40+35=180. 30 min read arXiv 2609.37150 v1 (abs, HTML and PDF) and write the training-view restore idea, R2C, ETCA, authorship, and the title-page typography (emails are not corresponding-author marks); 25 min write the shared-scene stand-in, the three arms, and the three declared expectations before running; 50 min run the toy and read the official regimes; 40 min rerun the named alternative `SHIFT = 0.4000` m on the same seeds; 35 min write why this is not Ego3D, `AX=ZB`, hand–eye `AX=XB` or AnyCamVLA, and what a real RGB-D / VLA check would still have to show (本页未运行).
+
+### Exercises
+
+1. From the official hand-calc line, say which object is closer to the principal point in the noiseless training view, and which object is closer after the official `0.2000` m shift. Why can A then start the wrong subtask?
+2. Show from the shared render-noise helper that A, B and C see the same markers, the same extrinsics and the same noise for a given regime and seed.
+3. On `no_shift`, paired B-A `rmse_px` is `-4.863e-15+-1.254e-14` and is labelled numerically zero, not "identical on every seed". What is the residue from?
+4. The alternative `SHIFT = 0.4000` m was run on the same seeds and not adopted. What happens to the noiseless RMSE, and why was the official shift left at `0.2000` m?
+5. Before any real RGB-D or VLA run (本页未运行), write why this toy must not be quoted as the paper's 13.3 % / 83.3 % / 1.6 m result.
+
 <Summary>
 
 Two static cameras are useful only in one base frame. Get each `T_base_cam` with robot–world hand–eye (OpenCV `calibrateRobotWorldHandEye`, `AX = ZB`, SHAH=0 or LI=1, at least 3 poses), estimate cam1 → cam2 from many shared board views, and check that `T_base_cam1 · T_cam1_cam2` closes on `T_base_cam2`. In the toy the closure is 0.04 deg / 4.4 mm as built and 1.86 deg (about 16.3 mm at 0.5 m) after a 2° bump, which trips the 1.0 deg alarm. Lock focus, bind serial numbers, recheck every session.
 
 - SpatialVLA literacy: on shared camera-frame points, MAE is primary (A 0.1216 / B 0.0631 / C 0.0458 m); adaptive bins help on the train mass and the gap narrows under action-distribution shift — not a SpatialVLA benchmark; ≠ AX=ZB.
 
+
+- CoRe-VLA training-view restore: on a shared table, a raw shifted view and a leaked-identity "restore" effectively tie a correct restore when the shift is zero (`rmse_px -4.863e-15+-1.254e-14`, numerically zero), but at the official `0.2000` m mount translation B recovers the training view (`paired B-A rmse_px -77.9351+-0.2948`, clear, 5/5; `order_acc 1.0000+-0.0000`) while A and C do not — `corevla_training_view_restore_toy.py`, not a real RGB-D or VLA run; paper figures 13.3 % / 83.3 % / 1.6 m 以论文为准.
 </Summary>

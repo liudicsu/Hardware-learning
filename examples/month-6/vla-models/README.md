@@ -49,3 +49,10 @@ python3 molmoact_reasoning_trace_toy.py
 ```bash
 python3 internvla_m1_spatial_prompt_toy.py
 ```
+
+`cobovla_paraphrase_codes_toy.py` — CoBoVLA-style paraphrase-robust codes (arXiv 2611.22395): a text-encoder stand-in maps instructions to discrete step codes, and an actor that never sees the words is compared with a language-coupled 2-gram scorer and with foreign step codes. Two regimes (canonical wording, official unseen paraphrases), 5 seeds, common random numbers; not RDT2, VQ-BeT, CoT-VLA or LIBERO-X. Checked by `examples/month-6/check.sh`. Real LIBERO, LIBERO-Para and GPU: 本页未运行; paper figures 以论文为准.
+/ CoBoVLA 式复述稳健离散码：文本编码器替身把指令映射为步骤码，永远不看词的执行器与语言耦合的 2-gram 打分器和外来步骤码比较。两种情形，5 个种子，共用随机数。
+
+```bash
+python3 cobovla_paraphrase_codes_toy.py
+```

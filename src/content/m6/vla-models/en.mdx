@@ -2219,6 +2219,467 @@ The page **does not declare a universal winner**: grounding helps when clutter m
 4. camera_shift makes B lose. Name one thing the real paper does (co-training, joint post-training) that could reduce this failure, and say why the toy cannot test it.
 5. Before any real run (本页未运行), write how you would check that a spatial grounding corpus uses the same colour and object names as your robot's camera images.
 
+## CoBoVLA: paraphrase-robust language and action codes
+
+This page is already long: action tokens, SmolVLA async inference, a dual-system cadence, RDT2 residual VQ, CoT-VLA, MolmoAct and InternVLA-M1 stay in force. The missing idea here is **instruction paraphrase robustness** by *decoupling* language understanding from control. It is **not** another action codebook.
+
+<Resource id="cobovla-html" />
+
+<Resource id="cobovla-pdf" />
+
+**Source actually opened (arXiv 2611.22395 abs, HTML and PDF v1).**
+
+- **Mehul Arora, Dhruv Agarwal and Ambuj Agrawal (all 3, in arXiv 2611.22395 abs order), "CoBoVLA: Decoupling Language from Action with Discrete Codes for Robust and Interpretable Robot Manipulation"** (v1, submitted 2026-11-17; also called CodeBookVLA). Affiliations on the title page are the University of California San Diego (Arora, Agarwal) and Carnegie Mellon University (Agrawal). **No** equal-contribution or corresponding typography is visible on the title page. The prose "contributions are as follows" is a bullet list, not a footnote mark. The abs Comments field is “16 pages, 3 figures, 4 tables, and supplemental material included”; there is no journal-ref field (subjects: cs.CV and cs.RO).
+- CoBoVLA is a 250M-parameter VLA (以论文为准) with three stages: a text encoder maps the instruction to discrete **step codes**, trained so paraphrases of the same instruction share codes; a visual planner maps the current step code plus images / state to **action codes**; an **actor that never sees the language** turns action codes into motor commands. Failures can be localized to a stage. Replacing the step codes with their continuous pre-quantization vectors lowers success on both benchmarks (以论文为准; the toy may show a consistent loss, not the paper's percentages).
+- **Reported results (以论文为准):** success **91 %** when the instruction is correctly encoded and **27.2 %** otherwise; **91.4 %** on LIBERO-Goal vs **82.8 %** SmolVLA; **81.1 %** on LIBERO-Para (4,092 unseen paraphrases) vs **36.5 %** for a paraphrase-fine-tuned SmolVLA LoRA; **17 ms** per control step (abs). Those figures are **not** toy outputs.
+- Real LIBERO, LIBERO-Para and GPU: **本页未运行**.
+- This section is **not** a redo of RDT2's residual VQ *action* codebook, **not** VQ-BeT, **not** CoT-VLA / MolmoAct / InternVLA-M1, **not** SmolVLA async inference, and **not** LIBERO-X. LIBERO-Para is a *paper* benchmark, not a second unit on this page.
+
+### Shared step codes, then a blind actor
+
+<Formula label="Three stages (stand-in)">step code = encode(instruction); action = actor(step code); the actor never sees the words</Formula>
+
+<Formula label="Success">success iff the acted task matches the intended task</Formula>
+
+The toy keeps only the split. Arm A is language-coupled: it scores character 2-grams against the canonical sentences only, so an unseen paraphrase can change the action path even when the intent is the same. Arm B uses a synonym table (a stand-in for a text encoder trained so paraphrases share step codes); the actor then sees only the discrete code. Arm C feeds the actor the step codes of a different task.
+
+**Worked example — labelled hand calculations, also printed by the toy.** After stripping stop-words, the official unseen paraphrase `grab the crimson mug` has character-2-gram cosines `pick_cup=0.0778`, `open_drawer=0.1633`, `place_bowl=0.0000`, so the coupled scorer chooses `open_drawer`. The other five official paraphrases likewise choose the wrong task (the official lines are in the toy output). The 20 % small-versus-clear factor is printed as `0.2000` (hand calc).
+
+### Fair setup
+
+`cobovla_paraphrase_codes_toy.py` is **synthetic** and stdlib only. **Model assumptions:** character 2-gram cosine is a wording-sensitive stand-in, not a trained text encoder; B's synonym table is the stand-in for paraphrase-shared step codes; the actor never sees the words; official C uses a fixed foreign-code derangement; success is whether the acted task matches the intended task.
+
+| Arm | What it is |
+|---|---|
+| A_coupled | language-coupled: scores character 2-grams against canonical wording only |
+| B_codes | synonym table to a discrete step code, then an actor that never sees the words |
+| C_foreign | the actor is given step codes from a different task |
+
+**Common random numbers:** the tasks, canonical instructions, official paraphrases and scene order are shared across arms at each regime and seed. Five seeds `0,1,2,3,4`. The metric is `success`, as mean+-sd over seeds.
+
+| Regime | Setting | What was pre-declared |
+|---|---|---|
+| canonical | only the three canonical sentences | A and B may **near-tie** on task success — **keep** |
+| paraphrase | six official unseen paraphrases, two per task | B **consistent** more stable behaviour / higher stand-in success than A — **keep** |
+
+C was pre-declared to **lose**, because it is given a different task's step codes — **keep**.
+
+A named alternative on the same seeds, **not adopted**, replaces the discrete step code with a continuous pre-quantization stand-in (the wording-sensitive 2-gram scores, then nearest-task quantization).
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-6/vla-models
+python3 cobovla_paraphrase_codes_toy.py
+```
+
+<CodeSource path="examples/month-6/vla-models/cobovla_paraphrase_codes_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic CoBoVLA paraphrase-robust code stand-in.
+
+Stdlib only. Shared tasks, shared canonical instructions, shared paraphrases
+and shared scenes (common random numbers). Not a real LIBERO / LIBERO-Para
+run and not VLA weights.
+
+This is not RDT2's residual VQ action codebook, not VQ-BeT, not CoT-VLA,
+not MolmoAct, not InternVLA-M1, not SmolVLA async inference, and not LIBERO-X.
+
+Arms:
+  A_coupled -- language-coupled stand-in: the action path can change when
+    the wording changes, even if the intent is the same. The actor scores
+    character 2-grams against the canonical sentences only.
+  B_codes -- codebook-decoupled stand-in: a synonym table maps paraphrases
+    of the same instruction to the same discrete step codes; the actor
+    never sees the words, so those paraphrases produce the same behaviour.
+  C_foreign -- broken codes: the actor is given the step codes of a
+    different task.
+
+A named alternative on the same seeds, not adopted, replaces the discrete
+step code with a continuous pre-quantization mixture of the correct code
+and a neighbouring task code.
+
+Regimes and parameters were written before the first run.
+
+Labels: tie = identical on every seed; numerically zero = |paired mean| and sd
+both < 1e-9; |m| <= sd = near-tie; |m| > sd = consistent gap (small if |m| < 20 %
+of the smaller arm mean, else clear), with a sign count. ROUND_HALF_UP output.
+
+Paper figures 91 %, 27.2 %, 91.4 %, 82.8 %, 81.1 %, 36.5 % and 17 ms stay
+以论文为准 and are not toy outputs. Real LIBERO / LIBERO-Para / GPU: 本页未运行.
+"""
+import collections
+import math
+import random
+import re
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+SMALL_FRAC = 0.2000  # 20 % of the smaller-arm mean; printed as 0.2000
+NGRAM = 2
+# Named alternative, not adopted: use the wording-sensitive 2-gram scores
+# as a continuous pre-quantization vector and pick the nearest task code,
+# instead of a discrete synonym-table code or a foreign discrete code.
+
+TASKS = ("pick_cup", "open_drawer", "place_bowl")
+# Canonical wording and official unseen paraphrases, written before the first run.
+# Stop-words are ignored by the coupled 2-gram scorer.
+CANONICAL = {
+    "pick_cup": "pick the red cup",
+    "open_drawer": "open the drawer",
+    "place_bowl": "place the bowl on the plate",
+}
+PARAPHRASES = {
+    "pick_cup": ("grab the crimson mug", "lift the scarlet tumbler"),
+    "open_drawer": ("pull the cupboard open", "slide the bin out"),
+    "place_bowl": ("set the dish on the saucer", "rest the basin on the saucer"),
+}
+STOP = frozenset("the a an to on of in out up please could you that this".split())
+
+# Foreign-code derangement: each task is sent the next task's step code.
+FOREIGN = {
+    "pick_cup": "open_drawer",
+    "open_drawer": "place_bowl",
+    "place_bowl": "pick_cup",
+}
+
+ARMS = ("A_coupled", "B_codes", "C_foreign")
+METRICS = ("success",)
+PAIRS = (("B", "A"), ("B", "C"), ("C", "A"))
+ARM_FROM_LETTER = {"A": "A_coupled", "B": "B_codes", "C": "C_foreign"}
+
+REGIMES = {
+    "canonical": (
+        "canonical",
+        "A and B may near-tie on task success - keep",
+    ),
+    "paraphrase": (
+        "paraphrase",
+        "B consistent more stable behaviour / higher stand-in success than A - keep",
+    ),
+}
+
+
+def content_text(text):
+    tokens = [t for t in re.findall(r"[a-z]+", text.lower()) if t not in STOP]
+    return " ".join(tokens)
+
+
+def char_ngrams(text, n=NGRAM):
+    s = content_text(text)
+    grams = [s[i : i + n] for i in range(max(0, len(s) - n + 1))]
+    return collections.Counter(grams)
+
+
+def cosine(a, b):
+    keys = set(a) | set(b)
+    num = sum(a[k] * b[k] for k in keys)
+    da = math.sqrt(sum(v * v for v in a.values()))
+    db = math.sqrt(sum(v * v for v in b.values()))
+    return num / (da * db) if da and db else 0.0
+
+
+CANON_GRAMS = {task: char_ngrams(text) for task, text in CANONICAL.items()}
+# B's synonym table: every official wording of a task shares one discrete code.
+SYNONYM = {}
+for task, text in CANONICAL.items():
+    SYNONYM[text] = task
+for task, texts in PARAPHRASES.items():
+    for text in texts:
+        SYNONYM[text] = task
+
+
+def coupled_scores(text):
+    grams = char_ngrams(text)
+    return {task: cosine(grams, CANON_GRAMS[task]) for task in TASKS}
+
+
+def coupled_choice(text):
+    scores = coupled_scores(text)
+    best = max(scores.values())
+    # Deterministic tie-break in TASKS order; no hidden seed retune.
+    for task in TASKS:
+        if scores[task] == best:
+            return task, scores
+    return TASKS[0], scores
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < SMALL_FRAC * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def actor(step_code, scene_task):
+    # The actor never sees the words; it only acts on the discrete code.
+    # The scene is shared and does not override a wrong code.
+    del scene_task
+    return step_code
+
+
+def continuous_code(text):
+    # Stand-in pre-quantization vector: wording-sensitive 2-gram scores,
+    # used in place of a discrete step code, then nearest-task quantization.
+    # Not a paper percentage, and not the official C arm.
+    chosen, _ = coupled_choice(text)
+    return chosen
+
+
+def items_for(kind):
+    out = []
+    for task in TASKS:
+        if kind == "canonical":
+            out.append((task, CANONICAL[task]))
+        else:
+            for text in PARAPHRASES[task]:
+                out.append((task, text))
+    return out
+
+
+def evaluate_item(arm, task, text, mode="official"):
+    if arm == "A_coupled":
+        chosen, _ = coupled_choice(text)
+    elif arm == "B_codes":
+        chosen = actor(SYNONYM[text], task)
+    elif mode == "continuous":
+        chosen = actor(continuous_code(text), task)
+    else:
+        chosen = actor(FOREIGN[task], task)
+    return 1.0 if chosen == task else 0.0
+
+
+def run_seed(kind, seed, mode="official"):
+    # Shared item list and scene order under CRN; the score itself is
+    # deterministic given the declared wording table.
+    items = list(items_for(kind))
+    rng = random.Random(f"{kind}/{mode}/{seed}")
+    rng.shuffle(items)
+    scores = {arm: [] for arm in ARMS}
+    for task, text in items:
+        for arm in ARMS:
+            scores[arm].append(evaluate_item(arm, task, text, mode=mode))
+    return {arm: sum(vals) / len(vals) for arm, vals in scores.items()}
+
+
+def run_regime(kind, mode="official"):
+    per_arm = {arm: {metric: [] for metric in METRICS} for arm in ARMS}
+    for seed in SEEDS:
+        row = run_seed(kind, seed, mode=mode)
+        for arm in ARMS:
+            per_arm[arm]["success"].append(row[arm])
+    return per_arm
+
+
+def print_regime(label, kind, declared, mode="official"):
+    res = run_regime(kind, mode=mode)
+    print(f"declared expectation {label}: {declared}")
+    print(f"regime {label}  (mean+-sd over seeds)")
+    for arm in ARMS:
+        m, s = mean_sd(res[arm]["success"])
+        print(f"  {arm} success {fmt_pair(m, s)}")
+    for left, right in PAIRS:
+        la, ra = ARM_FROM_LETTER[left], ARM_FROM_LETTER[right]
+        print(f"  paired {left}-{right} success: {verdict(res[la]['success'], res[ra]['success'])}")
+    return res
+
+
+def hand_calc_lines():
+    print(f"hand_calc 20 percent small-vs-clear factor = {num(SMALL_FRAC)}")
+    print(f"hand_calc NGRAM={NGRAM}")
+    print("hand_calc alternative: continuous pre-quantization uses 2-gram scores in place of a discrete code (not adopted)")
+    print(f"hand_calc tasks={','.join(TASKS)}")
+    for task in TASKS:
+        print(f"hand_calc canonical {task}: {CANONICAL[task]!r}")
+        for text in PARAPHRASES[task]:
+            scores = coupled_scores(text)
+            chosen, _ = coupled_choice(text)
+            parts = ", ".join(f"{t}={num(scores[t])}" for t in TASKS)
+            print(f"hand_calc 2-gram cosine {text!r}: {parts}; coupled_choice={chosen}")
+
+
+def main():
+    print("Synthetic CoBoVLA paraphrase-code stand-in; not a LIBERO or GPU VLA run")
+    print(
+        "declared "
+        f"NGRAM={NGRAM} SMALL_FRAC={num(SMALL_FRAC)} "
+        f"seeds={','.join(str(s) for s in SEEDS)}"
+    )
+    hand_calc_lines()
+    print("declared arms: A_coupled scores char 2-grams against canonical wording only; B_codes uses a synonym table then an actor that never sees the words; C_foreign feeds a different task's step codes")
+    print("paper_authors=Mehul Arora, Dhruv Agarwal, Ambuj Agrawal (abs / title-page order; 以论文为准)")
+    print("paper_title_page=no equal-contribution or corresponding typography; prose contributions list is not a footnote mark (以论文为准)")
+    print("paper_version=arXiv 2611.22395 v1, submitted 2026-11-17")
+    print("paper_figures=success 91 % when correctly encoded and 27.2 % otherwise; 91.4 % on LIBERO-Goal vs 82.8 % SmolVLA; 81.1 % on LIBERO-Para (4,092 unseen paraphrases) vs 36.5 % paraphrase-fine-tuned SmolVLA LoRA; 17 ms per control step (arXiv 2611.22395 v1; 以论文为准, not toy outputs)")
+    print("Regimes and parameters were written before the first run")
+    print("Common random numbers: the tasks, canonical instructions, official paraphrases and scene order are shared across arms at each regime and seed")
+    print("Assumptions: character 2-gram cosine is a wording-sensitive stand-in, not a trained text encoder; B's synonym table is the stand-in for paraphrase-shared step codes; the actor never sees the words; C uses a fixed foreign-code derangement; success is whether the acted task matches the intended task")
+    print("Paper figures 以论文为准")
+    print("Real LIBERO / LIBERO-Para / GPU: 本页未运行")
+    print("declared canonical: A and B may near-tie on task success - keep")
+    print("declared paraphrase: B consistent more stable behaviour / higher stand-in success than A - keep")
+    print("declared C_foreign: C loses because it is given step codes from a different task - lose kept")
+    for name, (kind, declared) in REGIMES.items():
+        print_regime(name, kind, declared)
+    print("alternative same seeds continuous pre-quantization vector (not adopted)")
+    print("hand_calc official C uses foreign discrete codes vs alternative continuous pre-quantization vector")
+    # Report the alternative on both official regimes, same seeds.
+    print_regime(
+        "canonical_continuous",
+        "canonical",
+        "alternative continuous pre-quantization vector, same seeds, not adopted",
+        mode="continuous",
+    )
+    print_regime(
+        "paraphrase_continuous",
+        "paraphrase",
+        "alternative continuous pre-quantization vector, same seeds, not adopted",
+        mode="continuous",
+    )
+    print("No real LIBERO, LIBERO-Para, or GPU VLA was started")
+    print("No winner is universal: canonical wording may near-tie; unseen paraphrases are where discrete shared step codes matter, and foreign or pre-quantization-replaced codes leave that robustness unearned")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic CoBoVLA paraphrase-code stand-in; not a LIBERO or GPU VLA run
+declared NGRAM=2 SMALL_FRAC=0.2000 seeds=0,1,2,3,4
+hand_calc 20 percent small-vs-clear factor = 0.2000
+hand_calc NGRAM=2
+hand_calc alternative: continuous pre-quantization uses 2-gram scores in place of a discrete code (not adopted)
+hand_calc tasks=pick_cup,open_drawer,place_bowl
+hand_calc canonical pick_cup: 'pick the red cup'
+hand_calc 2-gram cosine 'grab the crimson mug': pick_cup=0.0778, open_drawer=0.1633, place_bowl=0.0000; coupled_choice=open_drawer
+hand_calc 2-gram cosine 'lift the scarlet tumbler': pick_cup=0.0000, open_drawer=0.0659, place_bowl=0.0000; coupled_choice=open_drawer
+hand_calc canonical open_drawer: 'open the drawer'
+hand_calc 2-gram cosine 'pull the cupboard open': pick_cup=0.2925, open_drawer=0.2301, place_bowl=0.1113; coupled_choice=pick_cup
+hand_calc 2-gram cosine 'slide the bin out': pick_cup=0.0000, open_drawer=0.0000, place_bowl=0.1622; coupled_choice=place_bowl
+hand_calc canonical place_bowl: 'place the bowl on the plate'
+hand_calc 2-gram cosine 'set the dish on the saucer': pick_cup=0.0000, open_drawer=0.1690, place_bowl=0.0613; coupled_choice=open_drawer
+hand_calc 2-gram cosine 'rest the basin on the saucer': pick_cup=0.0754, open_drawer=0.1581, place_bowl=0.1147; coupled_choice=open_drawer
+declared arms: A_coupled scores char 2-grams against canonical wording only; B_codes uses a synonym table then an actor that never sees the words; C_foreign feeds a different task's step codes
+paper_authors=Mehul Arora, Dhruv Agarwal, Ambuj Agrawal (abs / title-page order; 以论文为准)
+paper_title_page=no equal-contribution or corresponding typography; prose contributions list is not a footnote mark (以论文为准)
+paper_version=arXiv 2611.22395 v1, submitted 2026-11-17
+paper_figures=success 91 % when correctly encoded and 27.2 % otherwise; 91.4 % on LIBERO-Goal vs 82.8 % SmolVLA; 81.1 % on LIBERO-Para (4,092 unseen paraphrases) vs 36.5 % paraphrase-fine-tuned SmolVLA LoRA; 17 ms per control step (arXiv 2611.22395 v1; 以论文为准, not toy outputs)
+Regimes and parameters were written before the first run
+Common random numbers: the tasks, canonical instructions, official paraphrases and scene order are shared across arms at each regime and seed
+Assumptions: character 2-gram cosine is a wording-sensitive stand-in, not a trained text encoder; B's synonym table is the stand-in for paraphrase-shared step codes; the actor never sees the words; C uses a fixed foreign-code derangement; success is whether the acted task matches the intended task
+Paper figures 以论文为准
+Real LIBERO / LIBERO-Para / GPU: 本页未运行
+declared canonical: A and B may near-tie on task success - keep
+declared paraphrase: B consistent more stable behaviour / higher stand-in success than A - keep
+declared C_foreign: C loses because it is given step codes from a different task - lose kept
+declared expectation canonical: A and B may near-tie on task success - keep
+regime canonical  (mean+-sd over seeds)
+  A_coupled success 1.0000+-0.0000
+  B_codes success 1.0000+-0.0000
+  C_foreign success 0.0000+-0.0000
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C success: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A success: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+declared expectation paraphrase: B consistent more stable behaviour / higher stand-in success than A - keep
+regime paraphrase  (mean+-sd over seeds)
+  A_coupled success 0.0000+-0.0000
+  B_codes success 1.0000+-0.0000
+  C_foreign success 0.0000+-0.0000
+  paired B-A success: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C success: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A success: 0.0000+-0.0000: tie: identical on every seed
+alternative same seeds continuous pre-quantization vector (not adopted)
+hand_calc official C uses foreign discrete codes vs alternative continuous pre-quantization vector
+declared expectation canonical_continuous: alternative continuous pre-quantization vector, same seeds, not adopted
+regime canonical_continuous  (mean+-sd over seeds)
+  A_coupled success 1.0000+-0.0000
+  B_codes success 1.0000+-0.0000
+  C_foreign success 1.0000+-0.0000
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C success: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A success: 0.0000+-0.0000: tie: identical on every seed
+declared expectation paraphrase_continuous: alternative continuous pre-quantization vector, same seeds, not adopted
+regime paraphrase_continuous  (mean+-sd over seeds)
+  A_coupled success 0.0000+-0.0000
+  B_codes success 1.0000+-0.0000
+  C_foreign success 0.0000+-0.0000
+  paired B-A success: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C success: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A success: 0.0000+-0.0000: tie: identical on every seed
+No real LIBERO, LIBERO-Para, or GPU VLA was started
+No winner is universal: canonical wording may near-tie; unseen paraphrases are where discrete shared step codes matter, and foreign or pre-quantization-replaced codes leave that robustness unearned
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used on this page, in this order: **tie: identical on every seed** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when |paired mean| and its sd are both below the toy's numerically-zero threshold (hand calc: 1e-9; no sign count on such a line); **near-tie / small gap, within seed noise** when |paired mean| ≤ sd; otherwise a **consistent** gap (|paired mean| > sd), called **small but consistent gap, not a tie** when |m| is under 20 % of the smaller-arm mean (hand calc; the toy prints `0.2000`) and **clear gap, not a tie** otherwise. Every consistent line carries a same-sign count over the 5 seeds.
+
+- **canonical.** A and B both print `success 1.0000+-0.0000`; C prints `0.0000+-0.0000`. Paired B-A success is `0.0000+-0.0000`: **tie: identical on every seed**. The pre-declared "may near-tie" **held** (the official cell is an exact tie, which is stricter). Paired B-C success is `1.0000+-0.0000`, a **clear gap, not a tie** (same sign on all 5 seeds): official C already loses on canonical wording.
+- **paraphrase.** A prints `success 0.0000+-0.0000`; B prints `1.0000+-0.0000`; C prints `0.0000+-0.0000`. Paired B-A success is `1.0000+-0.0000`, a **clear gap, not a tie** (5/5). The pre-declared consistent decoupled win **held**.
+- **Foreign codes.** C stays at `0.0000+-0.0000` on both official regimes, so the pre-declared lose **held**.
+
+**Choices made after seeing results.** None of the official parameters were changed after the first official run. Named alternative on the same seeds, not adopted: a continuous pre-quantization vector in place of the discrete step code. On canonical wording that alternative makes C succeed (`1.0000+-0.0000`) and therefore would **not** keep the official lose cell; on paraphrases it still loses to B (`paired B-C success 1.0000+-0.0000`, clear, 5/5), like A. It was not adopted, because official C is the foreign-code lose cell, which already fails on canonical wording as declared.
+
+**Code changes after the first run.** After the first official run, these pages first gained the blank lines that `check_quotes.py` requires around each new SimOutput fence (one blank line after the opening tag and one before the closing tag). A later wording fix recorded the live abs Comments field as “16 pages, 3 figures, 4 tables, and supplemental material included” and still states that there is no journal-ref field. Official expected/ was not rewritten and remained byte-identical on rerun after the 2026-11-20 09:36:09 Asia/Shanghai freeze. Official numbers were not rewritten. The `cd` in the run-the-toy bash snippet was already in the first official draft.
+
+The page **does not declare a universal winner**: canonical wording may near-tie or exactly tie; unseen paraphrases are where discrete shared step codes matter, and foreign or pre-quantization-replaced codes leave that robustness unearned. Paper figures such as 91 %, 27.2 %, 91.4 %, 82.8 %, 81.1 %, 36.5 % and 17 ms stay 以论文为准. Real LIBERO / LIBERO-Para / GPU: **本页未运行**.
+
+**180-minute work plan:** 30+25+50+40+35=180. 30 min read arXiv 2611.22395 v1 (abs, HTML and PDF) and write the three stages, authorship, and the title-page typography (the contributions list is not a footnote mark); 25 min write the shared-task stand-in, the three arms, and the three declared expectations before running; 50 min run the toy and read the official regimes; 40 min rerun the named continuous pre-quantization alternative on the same seeds; 35 min write why this is not RDT2, VQ-BeT, CoT-VLA, MolmoAct, InternVLA-M1, SmolVLA async inference or LIBERO-X, and what a real LIBERO-Para check would still have to show (本页未运行).
+
+### Exercises
+
+1. From the official hand-calc cosine lines, show why `grab the crimson mug` is scored as `open_drawer` by the coupled arm, even though the intended task is `pick_cup`.
+2. Show from the synonym table and the actor that B produces the same behaviour for every official wording of a task, because the actor never sees the words.
+3. On `canonical`, paired B-A success is `0.0000+-0.0000`, a **tie: identical on every seed**. The declaration was "may near-tie". Did it hold?
+4. The continuous pre-quantization alternative was run on the same seeds and not adopted. What happens to official C's lose cell on canonical wording if that alternative is used as C?
+5. Before any real LIBERO or GPU run (本页未运行), write why this toy must not be quoted as the paper's 91.4 % / 81.1 % / 17 ms result.
+
 <Summary>
 
 A VLA starts from a pretrained vision-language model and maps camera images plus an instruction to actions, either as tokens or through a separate action head; you usually download one and fine-tune it on about 50 demonstrations. Per-step tokenisation uses 256 bins per dimension (RT-2 over the data's min/max, OpenVLA between the 1st and 99th percentiles), with at most half a bin of error inside the range and clipping outside it, while FAST compresses a whole chunk with a DCT so a scale trades token count against error. The download table separates code licences from weight licences, SmolVLA is the size that fits one consumer GPU (its architecture and timings per the paper), and `vla_async_chunk_toy.py` shows asynchronous chunk inference trading idle time and staleness against more inference calls and splices around the threshold g ≥ (E[ℓ_S] / Δt) / n. `dual_system_vla_cadence_toy.py` adds dual-system literacy from OpenHelix: a slow System 2 sets the goal and a fast System 1 acts every tick and must see real-time perception (so π0 is not called dual-system), and at equal compute with a mid-episode instruction switch only the dual arm whose System 1 sees the current image both follows the new instruction and tracks moving targets, while with static targets the single-rate arms lose nothing — real weights, GPUs and CALVIN numbers stay 以论文为准 / 本页未运行. `rdt2_rvq_fm_distill_toy.py` adds RDT2's three-stage recipe (RVQ tokens with cross-entropy, a frozen-VLM flow-matching expert, one-step distillation) and shows over five seeds that at an equal 8-bit budget fewer tokens cost codebook entries, and that one-step sampling costs either quality or an offline distillation budget, without declaring a winner; RDT2's scores stay 以论文为准 and its 7B training / GPU 本页未运行.
@@ -2226,4 +2687,6 @@ A VLA starts from a pretrained vision-language model and maps camera images plus
 - CoT-VLA visual subgoals: with one action demo and 30 videos a subgoal-then-chunk policy beats a direct one (B−A 62.0000±44.8400 points, clear, 5/5), is a **near-tie** with no video, with plenty of action demos or on a single reach, always costs more tokens, and loses when the subgoal goes stale (refresh every 2nd chunk, chosen after seeing every 3rd, which fails every multi-stage episode) — `cot_vla_subgoal_toy.py`, count tables, not CoT-VLA's 7B GPU results. MolmoAct reasons in space before acting — depth tokens, then an editable 2-D trace of at most five points, then actions: on shared scenes a correct trace wins clearly when a wall forces a lift and demonstrations are few (paired success +72.0000±8.5513 points, 5/5) and an edited trace steers to the intended bin, but with 200 demonstrations the direct policy reaches a near-tie, and a 2-D edit cannot choose between bins lined up in depth (edited vs frozen trace near-tie) — `molmoact_reasoning_trace_toy.py`, not MolmoAct-7B; paper numbers 以论文为准.
 
 - InternVLA-M1 where-then-how: on shared scenes a grounding stage trained on a toy grounding corpus beats a direct head in clutter with few demonstrations (paired B−A success_pct 14.6000±7.3263, small but consistent, 5/5; the match with the paper's +14.6 % is a coincidence), ties it with one object or 400 demonstrations, loses when the grounding corpus swaps two colour words (paired B−A success_pct -23.8000±4.4385, clear, 5/5, kept), and a shuffled spatial prompt always loses — `internvla_m1_spatial_prompt_toy.py`, not InternVLA-M1 weights; paper numbers 以论文为准.
+
+- CoBoVLA paraphrase-robust codes: on shared tasks a codebook-decoupled actor that never sees the words ties a language-coupled scorer on canonical wording (`success 1.0000+-0.0000`, identical on every seed) and wins clearly on official unseen paraphrases (`paired B-A success 1.0000+-0.0000`, 5/5), while foreign step codes lose (`0.0000+-0.0000`) — `cobovla_paraphrase_codes_toy.py`, not a LIBERO or GPU run; paper figures 91 % / 27.2 % / 91.4 % / 81.1 % / 17 ms 以论文为准.
 </Summary>
