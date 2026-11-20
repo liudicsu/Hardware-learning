@@ -53,3 +53,7 @@ The legacy python-terminal examples are real program runs. / 原 python-terminal
 ## soldering/ — Crimp or solder, and strain relief / 压接还是焊接，以及应力释放
 
 `soldering/crimp_vs_solder_strain_relief_toy.py`: standard-library synthetic strand-fatigue and contact-resistance stand-in comparing an unrelieved solder joint, a correctly sized crimp, an under-crimp and a solder joint with strain relief on shared strand and contact draws; no hardware; expected output in `expected/crimp_vs_solder_strain_relief_toy.txt`, included in `check.sh`. Real crimp tool / IPC-A-610 inspection 本页未运行. / 标准库合成的线股疲劳与接触电阻替身，比较无应力释放的焊点、尺寸合适的压接、压接不足和加应力释放的焊点；不是压接实测，输出由 `check.sh` 核对。
+
+## ohms-law/ — Y-Δ / Δ-Y network reduction / 两端子网络的 Y-Δ / Δ-Y 化简
+
+`ohms-law/ydelta_network_reduction_toy.py`: standard-library synthetic DC reduction of two-terminal resistor networks, comparing series-parallel only, official Y-Δ then series-parallel, and swapped-direction formulae; no hardware; expected output in `expected/ydelta_network_reduction_toy.txt`, included in `check.sh`. Real breadboard / DMM 本页未运行. / 标准库合成的两端子电阻网络直流化简，比较只做串并联、官方 Y-Δ 再串并联、以及方向接反的公式；不是硬件测量，输出由 `check.sh` 核对。

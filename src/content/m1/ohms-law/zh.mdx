@@ -760,6 +760,438 @@ Real breadboard / DMM: 本页未运行; Wikipedia Superposition principle 以原
 
 **150 分钟安排:** 30 分钟读 Superposition principle 的电气工程段，并和本页的基尔霍夫、戴维南笔记对照；30 分钟手推三个电压和 KCL 核对；40 分钟运行模型、读懂三种情形；30 分钟固定种子改 `Rf` 或表噪声，并与打印的替代比较；20 分钟写下叠加何时成立、有二极管时为何失败。
 
+## 两端子网络的 Y-Δ / Δ-Y 化简
+
+串并联已经能把许多两端子电阻网络化成一个等效电阻，但并不总够用。英文维基 Wikipedia — Y-Δ transform（也写作 wye-delta，又称 star-delta 或 T-Π；这一电路变换理论由 Arthur Edwin Kennelly 在 1899 年发表；以原文为准）是星形–网孔变换在三个电阻时的特例，并给出使两个三端网络等效的公式（任意一对端子之间的电阻相同）。本节讲授这些已打开的 Δ↔Y 公式，再对照「只做串并联的化简器」与「允许先做一次官方 Y-Δ 或 Δ-Y、再串并联的化简器」。两端子五电阻桥是化简例子，和原文 *Simplification of networks* 里的图一样。这**不是**元件课里的惠斯通测量电桥，那一页也**没有**重开。这**不是**把戴维南、叠加或基尔霍夫再讲一遍，这里也**不**把网孔 / 节点分析当作教学内容。
+
+原文写到，面对桥形网络时，串并联变换 “do not suffice”；Y-Δ 可以消去一个节点（或 Δ-Y 可以增加一个节点），从而让网络能继续化简（以原文为准）。这里只用正实电阻。虽在打开的页面上出现、但不作为本课内容的有：复数阻抗；导纳形式（打印的手算用不上）；三相「实用发电机」变换；图论 / Petersen 族非平面例子；以及 n>3 的星形–网孔（未作为正文打开）。
+
+<Resource id="wiki-ydelta" />
+
+**实际打开的来源（已读 raw 正文）**。
+
+- **Wikipedia — Y-Δ transform**（oldid 1369326226，最后编辑 2026-08-14 08:11:14 UTC，即 2026-08-14 16:11:14 Asia/Shanghai）：名称、带原文标记的 Δ↔Y 公式，以及上面引用的 *Simplification of networks* 论点。以原文为准。这是维基页面，不是 arXiv 记录；不编造 Comments 或 journal-ref 字段。
+
+### 打开的公式
+
+Δ → Y，采用原文标记：
+
+- R1 = (Rb × Rc) / (Ra + Rb + Rc)
+- R2 = (Ra × Rc) / (Ra + Rb + Rc)
+- R3 = (Ra × Rb) / (Ra + Rb + Rc)
+
+Y → Δ：
+
+- Ra = (R1×R2 + R2×R3 + R3×R1) / R1 = R2 + R3 + (R2×R3)/R1
+- Rb = (R1×R2 + R2×R3 + R3×R1) / R2 = R1 + R3 + (R1×R3)/R2
+- Rc = (R1×R2 + R2×R3 + R3×R1) / R3 = R1 + R2 + (R1×R2)/R3
+
+改写形式在原文同一节；以原文为准。本课在梯形网络和桥上，官方步骤都是 **Y → Δ**，先消去一个星形节点，再串并联。方向接反的那一臂在同样的位置上改用 Δ → Y 公式。
+
+### 公平设定
+
+`ydelta_network_reduction_toy.py` 是**合成的**，只用标准库。**模型假设:** 集总直流；只有正实线性电阻；网络内部没有电源；元件无漂移，也没有表噪声。从 P 到 Q 的五电阻梯形是 `P -- RS1 -- N1 -- RS2 -- N2 -- RS3 -- Q`，`RP1` 从 N1 到 Q，`RP2` 从 N2 到 Q（`RS1 = 1000 ohm`，`RP1 = 2000 ohm`，`RS2 = 3000 ohm`，`RP2 = 4000 ohm`，`RS3 = 5000 ohm`）。两端子五电阻桥的端子是 P 与 Q，内部节点是 L 与 R：`RPL` 从 P 到 L，`RPR` 从 P 到 R，`RQL` 从 L 到 Q，`RQR` 从 R 到 Q，跨接 `RX` 从 L 到 R（`RPL = 100 ohm`，`RPR = 10000 ohm`，`RQL = 10000 ohm`，`RQR = 100 ohm`；`RX_LARGE = 1000000 ohm`，`RX_MODERATE = 100 ohm`）。梯形上官方 Y 在 N1：R1 = RS1（到 P），R2 = RS2（到 N2），R3 = RP1（到 Q）。桥上官方 Y 在 L：R1 = RPL（到 P），R2 = RQL（到 Q），R3 = RX（到 R）。
+
+| 臂 | 计算内容 |
+|---|---|
+| A_series_parallel | 只做串并联。在梯形上能做完。在桥上采用已说明的朴素捷径：忽略跨接边，把剩下两条路当作并联 |
+| B_official | 按原文标记做官方 Y → Δ，消去星形节点，再串并联，直到只剩一个 Req |
+| C_swapped | 与 B 同一骨架，但在本应做 Y → Δ 的步骤上改用 Δ → Y 公式 |
+
+**公共随机数:** 五个种子。每种情形都是确定性的（电阻固定为正；五个种子重复同一个直流值）。误差度量的真值是该网上臂 B 的官方化简。独立的节点试验源核对（`VTEST = 1.0 V`）只作为手算打印；它**不是**新的网孔 / 节点教学单元，也**不**用来改调 B。指标是每个种子上的 Req，再对种子报 mean+-sd。小差距与明显差距的分界因子打印为 `0.2000`（较小臂均值的 20 %）。**没有积分步**（代数串并联和官方变换，闭合形式）。这一比较**看不见**接线错误、电抗元件和任何实验台测量。真实面包板 / 万用表：本页未运行。本页也不声称曾在 Falstad 里点过这个模型。
+
+**在首次运行前写下的情形:** 纯串并联梯形（无跨接边）—— A 与 B 应为**打平**，或**数值上为零的浮点残差，实质上视为打平**；跨接电阻声明得非常大的桥—— A 与 B 应为**接近打平**（`|m| <= sd`）或**小的**差距，并给出符号计数；跨接与各臂相当的中等桥——按较小臂均值 20 % 的规则，B 应**明显好于** A，并且 C 在同一座桥上应**输掉**。
+
+### 运行这个标准库模型
+
+```bash
+cd ~/Hardware-learning/examples/month-1/ohms-law
+python3 ydelta_network_reduction_toy.py
+```
+
+<CodeSource path="examples/month-1/ohms-law/ydelta_network_reduction_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic Y-Δ / Δ-Y reduction of two-terminal resistor networks.
+
+Stdlib only. Real positive resistances. Arms:
+
+  A_series_parallel  series-parallel only. On a ladder it finishes and returns
+                     Req. On a five-resistor bridge it uses the documented naive
+                     shortcut of ignoring the cross edge and treating the two
+                     remaining paths as parallel (always a number).
+  B_official         official Y-Δ (formulae with the article's labels R1, R2, R3
+                     / Ra, Rb, Rc) that eliminates one star node, then
+                     series-parallel to a single Req.
+  C_swapped          same skeleton as B, but uses the Δ-Y formulae where the
+                     step is Y-Δ. Pre-declared lose, kept.
+
+Common random numbers: seeds 0-4. Every regime is deterministic (fixed positive
+resistances; the five seeds repeat the same DC value). No integration step:
+algebraic series-parallel and the official transform, closed form.
+
+Truth for error metrics is Arm B's official reduction on that net. An independent
+nodal test-source check is printed as hand_calc only; it is not a taught
+mesh/nodal unit and is not used to retune B.
+
+Regimes (declared before the first run):
+  series_parallel_ladder  no cross edge              -> A vs B exact tie
+  large_cross_bridge      cross resistance very large -> A vs B near-tie or small
+  moderate_bridge         cross comparable to the arms -> B clearly better than A
+                                                     (20 % of the smaller-arm mean);
+                                                     C loses on the same bridge
+
+This is a two-terminal reduction example, not the Wheatstone measurement bridge
+from the components lesson. Real breadboard / DMM: 本页未运行.
+Wikipedia Y-Δ transform 以原文为准.
+"""
+from __future__ import annotations
+
+import math
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+CLEAR_FRAC = 0.2000  # small-vs-clear factor; printed before the first official run
+VTEST = 1.0  # V, nodal test-source check only (hand_calc)
+# Ladder, P to Q: P--RS1--N1--RS2--N2--RS3--Q, RP1 from N1 to Q, RP2 from N2 to Q.
+RS1 = 1000.0
+RP1 = 2000.0
+RS2 = 3000.0
+RP2 = 4000.0
+RS3 = 5000.0
+# Bridge, terminals P and Q, internal nodes L and R:
+# RPL = P-L, RPR = P-R, RQL = L-Q, RQR = R-Q, RX = L-R (the cross edge).
+RPL = 100.0
+RPR = 10000.0
+RQL = 10000.0
+RQR = 100.0
+RX_LARGE = 1000000.0
+RX_MODERATE = 100.0
+RX_ALT_LARGE = 10000000.0  # disclosed alternative, same bridge arms, not adopted
+ARMS = ("A_series_parallel", "B_official", "C_swapped")
+REGIMES = ("series_parallel_ladder", "large_cross_bridge", "moderate_bridge")
+
+
+def par(*rs: float) -> float:
+    return 1.0 / sum(1.0 / r for r in rs)
+
+
+def delta_from_wye(r1: float, r2: float, r3: float) -> tuple[float, float, float]:
+    """Official Y → Δ, article labels. Ra opposite R1, Rb opposite R2, Rc opposite R3."""
+    p = r1 * r2 + r2 * r3 + r3 * r1
+    ra = p / r1  # = r2 + r3 + (r2 * r3) / r1
+    rb = p / r2
+    rc = p / r3
+    return ra, rb, rc
+
+
+def wye_from_delta(ra: float, rb: float, rc: float) -> tuple[float, float, float]:
+    """Official Δ → Y, article labels."""
+    s = ra + rb + rc
+    r1 = (rb * rc) / s
+    r2 = (ra * rc) / s
+    r3 = (ra * rb) / s
+    return r1, r2, r3
+
+
+def solve2(a11: float, a12: float, a21: float, a22: float, b1: float, b2: float) -> tuple[float, float]:
+    det = a11 * a22 - a12 * a21
+    return (b1 * a22 - a12 * b2) / det, (a11 * b2 - b1 * a21) / det
+
+
+def series_parallel_ladder() -> float:
+    return RS1 + par(RP1, RS2 + par(RP2, RS3))
+
+
+def official_ladder(transform) -> float:
+    """Y at N1: R1=RS1 to P, R2=RS2 to N2, R3=RP1 to Q; then series-parallel."""
+    ra, rb, rc = transform(RS1, RS2, RP1)
+    # Ra between N2-Q, Rb between P-Q, Rc between P-N2; RP2 and RS3 remain N2-Q.
+    return par(rb, rc + par(ra, RP2, RS3))
+
+
+def series_parallel_bridge_shortcut() -> float:
+    """Naive shortcut: ignore the cross edge; two series paths in parallel."""
+    return par(RPL + RQL, RPR + RQR)
+
+
+def official_bridge(rx: float, transform) -> float:
+    """Y at L: R1=RPL to P, R2=RQL to Q, R3=RX to R; then series-parallel."""
+    ra, rb, rc = transform(RPL, RQL, rx)
+    # Ra between Q-R, Rb between P-R, Rc between P-Q; RPR remains P-R, RQR remains R-Q.
+    return par(rc, par(rb, RPR) + par(ra, RQR))
+
+
+def nodal_ladder(vtest: float = VTEST) -> float:
+    """Two-node test-source check, hand_calc only."""
+    a11 = 1.0 / RS1 + 1.0 / RP1 + 1.0 / RS2
+    a12 = -1.0 / RS2
+    a21 = -1.0 / RS2
+    a22 = 1.0 / RS2 + 1.0 / RP2 + 1.0 / RS3
+    v1, _v2 = solve2(a11, a12, a21, a22, vtest / RS1, 0.0)
+    return vtest / ((vtest - v1) / RS1)
+
+
+def nodal_bridge(rx: float, vtest: float = VTEST) -> float:
+    """Two-node test-source check, hand_calc only."""
+    a11 = 1.0 / RPL + 1.0 / RQL + 1.0 / rx
+    a12 = -1.0 / rx
+    a21 = -1.0 / rx
+    a22 = 1.0 / RPR + 1.0 / RQR + 1.0 / rx
+    vl, vr = solve2(a11, a12, a21, a22, vtest / RPL, vtest / RPR)
+    current = (vtest - vl) / RPL + (vtest - vr) / RPR
+    return vtest / current
+
+
+def mean_sd(xs: list[float]) -> tuple[float, float]:
+    mu = sum(xs) / len(xs)
+    if len(xs) == 1:
+        return mu, 0.0
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x: float) -> str:
+    if x != 0.0 and abs(x) < 5e-5:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs: list[float], m: float) -> str:
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def verdict(xa: list[float], xb: list[float]) -> str:
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{num(m)}+-{num(s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < CLEAR_FRAC * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{num(m)}+-{num(s)}: {label}; {sign_note(diffs, m)}"
+
+
+def seed_values(req: dict[str, float]) -> dict[str, list[float]]:
+    return {arm: [req[arm]] * len(SEEDS) for arm in ARMS}
+
+
+def print_regime(name: str, tag: str, req: dict[str, float]) -> None:
+    res = seed_values(req)
+    print(f"{name} ({tag})")
+    for arm in ARMS:
+        m, s = mean_sd(res[arm])
+        print(f"  {arm} {num(m)}+-{num(s)} ohm")
+    err_a = [a - b for a, b in zip(res["A_series_parallel"], res["B_official"])]
+    err_c = [c - b for c, b in zip(res["C_swapped"], res["B_official"])]
+    zeros = [0.0] * len(SEEDS)
+    print(f"  residual A-B {num(mean_sd(err_a)[0])}+-{num(mean_sd(err_a)[1])} ohm")
+    print(f"  residual C-B {num(mean_sd(err_c)[0])}+-{num(mean_sd(err_c)[1])} ohm")
+    print(f"  paired A-B Req: {verdict(res['A_series_parallel'], res['B_official'])}")
+    print(f"  paired C-B Req: {verdict(res['C_swapped'], res['B_official'])}")
+    print(f"  paired residual A-B vs 0: {verdict(err_a, zeros)}")
+    print(f"  paired residual C-B vs 0: {verdict(err_c, zeros)}")
+
+
+def main() -> None:
+    ra_l, rb_l, rc_l = delta_from_wye(RS1, RS2, RP1)
+    ra_l_rw = RS2 + RP1 + (RS2 * RP1) / RS1
+    req_a_l = series_parallel_ladder()
+    req_b_l = official_ladder(delta_from_wye)
+    req_c_l = official_ladder(wye_from_delta)
+    nod_l = nodal_ladder()
+
+    ra_m, rb_m, rc_m = delta_from_wye(RPL, RQL, RX_MODERATE)
+    ra_m_rw = RQL + RX_MODERATE + (RQL * RX_MODERATE) / RPL
+    req_a_b = series_parallel_bridge_shortcut()
+    req_b_m = official_bridge(RX_MODERATE, delta_from_wye)
+    req_c_m = official_bridge(RX_MODERATE, wye_from_delta)
+    nod_m = nodal_bridge(RX_MODERATE)
+
+    ra_g, rb_g, rc_g = delta_from_wye(RPL, RQL, RX_LARGE)
+    req_b_g = official_bridge(RX_LARGE, delta_from_wye)
+    req_c_g = official_bridge(RX_LARGE, wye_from_delta)
+    nod_g = nodal_bridge(RX_LARGE)
+
+    req_b_alt = official_bridge(RX_ALT_LARGE, delta_from_wye)
+    req_c_alt = official_bridge(RX_ALT_LARGE, wye_from_delta)
+    nod_alt = nodal_bridge(RX_ALT_LARGE)
+
+    print("Synthetic Y-delta / delta-Y reduction toy; two-terminal networks; not a Wheatstone measurement bridge")
+    print(
+        f"ladder RS1={RS1:.0f}ohm RP1={RP1:.0f}ohm RS2={RS2:.0f}ohm RP2={RP2:.0f}ohm RS3={RS3:.0f}ohm"
+    )
+    print(
+        f"bridge RPL={RPL:.0f}ohm RPR={RPR:.0f}ohm RQL={RQL:.0f}ohm RQR={RQR:.0f}ohm "
+        f"RX_LARGE={RX_LARGE:.0f}ohm RX_MODERATE={RX_MODERATE:.0f}ohm"
+    )
+    print(
+        f"seeds={len(SEEDS)} VTEST={VTEST} V clear_frac={CLEAR_FRAC:.4f} "
+        f"hand_calc work_plan 30+25+50+40+35=180"
+    )
+    print("no integration step: algebraic series-parallel and official Y-delta, closed form")
+    print(
+        f"hand_calc ladder Y_to_delta R1={RS1:.0f} R2={RS2:.0f} R3={RP1:.0f} "
+        f"Ra={ra_l:.10f}ohm Rb={rb_l:.10f}ohm Rc={rc_l:.10f}ohm "
+        f"Ra_rewritten={ra_l_rw:.10f}ohm"
+    )
+    print(
+        f"hand_calc ladder Req_A={req_a_l:.10f}ohm Req_B={req_b_l:.10f}ohm "
+        f"Req_C={req_c_l:.10f}ohm residual_A-B={req_a_l - req_b_l:.3e}ohm "
+        f"nodal={nod_l:.10f}ohm residual_B-nodal={req_b_l - nod_l:.3e}ohm"
+    )
+    print(
+        f"hand_calc moderate Y_to_delta R1={RPL:.0f} R2={RQL:.0f} R3={RX_MODERATE:.0f} "
+        f"Ra={ra_m:.10f}ohm Rb={rb_m:.10f}ohm Rc={rc_m:.10f}ohm "
+        f"Ra_rewritten={ra_m_rw:.10f}ohm"
+    )
+    print(
+        f"hand_calc moderate Req_A={req_a_b:.10f}ohm Req_B={req_b_m:.10f}ohm "
+        f"Req_C={req_c_m:.10f}ohm residual_A-B={req_a_b - req_b_m:.10f}ohm "
+        f"nodal={nod_m:.10f}ohm residual_B-nodal={req_b_m - nod_m:.3e}ohm"
+    )
+    print(
+        f"hand_calc large_cross Y_to_delta R1={RPL:.0f} R2={RQL:.0f} R3={RX_LARGE:.0f} "
+        f"Ra={ra_g:.10f}ohm Rb={rb_g:.10f}ohm Rc={rc_g:.10f}ohm"
+    )
+    print(
+        f"hand_calc large_cross Req_A={req_a_b:.10f}ohm Req_B={req_b_g:.10f}ohm "
+        f"Req_C={req_c_g:.10f}ohm residual_A-B={req_a_b - req_b_g:.10f}ohm "
+        f"nodal={nod_g:.10f}ohm residual_B-nodal={req_b_g - nod_g:.3e}ohm"
+    )
+
+    print_regime(
+        "series_parallel_ladder",
+        "no cross edge, series-parallel ladder",
+        {
+            "A_series_parallel": req_a_l,
+            "B_official": req_b_l,
+            "C_swapped": req_c_l,
+        },
+    )
+    print_regime(
+        "large_cross_bridge",
+        f"five-resistor bridge, RX={RX_LARGE:.0f}ohm very large",
+        {
+            "A_series_parallel": req_a_b,
+            "B_official": req_b_g,
+            "C_swapped": req_c_g,
+        },
+    )
+    print_regime(
+        "moderate_bridge",
+        f"five-resistor bridge, RX={RX_MODERATE:.0f}ohm comparable to the arms",
+        {
+            "A_series_parallel": req_a_b,
+            "B_official": req_b_m,
+            "C_swapped": req_c_m,
+        },
+    )
+
+    print(
+        f"alternative large_cross RX={RX_ALT_LARGE:.0f}ohm (same bridge arms, not adopted) "
+        f"Req_A={req_a_b:.10f}ohm Req_B={req_b_alt:.10f}ohm Req_C={req_c_alt:.10f}ohm "
+        f"nodal={nod_alt:.10f}ohm residual_B-nodal={req_b_alt - nod_alt:.3e}ohm"
+    )
+    print(
+        "  paired A-B Req: "
+        + verdict([req_a_b] * len(SEEDS), [req_b_alt] * len(SEEDS))
+    )
+    print(
+        "No winner declared: series-parallel ties the official transform on a ladder "
+        "and is only close when the ignored cross is very large; on a moderate bridge "
+        "the official Y-delta reduction is clearly better, and the swapped-direction formulae lose"
+    )
+    print("Real breadboard / DMM: 本页未运行; Wikipedia Y-delta transform 以原文为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic Y-delta / delta-Y reduction toy; two-terminal networks; not a Wheatstone measurement bridge
+ladder RS1=1000ohm RP1=2000ohm RS2=3000ohm RP2=4000ohm RS3=5000ohm
+bridge RPL=100ohm RPR=10000ohm RQL=10000ohm RQR=100ohm RX_LARGE=1000000ohm RX_MODERATE=100ohm
+seeds=5 VTEST=1.0 V clear_frac=0.2000 hand_calc work_plan 30+25+50+40+35=180
+no integration step: algebraic series-parallel and official Y-delta, closed form
+hand_calc ladder Y_to_delta R1=1000 R2=3000 R3=2000 Ra=11000.0000000000ohm Rb=3666.6666666667ohm Rc=5500.0000000000ohm Ra_rewritten=11000.0000000000ohm
+hand_calc ladder Req_A=2446.1538461538ohm Req_B=2446.1538461538ohm Req_C=260.3773584906ohm residual_A-B=0.000e+00ohm nodal=2446.1538461538ohm residual_B-nodal=-4.547e-13ohm
+hand_calc moderate Y_to_delta R1=100 R2=10000 R3=100 Ra=20100.0000000000ohm Rb=201.0000000000ohm Rc=20100.0000000000ohm Ra_rewritten=20100.0000000000ohm
+hand_calc moderate Req_A=5050.0000000000ohm Req_B=292.2330097087ohm Req_C=33.3247055778ohm residual_A-B=4757.7669902913ohm nodal=292.2330097087ohm residual_B-nodal=-5.684e-14ohm
+hand_calc large_cross Y_to_delta R1=100 R2=10000 R3=1000000 Ra=101010000.0000000000ohm Rb=1010100.0000000000ohm Rc=10101.0000000000ohm
+hand_calc large_cross Req_A=5050.0000000000ohm Req_B=5025.6206158898ohm Req_C=0.9850514702ohm residual_A-B=24.3793841102ohm nodal=5025.6206158898ohm residual_B-nodal=-5.457e-12ohm
+series_parallel_ladder (no cross edge, series-parallel ladder)
+  A_series_parallel 2446.1538+-0.0000 ohm
+  B_official 2446.1538+-0.0000 ohm
+  C_swapped 260.3774+-0.0000 ohm
+  residual A-B 0.0000+-0.0000 ohm
+  residual C-B -2185.7765+-0.0000 ohm
+  paired A-B Req: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B Req: -2185.7765+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired residual A-B vs 0: 0.0000+-0.0000: tie: identical on every seed
+  paired residual C-B vs 0: -2185.7765+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+large_cross_bridge (five-resistor bridge, RX=1000000ohm very large)
+  A_series_parallel 5050.0000+-0.0000 ohm
+  B_official 5025.6206+-0.0000 ohm
+  C_swapped 0.9851+-1.241e-16 ohm
+  residual A-B 24.3794+-0.0000 ohm
+  residual C-B -5024.6356+-0.0000 ohm
+  paired A-B Req: 24.3794+-0.0000: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B Req: -5024.6356+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired residual A-B vs 0: 24.3794+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired residual C-B vs 0: -5024.6356+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+moderate_bridge (five-resistor bridge, RX=100ohm comparable to the arms)
+  A_series_parallel 5050.0000+-0.0000 ohm
+  B_official 292.2330+-0.0000 ohm
+  C_swapped 33.3247+-0.0000 ohm
+  residual A-B 4757.7670+-0.0000 ohm
+  residual C-B -258.9083+-0.0000 ohm
+  paired A-B Req: 4757.7670+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B Req: -258.9083+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired residual A-B vs 0: 4757.7670+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired residual C-B vs 0: -258.9083+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative large_cross RX=10000000ohm (same bridge arms, not adopted) Req_A=5050.0000000000ohm Req_B=5047.5509867517ohm Req_C=0.0998487038ohm nodal=5047.5509867517ohm residual_B-nodal=-5.366e-11ohm
+  paired A-B Req: 2.4490+-0.0000: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: series-parallel ties the official transform on a ladder and is only close when the ignored cross is very large; on a moderate bridge the official Y-delta reduction is clearly better, and the swapped-direction formulae lose
+Real breadboard / DMM: 本页未运行; Wikipedia Y-delta transform 以原文为准
+```
+
+</SimOutput>
+
+### 读这些情形
+
+- **series_parallel_ladder**。 A 与 B 都打印 `2446.1538+-0.0000 ohm`。成对的 A-B Req，以及 A-B 残差相对 0，都是 `0.0000+-0.0000: tie: identical on every seed`。在这个梯形上，只做串并联就能做完，并与官方 Y-Δ 化简一致。这是**打平**，不要标成「明显」，也不是数值上为零的浮点残差（打印为 `residual_A-B=0.000e+00ohm`）。节点手算是 `2446.1538461538 ohm`；`residual_B-nodal=-4.547e-13ohm` 是浮点残差，不是拿来改调 B 的。C 在同一骨架上用了方向接反的公式，是 `260.3774+-0.0000 ohm`，并不进入预声明的打平。
+- **large_cross_bridge**。 当 `RX = 1000000 ohm` 时，A 是 `5050.0000+-0.0000 ohm`，B 是 `5025.6206+-0.0000 ohm`。成对 A-B Req 是 `24.3794+-0.0000 ohm`: **小而稳定的差距，不是打平**（`|m| > sd`；5 个种子全部同号）。|m| 不到较小臂均值的 20 %，所以这是预声明「接近打平或很小」里允许的「或很小」形式，而不是 `|m| <= sd`（这里没有种子噪声）。该格保留。A-B 残差相对 0 的标签是**明显**差距，因为较小残差均值的 20 % 是 0；给预声明打分的是成对 A-B Req 的标签。C 离 B 很远（打印为 `0.9851+-1.241e-16 ohm`；这个极小的 sd 是同一个直流值复制五次时的浮点现象，不是种子噪声）。节点手算是 `5025.6206158898 ohm`（`residual_B-nodal=-5.457e-12ohm`）。
+- **moderate_bridge**。 当 `RX = 100 ohm` 时，A 仍是 `5050.0000+-0.0000 ohm`（捷径根本不用跨接），B 是 `292.2330+-0.0000 ohm`。成对 A-B Req 是 `4757.7670+-0.0000 ohm`: **明显差距，不是打平**（`|m| > sd`；5 个种子全部同号）。|m| 远大于较小臂均值的 20 %（`0.2000 × 292.2330 ohm`），所以官方化简**明显好于**只做串并联的捷径。C 是 `33.3247+-0.0000 ohm`；成对 C-B Req 是 `-258.9083+-0.0000 ohm`: **明显差距，不是打平**（5 个种子全部同号）。方向接反的公式在同一座桥上**输掉**；该格保留。官方 Y → Δ 手算：`Ra = 20100.0000000000 ohm`，`Rb = 201.0000000000 ohm`，`Rc = 20100.0000000000 ohm`（改写的 `Ra` 一致）。节点手算是 `292.2330097087 ohm`（`residual_B-nodal=-5.684e-14ohm`）。
+
+**事后替代，同一组桥臂，未采用**。 把大跨接改成 `RX = 10000000 ohm`，A-B 仍是**小而稳定的**差距（`2.4490+-0.0000 ohm`；5 个种子全部同号）。没有用它改调已声明的 `RX_LARGE`。
+
+不宣布普遍赢家：串并联在梯形上与官方变换打平，只有在被忽略的跨接非常大时才比较接近；在中等桥上，官方 Y-Δ 化简明显更好，方向接反的公式会输掉。
+
+### 练习
+
+1. 用原文的 Y → Δ 公式，取 `R1 = 100 ohm`、`R2 = 10000 ohm`、`R3 = 100 ohm`，推出 `Ra = 20100 ohm`、`Rb = 201 ohm`、`Rc = 20100 ohm`，包括 `Ra` 的改写形式，并与模型打印对照。
+2. 在串并联梯形上，手算 `RS1 + (RP1 || (RS2 + (RP2 || RS3)))`，确认它与官方 Y-Δ 化简打平，都是 `2446.1538461538 ohm`。
+3. 为什么在中等桥上忽略跨接边会高估 Req？把捷径的 `5050.0000000000 ohm` 和官方的 `292.2330097087 ohm` 比较一下。
+4. 在大跨接桥上，成对 A-B 残差相对 0 被标成明显差距，而成对 A-B Req 只是小而稳定的差距。预声明的「接近打平或很小」是按哪一个标签打分的，为什么？
+5. 举出这个直流替身没告诉你的一件事（例如面包板上的测量，或原文里超出范围的三相、复数阻抗内容）。
+
+**180 分钟安排:** 30 分钟读维基 Y-Δ 公式和名称，并和本页的串并联笔记对照；25 分钟按原文标记写出打开的 Δ↔Y 公式，并说明串并联何时不够用；50 分钟运行模型、读懂三种情形；40 分钟在中等桥上接手做一次官方 Y-Δ 再串并联，并核对立刻印出的节点手算；35 分钟写下只做串并联的捷径何时够用、跨接边何时要紧（`30+25+50+40+35=180`）。
+
 <Summary>
 
 **本课要点**
@@ -772,6 +1204,7 @@ Real breadboard / DMM: 本页未运行; Wikipedia Superposition principle 以原
 - 电池接 ADC：8.4 V 经 10 kΩ / 10 kΩ 分压得到 4.20 V，静态电流 0.42 mA。
 - 戴维南 / 诺顿：练习分压器可以压缩成 `Vth = 1.5986 V` 串 `Rth ≈ 3.2 kΩ`（诺顿形式 0.5 mA ∥ 3.2 kΩ），`V_L = Vth × RL / (Rth + RL)` 在 10 kΩ 下复现 1.21 V；RL ≫ Rth 时戴维南与诺顿**接近打平、差距很小**，单看 `Voc` 也只落后一个小而稳定的差距（不是打平）——不是实验台实验。
 - 叠加定理：在共享的双源线性网上，联合节点求解与单源响应之和是**打平**（每个种子都相同），电压为 `3.7142857143 V`（手算 `26/7 V`）；1 mV 表噪声是**接近打平**（`-0.0001±0.0003 V`，5 个种子里有 1 个反号）；串入二极管后叠加以**明显的** `0.1750±0.0000 V` 残差失败（5 个种子全部同号）——不是面包板实验。
+- Y-Δ / Δ-Y：在纯串并联梯形上，官方 Y-Δ 再串并联与只做串并联是**打平**（`2446.1538+-0.0000 ohm`，每个种子都相同）；跨接非常大时捷径只是**小而稳定的**差距（`24.3794+-0.0000 ohm`，5 个种子全部同号）；在中等的五电阻桥上，官方化简**明显更好**（`4757.7670+-0.0000 ohm`），方向接反的公式**输掉**（`-258.9083+-0.0000 ohm`，5 个种子全部同号）——不是惠斯通测量电桥，不是实验台实验。
 
 **常见错误**
 

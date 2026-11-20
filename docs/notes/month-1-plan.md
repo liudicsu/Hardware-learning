@@ -1,5 +1,15 @@
 # Month 1 plan / 第 1 个月计划
 
+Current / 当前：**M1 3090 min**, Batch-29 PR1. Earlier entries below retain their historical totals. M1=3090 is still the lightest month. Site typography after this PR alone is `45 900` (the full-batch target 46 080 is after PR2).
+
+## Batch-29 PR1 / 本月 H1 (+180)
+
+Base `5dec4b5b09ba627d44f4702cc589793d7e6bac0f` (batch-28 PR2 #211 squash-merged; site **45720**). PR1 on M1 host: **M1 2910→3090 (+180)**. Site **45720→45900** (README typography `45 900`). Still 71 lessons. M2 stays 4110; M8=M11 stay jointly heaviest at 4530. M1=3090 remains lightest. These load facts are recorded here and in the sources note only, not as a student-facing process lecture.
+
+- **H1 / 1.1 ohms-law: 390→570 (+180).** Official Δ↔Y formulae vs a series-parallel-only reducer on a two-terminal five-resistor bridge (`ydelta_network_reduction_toy.py`; five seeds; every regime deterministic). English Wikipedia Y-Δ transform body read (oldid 1369326226, raw sha256 `40643fc21df5c477d02bd580ce6871fef849ef5efeeba200e221a7b41b27c28c`; 以原文为准): names (wye-delta, star-delta, T-Π, Kennelly 1899), Δ↔Y formulae with the article's labels, and series/parallel "do not suffice" for a bridge. New Resource / reading-map entry `wiki-ydelta` was added because it was not already in the map. Declared toy parameters: ladder `RS1=1000`, `RP1=2000`, `RS2=3000`, `RP2=4000`, `RS3=5000` ohm; bridge `RPL=100`, `RPR=10000`, `RQL=10000`, `RQR=100`, `RX_LARGE=1000000`, `RX_MODERATE=100` ohm; `VTEST=1.0 V`; `clear_frac=0.2000`. Official first run 2026-11-20 18:49:31 Asia/Shanghai; expected sha256 `8bd78d13521c96a254c1de450e9e5aacf2ce50f0095ad30bb336ef357ca74610`; later rerun byte-identical; official expected/ not retuned. series_parallel_ladder: A vs B **tie** (`2446.1538+-0.0000 ohm`, identical on every seed), as declared. large_cross_bridge: paired A-B Req `24.3794+-0.0000 ohm`, **small but consistent**, 5/5 — the allowed "or small" form of the pre-declared near-tie-or-small claim (not `|m|<=sd`; no seed noise), kept. moderate_bridge: paired A-B Req `4757.7670+-0.0000 ohm`, **clear**, 5/5 (B clearly better); paired C-B Req `-258.9083+-0.0000 ohm`, **clear**, 5/5 (C loses, kept). Every pre-declared regime held. Alternative `RX=10000000 ohm` printed, not adopted. Nodal test-source residuals are printed 手算 only and were not used to retune B. ≠ Thévenin; ≠ superposition; ≠ Wheatstone measurement bridge (components page not reopened). Real breadboard / DMM 本页未运行. / 官方 Δ↔Y 与只做串并联的对照，不宣布实验台实验。
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
+
 Current / 当前：**M1 2910 min**, Batch-22 PR1. Earlier entries below retain their historical totals.
 
 ## Batch-22 PR1 / 本月 H1 (+180)
