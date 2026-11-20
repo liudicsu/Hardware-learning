@@ -12,10 +12,10 @@ const month1Lessons: Lesson[] = [
     slug: "ohms-law",
     title: { zh: "电压、电流、电阻与欧姆定律", en: "Voltage, current, resistance & Ohm's law" },
     summary: {
-      zh: "建立电的直觉模型，熟练使用欧姆定律、功率公式与分压器。再把带载分压器压缩成戴维南 / 诺顿等效，比较只看开路电压 / 戴维南 / 诺顿三种带载预测。再在双源线性网上比较联合节点求解与单源响应之和，并说明支路里有二极管时叠加会失败。",
-      en: "Build an intuition for electricity and make Ohm's law, power and voltage dividers automatic. Then collapse the loaded divider into its Thévenin / Norton equivalent and compare open-circuit-only / Thévenin / Norton loaded-voltage predictions. Then compare a joint nodal solve with the sum of single-source responses on a two-source linear net, and show that superposition fails once a diode is in the branch.",
+      zh: "建立电的直觉模型，熟练使用欧姆定律、功率公式与分压器。再把带载分压器压缩成戴维南 / 诺顿等效，比较只看开路电压 / 戴维南 / 诺顿三种带载预测。再在双源线性网上比较联合节点求解与单源响应之和，并说明支路里有二极管时叠加会失败。再比较只做串并联的化简，与先做一次官方 Y-Δ / Δ-Y 再串并联，在两端子五电阻桥上的差别（不是惠斯通测量电桥；不声称实验台实验）。",
+      en: "Build an intuition for electricity and make Ohm's law, power and voltage dividers automatic. Then collapse the loaded divider into its Thévenin / Norton equivalent and compare open-circuit-only / Thévenin / Norton loaded-voltage predictions. Then compare a joint nodal solve with the sum of single-source responses on a two-source linear net, and show that superposition fails once a diode is in the branch. Then compare a series-parallel-only reducer with official Y-Δ / Δ-Y then series-parallel on a two-terminal five-resistor bridge (not the Wheatstone measurement bridge; no bench lab).",
     },
-    minutes: 390,
+    minutes: 570,
     objectives: [
       { zh: "能在 A 与 mA、Ω 与 kΩ、MΩ 之间换算，且不丢 1000 倍。", en: "Convert between A and mA and between Ω, kΩ and MΩ without losing a factor of 1000." },
       { zh: "能用欧姆定律 V = I × R 和功率公式 P = V × I = I² × R = V² / R 在纸上计算电路。", en: "Use Ohm's law V = I × R and the power forms P = V × I = I² × R = V² / R to calculate a circuit on paper." },
@@ -23,10 +23,12 @@ const month1Lessons: Lesson[] = [
       { zh: "能求出分压器的 Vth = 1.5986 V 与 Rth ≈ 3.2 kΩ（诺顿 0.5 mA ∥ 3.2 kΩ），用共享元件与读数比较只看 Voc / 戴维南 / 诺顿的带载误差，并指出 RL ≫ Rth 时戴维南与诺顿接近打平、差距很小，而只看 Voc 仍有小而稳定的差距（不是打平），不声称实验台实验。", en: "Find the divider's Vth = 1.5986 V and Rth ≈ 3.2 kΩ (Norton 0.5 mA ∥ 3.2 kΩ), compare Voc-only / Thévenin / Norton loaded-voltage errors on shared parts and readings, and show that at RL ≫ Rth Thévenin and Norton are a near-tie / small gap while Voc-only keeps a small but consistent gap (not a tie); no bench-lab claim." },
       { zh: "能解释 10 kΩ 负载为何使 1.6 V 分压输出降到约 1.2 V，以及何时应改用稳压器。", en: "Explain why a 10 kΩ load drops the 1.6 V divider output to about 1.2 V, and when to use a regulator." },
       { zh: "能在双源线性网上用叠加定理把联合节点求解写成两个单源响应之和，说明无噪声时二者打平、微小表噪声时接近打平，并指出串入二极管后叠加以明显残差失败；不声称面包板实验。", en: "On a two-source linear net, write the joint nodal solve as the sum of two single-source responses, show a tie with no meter noise and a near-tie with tiny meter noise, and show that a series diode makes superposition fail by a clear residual; no breadboard claim." },
+      { zh: "能按原文标记写出打开的 Δ↔Y 公式，说明只做串并联在梯形上与官方 Y-Δ 打平、跨接非常大时只有很小的差距，并在中等两端子桥上指出官方 Y-Δ 明显好于该捷径、方向接反的公式会输掉；不声称实验台实验。", en: "Write the opened Δ↔Y formulae with the article's labels, show that series-parallel-only ties official Y-Δ on a ladder and is only a small gap when the ignored cross is very large, and that official Y-Δ is clearly better than the shortcut on a moderate two-terminal bridge while the swapped-direction formulae lose; no bench-lab claim." },
     ],
     prereqs: [],
-    resources: ["falstad", "aac", "afrotechmods", "wiki-thevenin", "wiki-norton", "wiki-max-power-transfer", "wiki-superposition"],
+    resources: ["falstad", "aac", "afrotechmods", "wiki-thevenin", "wiki-norton", "wiki-max-power-transfer", "wiki-superposition", "wiki-ydelta"],
     tasks: [
+      { id: "ydelta-network-reduction", text: { zh: "运行 ydelta_network_reduction_toy.py，核对手算 Ra、Rb、Rc 与梯形打平，并比较只做串并联、官方 Y-Δ 与方向接反三种情形", en: "Run ydelta_network_reduction_toy.py, check the hand values of Ra, Rb, Rc and the ladder tie, and compare the series-parallel-only, official Y-Δ and swapped-direction regimes" } },
       { id: "b18p1-superposition", text: { zh: "运行 superposition_linear_circuit_toy.py，核对手算 26/7 V，并比较线性无噪声、微小表噪声与二极管支路三种情形的残差与标签", en: "Run superposition_linear_circuit_toy.py, check the hand value 26/7 V, and compare the residual and labels in the linear noiseless, tiny-meter-noise and diode-branch regimes" } },
       { id: "b12p1-thevenin", text: { zh: "运行 thevenin_loaded_divider_toy.py，比较重载 / 本课负载 / 轻载下三组的带载误差，并手算 Vth、Rth 与 1.2113 V", en: "Run thevenin_loaded_divider_toy.py, compare the three arms' loaded-voltage errors under heavy / lesson / light load, and work out Vth, Rth and 1.2113 V by hand" } },
       { id: "falstad-ohms", text: { zh: "在 Falstad 中打开欧姆定律示例，改变电阻值并观察电流变化", en: "Open the Ohm's-law example in Falstad, change the resistor and watch the current change" } },

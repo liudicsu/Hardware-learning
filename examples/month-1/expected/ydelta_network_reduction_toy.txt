@@ -1,0 +1,45 @@
+Synthetic Y-delta / delta-Y reduction toy; two-terminal networks; not a Wheatstone measurement bridge
+ladder RS1=1000ohm RP1=2000ohm RS2=3000ohm RP2=4000ohm RS3=5000ohm
+bridge RPL=100ohm RPR=10000ohm RQL=10000ohm RQR=100ohm RX_LARGE=1000000ohm RX_MODERATE=100ohm
+seeds=5 VTEST=1.0 V clear_frac=0.2000 hand_calc work_plan 30+25+50+40+35=180
+no integration step: algebraic series-parallel and official Y-delta, closed form
+hand_calc ladder Y_to_delta R1=1000 R2=3000 R3=2000 Ra=11000.0000000000ohm Rb=3666.6666666667ohm Rc=5500.0000000000ohm Ra_rewritten=11000.0000000000ohm
+hand_calc ladder Req_A=2446.1538461538ohm Req_B=2446.1538461538ohm Req_C=260.3773584906ohm residual_A-B=0.000e+00ohm nodal=2446.1538461538ohm residual_B-nodal=-4.547e-13ohm
+hand_calc moderate Y_to_delta R1=100 R2=10000 R3=100 Ra=20100.0000000000ohm Rb=201.0000000000ohm Rc=20100.0000000000ohm Ra_rewritten=20100.0000000000ohm
+hand_calc moderate Req_A=5050.0000000000ohm Req_B=292.2330097087ohm Req_C=33.3247055778ohm residual_A-B=4757.7669902913ohm nodal=292.2330097087ohm residual_B-nodal=-5.684e-14ohm
+hand_calc large_cross Y_to_delta R1=100 R2=10000 R3=1000000 Ra=101010000.0000000000ohm Rb=1010100.0000000000ohm Rc=10101.0000000000ohm
+hand_calc large_cross Req_A=5050.0000000000ohm Req_B=5025.6206158898ohm Req_C=0.9850514702ohm residual_A-B=24.3793841102ohm nodal=5025.6206158898ohm residual_B-nodal=-5.457e-12ohm
+series_parallel_ladder (no cross edge, series-parallel ladder)
+  A_series_parallel 2446.1538+-0.0000 ohm
+  B_official 2446.1538+-0.0000 ohm
+  C_swapped 260.3774+-0.0000 ohm
+  residual A-B 0.0000+-0.0000 ohm
+  residual C-B -2185.7765+-0.0000 ohm
+  paired A-B Req: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B Req: -2185.7765+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired residual A-B vs 0: 0.0000+-0.0000: tie: identical on every seed
+  paired residual C-B vs 0: -2185.7765+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+large_cross_bridge (five-resistor bridge, RX=1000000ohm very large)
+  A_series_parallel 5050.0000+-0.0000 ohm
+  B_official 5025.6206+-0.0000 ohm
+  C_swapped 0.9851+-1.241e-16 ohm
+  residual A-B 24.3794+-0.0000 ohm
+  residual C-B -5024.6356+-0.0000 ohm
+  paired A-B Req: 24.3794+-0.0000: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B Req: -5024.6356+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired residual A-B vs 0: 24.3794+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired residual C-B vs 0: -5024.6356+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+moderate_bridge (five-resistor bridge, RX=100ohm comparable to the arms)
+  A_series_parallel 5050.0000+-0.0000 ohm
+  B_official 292.2330+-0.0000 ohm
+  C_swapped 33.3247+-0.0000 ohm
+  residual A-B 4757.7670+-0.0000 ohm
+  residual C-B -258.9083+-0.0000 ohm
+  paired A-B Req: 4757.7670+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B Req: -258.9083+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired residual A-B vs 0: 4757.7670+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired residual C-B vs 0: -258.9083+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative large_cross RX=10000000ohm (same bridge arms, not adopted) Req_A=5050.0000000000ohm Req_B=5047.5509867517ohm Req_C=0.0998487038ohm nodal=5047.5509867517ohm residual_B-nodal=-5.366e-11ohm
+  paired A-B Req: 2.4490+-0.0000: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: series-parallel ties the official transform on a ladder and is only close when the ignored cross is very large; on a moderate bridge the official Y-delta reduction is clearly better, and the swapped-direction formulae lose
+Real breadboard / DMM: 本页未运行; Wikipedia Y-delta transform 以原文为准
