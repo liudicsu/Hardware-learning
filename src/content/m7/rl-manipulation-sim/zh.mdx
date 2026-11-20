@@ -614,8 +614,770 @@ Real ManiSkill3 / SB3 HER / DDPG runs: 本页未运行; Andrychowicz et al. resu
 4. 把 `REPR` 设为 `"absolute"`，与打印的备选比较 `fixed_goal`；解释为什么 HER 帮不了一个从没见过目标的表格。
 5. 在任何 SB3 或 ManiSkill 运行之前（本页未运行），说明为什么 `big_grid` 的结果**不**表示稠密塑形普遍胜过 HER。
 
+## 基于势的奖励塑形
+
+上面的稀疏对稠密网格，以及事后经验回放一节，已经在比较手写的稠密奖励和“保留稀疏奖励、改标注目标”。这一节**不是**第二条稀疏–稠密曲线，**不是**第二个 HER 玩具，也**不是** DrQ。它问的是更尖锐的问题：什么时候可以加上稠密奖励，却仍然保持原来的最优策略？
+
+**实际打开的来源（PDF 正文按渲染页阅读）**。 Ng、Harada 与 Russell 的 10 页伯克利 CS287 Fall 2009 课程副本，题目是 "Policy invariance under reward transformations: Theory and application to reward shaping," https://people.eecs.berkeley.edu/~pabbeel/cs287-fa09/readings/NgHaradaRussell-shaping-ICML1999.pdf。标题页字体是 Type 3，文本抽取会乱，所以版式按渲染页读：题目为上述句首小写的英文标题；作者 Andrew Y. Ng、Daishi Harada、Stuart Russell；Computer Science Division, University of California, Berkeley。这份副本的标题页**本身没有**印出会议或期刊栏，本页也不编造一栏。论文中的等式与表述以论文为准。
+
+定理 1（同一份副本）：若存在定义在状态上的实值 Phi，使得对每个可允许的转移都有
+
+<Formula label="基于势的塑形（定理 1）">F(s, a, s') = γΦ(s') - Φ(s)</Formula>
+
+则称 F 是**基于势的**塑形函数。当 γ < 1 时，该等式对每个状态都要成立（论文里那个可区分的吸收状态不必再挖出去）。于是，当从 M' = (S, A, T, γ, R+F) 而不是从 M = (S, A, T, γ, R) 学习时，F 是最优策略保持一致的充分必要条件：
+
+- 充分性：M' 里的每个最优策略也是 M 的最优策略，反过来也成立。
+- 必要性：若不存在这样的 Phi，则存在转移与奖励，使得 M' 的任何最优策略都不是 M 的最优策略。
+
+引言里的“毛病”说明了为什么朴素的稠密奖励可能改变最优解：Randløv 与 Alstrøm 的自行车在靠近起点处学会绕小圈，因为朝目标前进会得到奖励；一个因碰到球而得分的足球智能体，学会了在球上“振动”的策略。这些例子以论文为准，它们不是玩具输出。
+
+推论 2：在同一基于势的 F 下，若 γ = 1 时吸收状态上的 Phi 为 0，则 Q_M'(s, a) = Q_M(s, a) - Phi(s)，并且 V_M'(s) = V_M(s) - Phi(s)。下面的三状态手算检查无折扣环路求和以及这一平移。ManiSkill、SB3 与真实机械臂：本页未运行。
+
+### 一条走廊、一个干扰环，以及常数势
+
+**计算例子（手算）**。 带折扣的玩具使用 `GAMMA = 0.9000`，以及只在进入 G 时支付的稀疏 `GOAL_REWARD = 1.0000`。因此唯一最短路 S->J->P->G 的无塑形回报是 `hand_calc unshaped return from S along S->J->P->G = GAMMA^2 * GOAL_REWARD = 0.9000^2 * 1.0000 = 0.8100`。臂 B 使用 `Phi_B(s) = -distance_to_goal`，打印的距离为 S=3、J=2、P=1、G=0，在环路布局里还有 B=3。臂 C 在每次访问干扰格 B 时支付 `ILLEGAL_CYCLE_BONUS = 0.2500`，或在无环走廊的前进一步上支付 `ILLEGAL_FORWARD_BONUS = 0.0500`。常数势那一臂使用 `CONST_PHI = 3.0000`。
+
+无折扣手算使用 `gamma_undiscounted = 1.0000`，三状态链 0、1、G，且 `Phi(0)=-2.0000`、`Phi(1)=-1.0000`、`Phi(G)=0.0000`。这时基于势的 F 化为 Phi(s') - Phi(s)。沿 0->1->G，各项是 `1.0000, 1.0000`，路径和是 `2.0000`。沿 2-环 1->0->1，各项是 `-1.0000, 1.0000`，**环路和是 0.0000**。在进入 1 时加非法奖励 `1.0000`，环路项是 `0.0000, 1.0000`，环路和是 `1.0000`（不是 0）。同一条链若每步代价是 `-1.0000`，则 `V_M(0)=-2.0000`、`V_M(1)=-1.0000`、`V_M(G)=0.0000`，于是推论 2 给出每个状态上 `V_M'(s) = 0.0000`。
+
+**计数的正确性标准**。 从 S 出发的贪心路径到达 G 则 success 为 1。`original_return` 是该贪心策略在未塑形的 R 上的回报，不是在 R+F 上。当每个非目标状态上的贪心动作都与 A 一致时，`policy_agree_A` 为 1。贪心路径经过干扰格 B 时，`uses_cycle` 为 1。价值迭代一直做到 Bellman 残差低于 `VI_TOL = 1e-14`；贪心打平时取 `(fwd, back, ball, stay)` 里的第一个动作。
+
+**这里没有积分步**。 这是离散的表格 MDP，每次比较都是精确的，没有步长判据。
+
+### 公平设定
+
+`potential_based_shaping_toy.py` 是**合成的**、只用标准库的表格价值迭代，**不是** ManiSkill、SB3 或真实机械臂。**模型假定**如下。
+
+- 共享的确定性转移：四状态走廊 S-J-P-G，以及在同一走廊上把干扰格 B 接在 J 上（J 可以去 B；从 B 出发，`back` 回到 J，其余动作留在 B）。
+- 臂 A 只用稀疏的未塑形 R。臂 B 加上 F = γΦ(s') - Φ(s)，势函数是事先声明的距离。臂 `B_const` 使用常数 Phi。臂 C 加上没有 -Phi(s) 对应项的非势奖励。
+
+**共用随机数**。 MDP 是确定性的，并在各臂之间共享。五个种子 `0,1,2,3,4` 重复同一张表，以便把精确打平打成每个种子都相同。种子不添加抖动。
+
+| 情形 | 布局 | 事先声明的期望（第一次运行之前写好） |
+|---|---|---|
+| acyclic_corridor | 仅 S-J-P-G | B 与 C 在 success 上可以与 A 接近打平（保留） |
+| distractor_cycle | 走廊加上格 B | B 保持未塑形的最优（与 A 策略一致，并能到达目标）；C 稳定地更偏好环路（保留） |
+| constant_phi | 同一环路布局，常数 Phi | B_const 与 A 精确打平（保留）；当非法环路有吸引力时，C 在原任务回报上落败（保留） |
+
+标签：每个种子都相同是**打平**；若配对均值与标准差的绝对值都低于 `1e-9`，则是数值上为零；`|m| <= sd` 是**接近打平**；`|m| > sd` 是稳定差距，若 `|m|` 低于较小臂均值的 20 %（玩具打印 `0.2000`）则为**小**，否则为**明显**，并附带符号计数。
+
+**看到结果之后做的选择**。 无。三臂、三种情形、γ、奖励和势函数都是第一次运行之前写好的，没有改过。未采用的替代：`Phi_alt = -2 * distance`，它仍然基于势。该替代在同一组 MDP 上打印，**没有采用**。
+
+### 运行标准库玩具
+
+```bash
+cd ~/Hardware-learning/examples/month-7/rl-manipulation-sim
+python3 potential_based_shaping_toy.py
+```
+
+<CodeSource path="examples/month-7/rl-manipulation-sim/potential_based_shaping_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Potential-based reward shaping stand-in (Ng, Harada, Russell Theorem 1).
+
+A shared tabular MDP compares an unshaped sparse reward, a potential-based
+shaping term F(s,a,s') = gamma * Phi(s') - Phi(s), and a non-potential
+bonus that can lock onto a distractor cycle.  Optimal policies come from
+value iteration, not a noisy learner.  Synthetic; not ManiSkill, SB3, or
+a real arm.
+
+Common random numbers: transitions are deterministic and shared across
+arms.  Five seeds repeat the same MDP so exact-tie cells can be printed
+as identical on every seed.  Seeds do not add jitter.
+
+Metrics per seed: success (greedy path from the start reaches the goal),
+original_return (the arm's greedy policy evaluated on the unshaped R),
+policy_agree_A (greedy action agrees with A in every non-goal state),
+uses_cycle (the greedy path from the start visits the distractor cell).
+
+Regimes and expectations, written before the first run:
+  acyclic_corridor   no return edge, so a mild illegal forward bonus
+                     cannot form a cycle: B and C may near-tie A on
+                     success (keep)
+  distractor_cycle   B preserves the unshaped optimum (policy agreement
+                     with A; reaches the goal); C consistently prefers
+                     the cycle (keep)
+  constant_phi       B with a constant Phi exact-ties A (keep); C loses
+                     on original-task return when the illegal cycle is
+                     attractive (keep)
+
+Named alternative, same MDPs, not adopted: Phi_alt = -2 * distance, still
+potential-based.
+
+Paper identities, theorem wording, and the introduction's shaping bugs
+are 以论文为准.  ManiSkill / SB3 / a real arm: 本页未运行.
+"""
+from __future__ import annotations
+
+import math
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+SMALL_FRAC = 0.2000  # 20 % of the smaller-arm mean; printed as 0.2000
+VI_TOL = 1e-14
+VI_MAX_ITERS = 10000
+
+# Discounted main MDPs (gamma < 1, so S \\ {s0} = S in Theorem 1).
+GAMMA = 0.9000
+GOAL_REWARD = 1.0000
+ILLEGAL_CYCLE_BONUS = 0.2500  # non-potential bonus on every visit to the ball
+ILLEGAL_FORWARD_BONUS = 0.0500  # mild illegal bonus on a forward step
+CONST_PHI = 3.0000
+VI_START = "S"
+
+# Undiscounted 3-state hand_calc (gamma = 1, absorbing G, Phi(G) = 0).
+HC_GAMMA = 1.0000
+HC_STEP_COST = -1.0000
+HC_ILLEGAL_ENTER = 1.0000
+
+STATES_CYCLE = ("S", "J", "P", "G", "B")
+STATES_CORRIDOR = ("S", "J", "P", "G")
+ACTIONS = ("fwd", "back", "ball", "stay")
+
+# Distance-to-goal potential on each layout (declared).
+DIST_CYCLE = {"S": 3, "J": 2, "P": 1, "G": 0, "B": 3}
+DIST_CORRIDOR = {"S": 3, "J": 2, "P": 1, "G": 0}
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < SMALL_FRAC * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def step(state: str, action: str, states: tuple[str, ...]) -> str:
+    """Deterministic next state; unavailable moves stay put."""
+    if state == "G":
+        return "G"
+    if state == "S":
+        if action == "fwd":
+            return "J"
+        return "S"
+    if state == "J":
+        if action == "fwd":
+            return "P"
+        if action == "back":
+            return "S"
+        if action == "ball" and "B" in states:
+            return "B"
+        return "J"
+    if state == "P":
+        if action == "fwd":
+            return "G"
+        if action == "back":
+            return "J"
+        return "P"
+    if state == "B":
+        if action == "back":
+            return "J"
+        return "B"
+    return state
+
+
+def unshaped_r(state: str, nxt: str) -> float:
+    if state != "G" and nxt == "G":
+        return GOAL_REWARD
+    return 0.0
+
+
+def phi_dist(state: str, dist: dict[str, int], scale: float = 1.0) -> float:
+    return -scale * float(dist[state])
+
+
+def shaping_f(state: str, nxt: str, phi_fn, gamma: float) -> float:
+    return gamma * phi_fn(nxt) - phi_fn(state)
+
+
+def reward(arm: str, state: str, nxt: str, dist: dict[str, int], phi_scale: float) -> float:
+    r = unshaped_r(state, nxt)
+    if arm == "A":
+        return r
+    if arm in ("B", "B_const", "B_alt"):
+        if arm == "B":
+            phi = lambda s: phi_dist(s, dist, 1.0)
+        elif arm == "B_const":
+            phi = lambda s: CONST_PHI
+        else:
+            phi = lambda s: phi_dist(s, dist, phi_scale)
+        return r + shaping_f(state, nxt, phi, GAMMA)
+    if arm == "C":
+        if "B" in dist and nxt == "B":
+            return r + ILLEGAL_CYCLE_BONUS
+        if "B" not in dist and nxt != state and dist[nxt] < dist[state]:
+            return r + ILLEGAL_FORWARD_BONUS
+        return r
+    raise ValueError(arm)
+
+
+def value_iteration(states, dist, arm: str, phi_scale: float = 2.0):
+    v = {s: 0.0 for s in states}
+    for _ in range(VI_MAX_ITERS):
+        nxt_v = {}
+        delta = 0.0
+        for s in states:
+            if s == "G":
+                # Absorbing goal: stay, reward is whatever R+F pays on G->G.
+                r = reward(arm, "G", "G", dist, phi_scale)
+                nxt_v[s] = r + GAMMA * v["G"]
+            else:
+                q_best = None
+                for a in ACTIONS:
+                    sp = step(s, a, states)
+                    r = reward(arm, s, sp, dist, phi_scale)
+                    q = r + GAMMA * v[sp]
+                    if q_best is None or q > q_best:
+                        q_best = q
+                nxt_v[s] = q_best
+            delta = max(delta, abs(nxt_v[s] - v[s]))
+        v = nxt_v
+        if delta < VI_TOL:
+            break
+    else:
+        raise RuntimeError("value iteration did not converge")
+    # Q and greedy policy (tie-break: first action in ACTIONS).
+    q = {}
+    pi = {}
+    for s in states:
+        best_a, best_q = None, None
+        for a in ACTIONS:
+            sp = step(s, a, states)
+            r = reward(arm, s, sp, dist, phi_scale)
+            qa = r + GAMMA * v[sp]
+            q[(s, a)] = qa
+            if best_q is None or qa > best_q + 1e-12:
+                best_q, best_a = qa, a
+        pi[s] = best_a
+    return v, q, pi
+
+
+def evaluate_policy_unshaped(states, pi, start: str) -> float:
+    """Discounted return of pi on the unshaped R, from start."""
+    v = {s: 0.0 for s in states}
+    for _ in range(VI_MAX_ITERS):
+        nxt_v = {}
+        delta = 0.0
+        for s in states:
+            a = "stay" if s == "G" else pi[s]
+            sp = step(s, a, states)
+            r = unshaped_r(s, sp)
+            nxt_v[s] = r + GAMMA * v[sp]
+            delta = max(delta, abs(nxt_v[s] - v[s]))
+        v = nxt_v
+        if delta < VI_TOL:
+            break
+    else:
+        raise RuntimeError("policy evaluation did not converge")
+    return v[start]
+
+
+def greedy_path(states, pi, start: str, horizon: int = 16) -> list[str]:
+    path = [start]
+    s = start
+    for _ in range(horizon):
+        if s == "G":
+            break
+        s = step(s, pi[s], states)
+        path.append(s)
+        if len(path) >= 2 and path[-1] == path[-2]:
+            break
+    return path
+
+
+def run_arm(states, dist, arm: str, phi_scale: float = 2.0) -> dict:
+    v, q, pi = value_iteration(states, dist, arm, phi_scale)
+    path = greedy_path(states, pi, VI_START)
+    success = 1.0 if "G" in path else 0.0
+    uses_cycle = 1.0 if "B" in path else 0.0
+    original_return = evaluate_policy_unshaped(states, pi, VI_START)
+    return {
+        "success": success,
+        "original_return": original_return,
+        "uses_cycle": uses_cycle,
+        "path": path,
+        "pi": pi,
+        "v": v,
+        "q": q,
+    }
+
+
+def policy_agree(pi_a, pi_b, states) -> float:
+    for s in states:
+        if s == "G":
+            continue
+        if pi_a[s] != pi_b[s]:
+            return 0.0
+    return 1.0
+
+
+def fmt_policy(pi, states) -> str:
+    return " ".join(f"{s}:{pi[s]}" for s in states if s != "G")
+
+
+def hand_calc_block() -> None:
+    """Undiscounted 3-state chain and a 2-cycle; potential cycle sum is 0."""
+    # States 0, 1, G with Phi(G)=0, Phi(1)=-1, Phi(0)=-2 (minus distance).
+    phi = {"0": -2.0, "1": -1.0, "G": 0.0}
+    def f(s, sp):
+        return HC_GAMMA * phi[sp] - phi[s]
+
+    path = [("0", "1"), ("1", "G")]
+    path_terms = [f(s, sp) for s, sp in path]
+    cycle = [("1", "0"), ("0", "1")]
+    cycle_terms = [f(s, sp) for s, sp in cycle]
+    illegal_cycle = [HC_ILLEGAL_ENTER if sp == "1" and s != "1" else 0.0 for s, sp in cycle]
+
+    print(
+        "hand_calc 3-state chain states=0,1,G gamma_undiscounted="
+        + num(HC_GAMMA)
+        + " Phi(0)="
+        + num(phi["0"])
+        + " Phi(1)="
+        + num(phi["1"])
+        + " Phi(G)="
+        + num(phi["G"])
+        + " (Phi(G)=0)"
+    )
+    print(
+        "hand_calc potential F(s,s') = gamma*Phi(s')-Phi(s) with gamma="
+        + num(HC_GAMMA)
+        + " reduces to Phi(s')-Phi(s)"
+    )
+    print(
+        "hand_calc path 0->1->G F terms = "
+        + ", ".join(num(t) for t in path_terms)
+        + " path sum = "
+        + num(sum(path_terms))
+    )
+    print(
+        "hand_calc potential 2-cycle 1->0->1 F terms = "
+        + ", ".join(num(t) for t in cycle_terms)
+        + " cycle sum = "
+        + num(sum(cycle_terms))
+    )
+    print(
+        "hand_calc illegal bonus "
+        + num(HC_ILLEGAL_ENTER)
+        + " on entering 1; same 2-cycle terms = "
+        + ", ".join(num(t) for t in illegal_cycle)
+        + " cycle sum = "
+        + num(sum(illegal_cycle))
+        + " (not 0)"
+    )
+
+    # Corollary 2 style check: step cost -1 until G, one forward action,
+    # V_M(0)=-2, V_M(1)=-1, V_M(G)=0; V_M'(s)=V_M(s)-Phi(s).
+    v_m = {"0": -2.0, "1": -1.0, "G": 0.0}
+    print(
+        "hand_calc corollary-2 setup step_cost="
+        + num(HC_STEP_COST)
+        + " V_M(0)="
+        + num(v_m["0"])
+        + " V_M(1)="
+        + num(v_m["1"])
+        + " V_M(G)="
+        + num(v_m["G"])
+    )
+    for s in ("0", "1", "G"):
+        v_mp = v_m[s] - phi[s]
+        print(
+            "hand_calc corollary-2 V_M'("
+            + s
+            + ")=V_M("
+            + s
+            + ")-Phi("
+            + s
+            + ") = "
+            + num(v_m[s])
+            + "-"
+            + "("
+            + num(phi[s])
+            + ") = "
+            + num(v_mp)
+        )
+
+
+def q_shift_err(q_b, q_a, phi_fn, states) -> float:
+    err = 0.0
+    for s in states:
+        for a in ACTIONS:
+            err = max(err, abs(q_b[(s, a)] - (q_a[(s, a)] - phi_fn(s))))
+    return err
+
+
+def col(rows, metric):
+    return [row[metric] for row in rows]
+
+
+def print_regime(name: str, expl: str, states, dist, arms: tuple[str, ...], const_phi: bool) -> dict:
+    print(f"declared expectation {name}: {expl}")
+    print(f"regime {name}  (mean+-sd over seeds; deterministic MDP)")
+    rows = {arm: [] for arm in arms}
+    recs0 = {}
+    for seed in SEEDS:
+        _ = seed
+        for arm in arms:
+            rec = run_arm(states, dist, arm)
+            rec["policy_agree_A"] = 0.0  # filled after A is known
+            rows[arm].append(rec)
+        # fill agreement vs this seed's A
+        pi_a = rows["A"][-1]["pi"]
+        for arm in arms:
+            rows[arm][-1]["policy_agree_A"] = policy_agree(pi_a, rows[arm][-1]["pi"], states)
+        if seed == 0:
+            recs0 = {arm: rows[arm][0] for arm in arms}
+
+    print(f"  seed 0 (all {len(SEEDS)} seeds identical):")
+    for arm in arms:
+        rec = recs0[arm]
+        print(
+            f"    {arm}: success={num(rec['success'])} original_return={num(rec['original_return'])} "
+            f"policy_agree_A={num(rec['policy_agree_A'])} uses_cycle={num(rec['uses_cycle'])} "
+            f"path={'->'.join(rec['path'])} policy={fmt_policy(rec['pi'], states)}"
+        )
+
+    metrics = ("success", "original_return", "policy_agree_A", "uses_cycle")
+    for arm in arms:
+        for metric in metrics:
+            xs = col(rows[arm], metric)
+            print(f"  {arm} {metric} {fmt_pair(*mean_sd(xs))}")
+    for metric in metrics:
+        if "B" in arms:
+            print(f"  paired B-A {metric}: {verdict(col(rows['B'], metric), col(rows['A'], metric))}")
+        if "B_const" in arms:
+            print(
+                f"  paired B_const-A {metric}: "
+                + verdict(col(rows["B_const"], metric), col(rows["A"], metric))
+            )
+        if "C" in arms:
+            print(f"  paired C-A {metric}: {verdict(col(rows['C'], metric), col(rows['A'], metric))}")
+            if "B" in arms:
+                print(f"  paired C-B {metric}: {verdict(col(rows['C'], metric), col(rows['B'], metric))}")
+
+    # Potential-based Q-shift check on seed 0 (toy identity, printed).
+    if "B" in arms:
+        err = q_shift_err(
+            recs0["B"]["q"], recs0["A"]["q"], lambda s: phi_dist(s, dist, 1.0), states
+        )
+        print(f"  toy Q-shift check max|Q_B(s,a)-(Q_A(s,a)-Phi(s))| = {num(err)}")
+    if "B_const" in arms:
+        err = q_shift_err(
+            recs0["B_const"]["q"], recs0["A"]["q"], lambda s: CONST_PHI, states
+        )
+        print(f"  toy Q-shift check max|Q_Bconst(s,a)-(Q_A(s,a)-CONST_PHI)| = {num(err)}")
+    return rows
+
+
+def main():
+    print("Synthetic potential-based shaping stand-in; not ManiSkill, SB3, or a real arm")
+    print(
+        f"declared GAMMA={num(GAMMA)} GOAL_REWARD={num(GOAL_REWARD)} "
+        f"ILLEGAL_CYCLE_BONUS={num(ILLEGAL_CYCLE_BONUS)} "
+        f"ILLEGAL_FORWARD_BONUS={num(ILLEGAL_FORWARD_BONUS)} "
+        f"CONST_PHI={num(CONST_PHI)} VI_START={VI_START} "
+        f"VI_TOL={VI_TOL} VI_MAX_ITERS={VI_MAX_ITERS} "
+        f"SMALL_FRAC={num(SMALL_FRAC)} seeds={','.join(str(s) for s in SEEDS)}"
+    )
+    print(
+        "declared Phi_B(s) = -distance_to_goal; "
+        + "cycle distances "
+        + ", ".join(f"{s}={DIST_CYCLE[s]}" for s in STATES_CYCLE)
+        + "; corridor distances "
+        + ", ".join(f"{s}={DIST_CORRIDOR[s]}" for s in STATES_CORRIDOR)
+    )
+    print("declared F(s,a,s') = GAMMA*Phi(s')-Phi(s) on arms B / B_const / B_alt")
+    print("declared arm A: unshaped sparse R (GOAL_REWARD on entering G, else 0)")
+    print("declared arm B: potential-based F with Phi_B = -distance")
+    print("declared arm B_const: potential-based F with constant Phi = CONST_PHI")
+    print(
+        "declared arm C: non-potential bonus ILLEGAL_CYCLE_BONUS on every visit "
+        "to B (cycle layout), or ILLEGAL_FORWARD_BONUS on a forward step (corridor)"
+    )
+    print("hand_calc 20 percent small-vs-clear factor = " + num(SMALL_FRAC))
+    print(
+        "hand_calc unshaped return from S along S->J->P->G = GAMMA^2 * GOAL_REWARD = "
+        + num(GAMMA)
+        + "^2 * "
+        + num(GOAL_REWARD)
+        + " = "
+        + num(GAMMA ** 2 * GOAL_REWARD)
+    )
+    hand_calc_block()
+    print("Regimes and parameters were written before the first run")
+    print("Common random numbers: deterministic shared MDP; seeds repeat the same tables")
+    print("Assumptions: deterministic transitions; tabular value iteration; greedy tie-break is the first action in (fwd, back, ball, stay)")
+    print("Paper Theorem 1 / Corollary 2 and the introduction bugs 以论文为准")
+    print("ManiSkill / SB3 / a real arm: 本页未运行")
+
+    corridor_expl = (
+        "short acyclic corridor; mild illegal forward bonus cannot form a cycle: "
+        "B and C may near-tie A on success - keep"
+    )
+    cycle_expl = (
+        "distractor cycle at B: B preserves the unshaped optimum (policy agreement "
+        "with A; reaches the goal); C consistently prefers the cycle - keep"
+    )
+    const_expl = (
+        "constant Phi exact-ties A; C loses on original-task return when the "
+        "illegal cycle is attractive - keep"
+    )
+    print(f"declared acyclic_corridor: {corridor_expl}")
+    print(f"declared distractor_cycle: {cycle_expl}")
+    print(f"declared constant_phi: {const_expl}")
+
+    print_regime(
+        "acyclic_corridor",
+        corridor_expl,
+        STATES_CORRIDOR,
+        DIST_CORRIDOR,
+        ("A", "B", "C"),
+        const_phi=False,
+    )
+    print_regime(
+        "distractor_cycle",
+        cycle_expl,
+        STATES_CYCLE,
+        DIST_CYCLE,
+        ("A", "B", "C"),
+        const_phi=False,
+    )
+    print_regime(
+        "constant_phi",
+        const_expl,
+        STATES_CYCLE,
+        DIST_CYCLE,
+        ("A", "B_const", "C"),
+        const_phi=True,
+    )
+
+    print("named alternative B_alt (Phi = -2 * distance, still potential-based) - not adopted")
+    for name, states, dist in (
+        ("acyclic_corridor", STATES_CORRIDOR, DIST_CORRIDOR),
+        ("distractor_cycle", STATES_CYCLE, DIST_CYCLE),
+    ):
+        alt = []
+        base = []
+        for seed in SEEDS:
+            _ = seed
+            alt.append(run_arm(states, dist, "B_alt", phi_scale=2.0))
+            base.append(run_arm(states, dist, "B", phi_scale=1.0))
+            alt[-1]["policy_agree_B"] = policy_agree(base[-1]["pi"], alt[-1]["pi"], states)
+            base[-1]["policy_agree_B"] = 1.0
+        print(f"  alt {name}: path={('->'.join(alt[0]['path']))} policy={fmt_policy(alt[0]['pi'], states)}")
+        print(
+            f"    paired alt-B success: {verdict([r['success'] for r in alt], [r['success'] for r in base])}"
+        )
+        print(
+            f"    paired alt-B original_return: "
+            + verdict([r["original_return"] for r in alt], [r["original_return"] for r in base])
+        )
+        print(
+            f"    paired alt-B policy_agree_B: "
+            + verdict([r["policy_agree_B"] for r in alt], [r["policy_agree_B"] for r in base])
+        )
+    print("No winner declared")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic potential-based shaping stand-in; not ManiSkill, SB3, or a real arm
+declared GAMMA=0.9000 GOAL_REWARD=1.0000 ILLEGAL_CYCLE_BONUS=0.2500 ILLEGAL_FORWARD_BONUS=0.0500 CONST_PHI=3.0000 VI_START=S VI_TOL=1e-14 VI_MAX_ITERS=10000 SMALL_FRAC=0.2000 seeds=0,1,2,3,4
+declared Phi_B(s) = -distance_to_goal; cycle distances S=3, J=2, P=1, G=0, B=3; corridor distances S=3, J=2, P=1, G=0
+declared F(s,a,s') = GAMMA*Phi(s')-Phi(s) on arms B / B_const / B_alt
+declared arm A: unshaped sparse R (GOAL_REWARD on entering G, else 0)
+declared arm B: potential-based F with Phi_B = -distance
+declared arm B_const: potential-based F with constant Phi = CONST_PHI
+declared arm C: non-potential bonus ILLEGAL_CYCLE_BONUS on every visit to B (cycle layout), or ILLEGAL_FORWARD_BONUS on a forward step (corridor)
+hand_calc 20 percent small-vs-clear factor = 0.2000
+hand_calc unshaped return from S along S->J->P->G = GAMMA^2 * GOAL_REWARD = 0.9000^2 * 1.0000 = 0.8100
+hand_calc 3-state chain states=0,1,G gamma_undiscounted=1.0000 Phi(0)=-2.0000 Phi(1)=-1.0000 Phi(G)=0.0000 (Phi(G)=0)
+hand_calc potential F(s,s') = gamma*Phi(s')-Phi(s) with gamma=1.0000 reduces to Phi(s')-Phi(s)
+hand_calc path 0->1->G F terms = 1.0000, 1.0000 path sum = 2.0000
+hand_calc potential 2-cycle 1->0->1 F terms = -1.0000, 1.0000 cycle sum = 0.0000
+hand_calc illegal bonus 1.0000 on entering 1; same 2-cycle terms = 0.0000, 1.0000 cycle sum = 1.0000 (not 0)
+hand_calc corollary-2 setup step_cost=-1.0000 V_M(0)=-2.0000 V_M(1)=-1.0000 V_M(G)=0.0000
+hand_calc corollary-2 V_M'(0)=V_M(0)-Phi(0) = -2.0000-(-2.0000) = 0.0000
+hand_calc corollary-2 V_M'(1)=V_M(1)-Phi(1) = -1.0000-(-1.0000) = 0.0000
+hand_calc corollary-2 V_M'(G)=V_M(G)-Phi(G) = 0.0000-(0.0000) = 0.0000
+Regimes and parameters were written before the first run
+Common random numbers: deterministic shared MDP; seeds repeat the same tables
+Assumptions: deterministic transitions; tabular value iteration; greedy tie-break is the first action in (fwd, back, ball, stay)
+Paper Theorem 1 / Corollary 2 and the introduction bugs 以论文为准
+ManiSkill / SB3 / a real arm: 本页未运行
+declared acyclic_corridor: short acyclic corridor; mild illegal forward bonus cannot form a cycle: B and C may near-tie A on success - keep
+declared distractor_cycle: distractor cycle at B: B preserves the unshaped optimum (policy agreement with A; reaches the goal); C consistently prefers the cycle - keep
+declared constant_phi: constant Phi exact-ties A; C loses on original-task return when the illegal cycle is attractive - keep
+declared expectation acyclic_corridor: short acyclic corridor; mild illegal forward bonus cannot form a cycle: B and C may near-tie A on success - keep
+regime acyclic_corridor  (mean+-sd over seeds; deterministic MDP)
+  seed 0 (all 5 seeds identical):
+    A: success=1.0000 original_return=0.8100 policy_agree_A=1.0000 uses_cycle=0.0000 path=S->J->P->G policy=S:fwd J:fwd P:fwd
+    B: success=1.0000 original_return=0.8100 policy_agree_A=1.0000 uses_cycle=0.0000 path=S->J->P->G policy=S:fwd J:fwd P:fwd
+    C: success=1.0000 original_return=0.8100 policy_agree_A=1.0000 uses_cycle=0.0000 path=S->J->P->G policy=S:fwd J:fwd P:fwd
+  A success 1.0000+-0.0000
+  A original_return 0.8100+-0.0000
+  A policy_agree_A 1.0000+-0.0000
+  A uses_cycle 0.0000+-0.0000
+  B success 1.0000+-0.0000
+  B original_return 0.8100+-0.0000
+  B policy_agree_A 1.0000+-0.0000
+  B uses_cycle 0.0000+-0.0000
+  C success 1.0000+-0.0000
+  C original_return 0.8100+-0.0000
+  C policy_agree_A 1.0000+-0.0000
+  C uses_cycle 0.0000+-0.0000
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B success: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A original_return: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A original_return: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B original_return: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A policy_agree_A: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A policy_agree_A: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B policy_agree_A: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A uses_cycle: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A uses_cycle: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B uses_cycle: 0.0000+-0.0000: tie: identical on every seed
+  toy Q-shift check max|Q_B(s,a)-(Q_A(s,a)-Phi(s))| = 4.441e-16
+declared expectation distractor_cycle: distractor cycle at B: B preserves the unshaped optimum (policy agreement with A; reaches the goal); C consistently prefers the cycle - keep
+regime distractor_cycle  (mean+-sd over seeds; deterministic MDP)
+  seed 0 (all 5 seeds identical):
+    A: success=1.0000 original_return=0.8100 policy_agree_A=1.0000 uses_cycle=0.0000 path=S->J->P->G policy=S:fwd J:fwd P:fwd B:back
+    B: success=1.0000 original_return=0.8100 policy_agree_A=1.0000 uses_cycle=0.0000 path=S->J->P->G policy=S:fwd J:fwd P:fwd B:back
+    C: success=0.0000 original_return=0.0000 policy_agree_A=0.0000 uses_cycle=1.0000 path=S->J->B->B policy=S:fwd J:ball P:back B:fwd
+  A success 1.0000+-0.0000
+  A original_return 0.8100+-0.0000
+  A policy_agree_A 1.0000+-0.0000
+  A uses_cycle 0.0000+-0.0000
+  B success 1.0000+-0.0000
+  B original_return 0.8100+-0.0000
+  B policy_agree_A 1.0000+-0.0000
+  B uses_cycle 0.0000+-0.0000
+  C success 0.0000+-0.0000
+  C original_return 0.0000+-0.0000
+  C policy_agree_A 0.0000+-0.0000
+  C uses_cycle 1.0000+-0.0000
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A success: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A original_return: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A original_return: -0.8100+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B original_return: -0.8100+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A policy_agree_A: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A policy_agree_A: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B policy_agree_A: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A uses_cycle: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A uses_cycle: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B uses_cycle: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  toy Q-shift check max|Q_B(s,a)-(Q_A(s,a)-Phi(s))| = 4.441e-16
+declared expectation constant_phi: constant Phi exact-ties A; C loses on original-task return when the illegal cycle is attractive - keep
+regime constant_phi  (mean+-sd over seeds; deterministic MDP)
+  seed 0 (all 5 seeds identical):
+    A: success=1.0000 original_return=0.8100 policy_agree_A=1.0000 uses_cycle=0.0000 path=S->J->P->G policy=S:fwd J:fwd P:fwd B:back
+    B_const: success=1.0000 original_return=0.8100 policy_agree_A=1.0000 uses_cycle=0.0000 path=S->J->P->G policy=S:fwd J:fwd P:fwd B:back
+    C: success=0.0000 original_return=0.0000 policy_agree_A=0.0000 uses_cycle=1.0000 path=S->J->B->B policy=S:fwd J:ball P:back B:fwd
+  A success 1.0000+-0.0000
+  A original_return 0.8100+-0.0000
+  A policy_agree_A 1.0000+-0.0000
+  A uses_cycle 0.0000+-0.0000
+  B_const success 1.0000+-0.0000
+  B_const original_return 0.8100+-0.0000
+  B_const policy_agree_A 1.0000+-0.0000
+  B_const uses_cycle 0.0000+-0.0000
+  C success 0.0000+-0.0000
+  C original_return 0.0000+-0.0000
+  C policy_agree_A 0.0000+-0.0000
+  C uses_cycle 1.0000+-0.0000
+  paired B_const-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A success: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B_const-A original_return: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A original_return: -0.8100+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B_const-A policy_agree_A: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A policy_agree_A: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B_const-A uses_cycle: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A uses_cycle: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  toy Q-shift check max|Q_Bconst(s,a)-(Q_A(s,a)-CONST_PHI)| = 7.860e-14
+named alternative B_alt (Phi = -2 * distance, still potential-based) - not adopted
+  alt acyclic_corridor: path=S->J->P->G policy=S:fwd J:fwd P:fwd
+    paired alt-B success: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B original_return: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B policy_agree_B: 0.0000+-0.0000: tie: identical on every seed
+  alt distractor_cycle: path=S->J->P->G policy=S:fwd J:fwd P:fwd B:back
+    paired alt-B success: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B original_return: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B policy_agree_B: 0.0000+-0.0000: tie: identical on every seed
+No winner declared
+```
+
+</SimOutput>
+
+### 结果
+
+`hand_calc unshaped return from S along S->J->P->G = GAMMA^2 * GOAL_REWARD = 0.9000^2 * 1.0000 = 0.8100`；基于势的 2-环求和 `0.0000`；非法环路求和 `1.0000`。正式第一次运行：2026-11-20 13:09:53 Asia/Shanghai。那次运行之后，**没有**改正式玩具或 `expected/`。数字冻结之后，课文是按冻结的正式输出写的。官方 `expected/` 没有重调。
+
+- **acyclic_corridor**。 A、B 与 C 都走 S->J->P->G，`success` 为 `1.0000+-0.0000`，`original_return` 为 `0.8100+-0.0000`。配对 B-A 与配对 C-A 在 `success` 和 `original_return` 上都是 `0.0000+-0.0000: tie: identical on every seed`。事先声明的、无环时可以接近打平的情形以精确打平成立，并予保留。玩具的 Q 平移检查 `max|Q_B(s,a)-(Q_A(s,a)-Phi(s))|` 为 `4.441e-16`（数值上为零）。
+- **distractor_cycle**。 A 与 B 仍然走 S->J->P->G，`success` 为 `1.0000+-0.0000`，`original_return` 为 `0.8100+-0.0000`，`policy_agree_A` 为 `1.0000+-0.0000`，`uses_cycle` 为 `0.0000+-0.0000`。配对 B-A 在每项指标上都是 `0.0000+-0.0000: tie: identical on every seed`。事先声明的、保持未塑形最优**成立**。C 走 S->J->B->B：`success` 为 `0.0000+-0.0000`，`original_return` 为 `0.0000+-0.0000`，`policy_agree_A` 为 `0.0000+-0.0000`，`uses_cycle` 为 `1.0000+-0.0000`。配对 C-A 的 `original_return` 是 `-0.8100+-0.0000`，为**明显差距，不是打平**，5 个种子符号相同。事先声明的环路偏好以及原任务上的落败**成立**。
+- **constant_phi**。 `B_const` 在每项指标上都与 A 精确打平（`0.0000+-0.0000: tie: identical on every seed`），包括 `original_return` `0.8100+-0.0000`。事先声明的常数 Phi 精确打平**成立**。C 再次在 `original_return` 上落败（`-0.8100+-0.0000`，明显，5/5）。相对 `CONST_PHI = 3.0000` 的 Q 平移检查是 `7.860e-14`（数值上为零）。
+
+同一组 MDP 上的具名替代 `B_alt`**没有采用**。在两种布局上，它在 `success`、`original_return` 和策略上都与 B 精确打平（`0.0000+-0.0000`）。没有为了改用更陡的势去改正式的臂。
+
+### 练习
+
+1. 根据打印出的 `hand_calc` 行，基于势的 2-环 1->0->1 的和是多少，同一环路上非法奖励的和又是多少？
+2. 从 `step` 与 `reward` 说明：A、B、C 看到的是同一组转移，并且只有 C 在格 B 上的奖励没有 -Phi(s) 对应项。
+3. 用定理 1 说明：每次路径经过 B 都支付、又没有势函数对应项的奖励，是否允许改变最优策略；常数 Phi 是否允许这样做。
+4. 固定环路布局，设想 `ILLEGAL_CYCLE_BONUS = 0.0000`。在运行那种变体之前，预测 C 的 `uses_cycle` 与 `original_return`（不要改正式玩具）。
+5. 在任何 ManiSkill、SB3 或真实机械臂运行之前（本页未运行），写出你如何检查自己加的稠密奖励，是否定理 1 意义上基于势。
+
+**180 分钟工作计划:** 30+25+50+40+35=180。30 分钟阅读打开的 10 页课程副本中的定理 1、推论 2 以及引言里的塑形毛病，并写下基于势的等式以及自行车与足球的例子；25 分钟在运行前写好三状态手算、三臂和三种事先声明的比较；50 分钟运行玩具并阅读正式情形；40 分钟在同一组 MDP 上重跑具名的 Phi = -2 * distance 替代；35 分钟写明为什么非势奖励可以改变最优解，对照（但不改）本页已有的稀疏–稠密与 HER 玩具，以及 ManiSkill / SB3 / 真实机械臂检查还需要看到什么（本页未运行）。
+
 <Summary>
 
-操作 RL 在 7.2 之上加入物体与夹爪通道。稀疏奖励只在成功时触发；稠密塑形让该事件可及。标准库网格玩具（种子 7）给出稠密最近 50 回合成功率 1.000、稀疏 0.000。SAC 是带回报缓冲的 off-policy 对照；ManiSkill3 `PickCubeSO100-v1` 是 GPU 并行抓取任务——本页未强制。事后经验回放保留稀疏奖励，用同一回合之后达到的目标重新标注回放的转移：在同一网格上用相对目标表格，它把 reward_shaping.py 目标上的贪心成功率从 0.0000 提到 1.0000，把远目标上的从 0.3967 提到 0.9933，在这两处与稠密塑形打平或接近打平，近目标上没有贡献，在 10 × 10 网格上输给稠密（0.0000 对 0.4321）——合成模型，不是 SB3 运行。
+操作 RL 在 7.2 之上加入物体与夹爪通道。稀疏奖励只在成功时触发；稠密塑形让该事件可及。标准库网格玩具（种子 7）给出稠密最近 50 回合成功率 1.000、稀疏 0.000。SAC 是带回报缓冲的 off-policy 对照；ManiSkill3 `PickCubeSO100-v1` 是 GPU 并行抓取任务——本页未强制。事后经验回放保留稀疏奖励，用同一回合之后达到的目标重新标注回放的转移：在同一网格上用相对目标表格，它把 reward_shaping.py 目标上的贪心成功率从 0.0000 提到 1.0000，把远目标上的从 0.3967 提到 0.9933，在这两处与稠密塑形打平或接近打平，近目标上没有贡献，在 10 × 10 网格上输给稠密（0.0000 对 0.4321）——合成模型，不是 SB3 运行。基于势的塑形（Ng、Harada、Russell 定理 1）加上 F(s, a, s') = γΦ(s') - Φ(s)：在共享的表格 MDP 上，基于势的那一臂与未塑形最优精确打平（success 1.0000，original_return 0.8100），常数 Phi 也精确打平，无环时温和的非法奖励在 success 上同样精确打平，而干扰环上的非势奖励则稳定地更偏好环路（original_return 0.0000 对 0.8100，5/5）——`potential_based_shaping_toy.py`，不是 ManiSkill 或 SB3。
+
 
 </Summary>

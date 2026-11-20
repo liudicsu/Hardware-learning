@@ -1,5 +1,18 @@
 # Month 9 plan: Long-horizon tasks, contact control & mobile manipulation
 
+Current / 当前：**M9 4470 min**, Batch-27 PR2. Earlier entries below retain their historical totals.
+
+## Batch-27 PR2 / 本月 H4 (+180)
+
+Base `1e3f23f0534a5f3d84170efd2f01e0dc7f57a4e8` (batch-27 PR1 #207 squash-merged; site **44820**). PR2 on M9 host: **M9 4290→4470 (+180)**; M7 moves in the same PR on its own plan. Site **44820→45180** (45180=44820+180+180), still 71 lessons. **M9 = 4470 is 90 min above current heaviest M6 = 4380**; disclosed, not a dump onto M8 / M11.
+
+- **H4 / 9.2 moveit-servo: 180→360 (+180).** Official Servo collision-proximity scale (`servo_collision_proximity_toy.py`; planar 1-D stand-in, common random numbers, 5 seeds that repeat the same deterministic jog). Pinned moveit2_tutorials `6ea5a7425d58c4b4d36788a8d105bf7715fe77d7` (2026-11-18 23:53:55 UTC = 2026-11-19 07:53:55 Asia/Shanghai): RST blob `151ea6dc5625bd89cb98a809c270cafbfe06d9ef` sha256 `68ce415dd7b5fef7fcb7d7158d344b339924e3e597295e29dddb94a12fdaa6b5`; yaml blob `2b6c0f5b51bc754630a6e7602e0f1b94556aa591` sha256 `41a7f006c243fc54058b794fcf6848254f5fd6c94637a992775b16085f644adf` (以文档为准). Opened demo-config constants `self_collision_proximity_threshold: 0.01`, `scene_collision_proximity_threshold: 0.02`, `check_collisions: true`, `collision_check_rate: 10.0` — not vendor-universal defaults and not toy measurements. Scale is 1 at threshold to 0 at contact. far_scene: A and B exact-tie on progress `0.0500+-0.0000` (declared may exact-tie or near-tie, held as an exact tie, kept); C over-conservative loses on progress (paired C-A `-0.0253+-0.0000`, clear, 5/5). in_band_scene: B cuts collision_steps from `41.0000` to `0.0000` (paired B-A `-41.0000+-0.0000`, clear, 5/5). in_band_self: B cuts collision_steps from `71.0000` to `0.0000` (paired B-A `-71.0000+-0.0000`, clear, 5/5). Official first run 2026-11-20 13:09:53 Asia/Shanghai; expected sha256 `525c20a39dd4ab19d9311cdbb818362347893091554d8e6f9cddeb457d653882`. Named quadratic-scale alternative printed and not adopted. Existing `servo_loop_sim.py` (κ>12, scaled_rows=3) not retuned. MoveIt / FCL 本页未运行. Not Pilz and not IBVS.
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
+
+**Site accounting / 全站核算:** **45180=44820+360** with M7 +180 on month-7-plan.md; **M9=4470**, **71 lessons**.
+
+
 Current / 当前：**M9 4290 min**, Batch-23 PR3. Earlier entries below retain their historical totals.
 
 ## Batch-23 PR3 — ChatVLA-2 open-world reasoning-following on llm-skill-planning (+180)

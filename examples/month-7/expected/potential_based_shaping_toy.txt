@@ -1,0 +1,126 @@
+Synthetic potential-based shaping stand-in; not ManiSkill, SB3, or a real arm
+declared GAMMA=0.9000 GOAL_REWARD=1.0000 ILLEGAL_CYCLE_BONUS=0.2500 ILLEGAL_FORWARD_BONUS=0.0500 CONST_PHI=3.0000 VI_START=S VI_TOL=1e-14 VI_MAX_ITERS=10000 SMALL_FRAC=0.2000 seeds=0,1,2,3,4
+declared Phi_B(s) = -distance_to_goal; cycle distances S=3, J=2, P=1, G=0, B=3; corridor distances S=3, J=2, P=1, G=0
+declared F(s,a,s') = GAMMA*Phi(s')-Phi(s) on arms B / B_const / B_alt
+declared arm A: unshaped sparse R (GOAL_REWARD on entering G, else 0)
+declared arm B: potential-based F with Phi_B = -distance
+declared arm B_const: potential-based F with constant Phi = CONST_PHI
+declared arm C: non-potential bonus ILLEGAL_CYCLE_BONUS on every visit to B (cycle layout), or ILLEGAL_FORWARD_BONUS on a forward step (corridor)
+hand_calc 20 percent small-vs-clear factor = 0.2000
+hand_calc unshaped return from S along S->J->P->G = GAMMA^2 * GOAL_REWARD = 0.9000^2 * 1.0000 = 0.8100
+hand_calc 3-state chain states=0,1,G gamma_undiscounted=1.0000 Phi(0)=-2.0000 Phi(1)=-1.0000 Phi(G)=0.0000 (Phi(G)=0)
+hand_calc potential F(s,s') = gamma*Phi(s')-Phi(s) with gamma=1.0000 reduces to Phi(s')-Phi(s)
+hand_calc path 0->1->G F terms = 1.0000, 1.0000 path sum = 2.0000
+hand_calc potential 2-cycle 1->0->1 F terms = -1.0000, 1.0000 cycle sum = 0.0000
+hand_calc illegal bonus 1.0000 on entering 1; same 2-cycle terms = 0.0000, 1.0000 cycle sum = 1.0000 (not 0)
+hand_calc corollary-2 setup step_cost=-1.0000 V_M(0)=-2.0000 V_M(1)=-1.0000 V_M(G)=0.0000
+hand_calc corollary-2 V_M'(0)=V_M(0)-Phi(0) = -2.0000-(-2.0000) = 0.0000
+hand_calc corollary-2 V_M'(1)=V_M(1)-Phi(1) = -1.0000-(-1.0000) = 0.0000
+hand_calc corollary-2 V_M'(G)=V_M(G)-Phi(G) = 0.0000-(0.0000) = 0.0000
+Regimes and parameters were written before the first run
+Common random numbers: deterministic shared MDP; seeds repeat the same tables
+Assumptions: deterministic transitions; tabular value iteration; greedy tie-break is the first action in (fwd, back, ball, stay)
+Paper Theorem 1 / Corollary 2 and the introduction bugs 以论文为准
+ManiSkill / SB3 / a real arm: 本页未运行
+declared acyclic_corridor: short acyclic corridor; mild illegal forward bonus cannot form a cycle: B and C may near-tie A on success - keep
+declared distractor_cycle: distractor cycle at B: B preserves the unshaped optimum (policy agreement with A; reaches the goal); C consistently prefers the cycle - keep
+declared constant_phi: constant Phi exact-ties A; C loses on original-task return when the illegal cycle is attractive - keep
+declared expectation acyclic_corridor: short acyclic corridor; mild illegal forward bonus cannot form a cycle: B and C may near-tie A on success - keep
+regime acyclic_corridor  (mean+-sd over seeds; deterministic MDP)
+  seed 0 (all 5 seeds identical):
+    A: success=1.0000 original_return=0.8100 policy_agree_A=1.0000 uses_cycle=0.0000 path=S->J->P->G policy=S:fwd J:fwd P:fwd
+    B: success=1.0000 original_return=0.8100 policy_agree_A=1.0000 uses_cycle=0.0000 path=S->J->P->G policy=S:fwd J:fwd P:fwd
+    C: success=1.0000 original_return=0.8100 policy_agree_A=1.0000 uses_cycle=0.0000 path=S->J->P->G policy=S:fwd J:fwd P:fwd
+  A success 1.0000+-0.0000
+  A original_return 0.8100+-0.0000
+  A policy_agree_A 1.0000+-0.0000
+  A uses_cycle 0.0000+-0.0000
+  B success 1.0000+-0.0000
+  B original_return 0.8100+-0.0000
+  B policy_agree_A 1.0000+-0.0000
+  B uses_cycle 0.0000+-0.0000
+  C success 1.0000+-0.0000
+  C original_return 0.8100+-0.0000
+  C policy_agree_A 1.0000+-0.0000
+  C uses_cycle 0.0000+-0.0000
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B success: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A original_return: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A original_return: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B original_return: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A policy_agree_A: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A policy_agree_A: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B policy_agree_A: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A uses_cycle: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A uses_cycle: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B uses_cycle: 0.0000+-0.0000: tie: identical on every seed
+  toy Q-shift check max|Q_B(s,a)-(Q_A(s,a)-Phi(s))| = 4.441e-16
+declared expectation distractor_cycle: distractor cycle at B: B preserves the unshaped optimum (policy agreement with A; reaches the goal); C consistently prefers the cycle - keep
+regime distractor_cycle  (mean+-sd over seeds; deterministic MDP)
+  seed 0 (all 5 seeds identical):
+    A: success=1.0000 original_return=0.8100 policy_agree_A=1.0000 uses_cycle=0.0000 path=S->J->P->G policy=S:fwd J:fwd P:fwd B:back
+    B: success=1.0000 original_return=0.8100 policy_agree_A=1.0000 uses_cycle=0.0000 path=S->J->P->G policy=S:fwd J:fwd P:fwd B:back
+    C: success=0.0000 original_return=0.0000 policy_agree_A=0.0000 uses_cycle=1.0000 path=S->J->B->B policy=S:fwd J:ball P:back B:fwd
+  A success 1.0000+-0.0000
+  A original_return 0.8100+-0.0000
+  A policy_agree_A 1.0000+-0.0000
+  A uses_cycle 0.0000+-0.0000
+  B success 1.0000+-0.0000
+  B original_return 0.8100+-0.0000
+  B policy_agree_A 1.0000+-0.0000
+  B uses_cycle 0.0000+-0.0000
+  C success 0.0000+-0.0000
+  C original_return 0.0000+-0.0000
+  C policy_agree_A 0.0000+-0.0000
+  C uses_cycle 1.0000+-0.0000
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A success: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B success: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A original_return: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A original_return: -0.8100+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B original_return: -0.8100+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A policy_agree_A: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A policy_agree_A: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B policy_agree_A: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A uses_cycle: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A uses_cycle: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B uses_cycle: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  toy Q-shift check max|Q_B(s,a)-(Q_A(s,a)-Phi(s))| = 4.441e-16
+declared expectation constant_phi: constant Phi exact-ties A; C loses on original-task return when the illegal cycle is attractive - keep
+regime constant_phi  (mean+-sd over seeds; deterministic MDP)
+  seed 0 (all 5 seeds identical):
+    A: success=1.0000 original_return=0.8100 policy_agree_A=1.0000 uses_cycle=0.0000 path=S->J->P->G policy=S:fwd J:fwd P:fwd B:back
+    B_const: success=1.0000 original_return=0.8100 policy_agree_A=1.0000 uses_cycle=0.0000 path=S->J->P->G policy=S:fwd J:fwd P:fwd B:back
+    C: success=0.0000 original_return=0.0000 policy_agree_A=0.0000 uses_cycle=1.0000 path=S->J->B->B policy=S:fwd J:ball P:back B:fwd
+  A success 1.0000+-0.0000
+  A original_return 0.8100+-0.0000
+  A policy_agree_A 1.0000+-0.0000
+  A uses_cycle 0.0000+-0.0000
+  B_const success 1.0000+-0.0000
+  B_const original_return 0.8100+-0.0000
+  B_const policy_agree_A 1.0000+-0.0000
+  B_const uses_cycle 0.0000+-0.0000
+  C success 0.0000+-0.0000
+  C original_return 0.0000+-0.0000
+  C policy_agree_A 0.0000+-0.0000
+  C uses_cycle 1.0000+-0.0000
+  paired B_const-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A success: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B_const-A original_return: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A original_return: -0.8100+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B_const-A policy_agree_A: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A policy_agree_A: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B_const-A uses_cycle: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A uses_cycle: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  toy Q-shift check max|Q_Bconst(s,a)-(Q_A(s,a)-CONST_PHI)| = 7.860e-14
+named alternative B_alt (Phi = -2 * distance, still potential-based) - not adopted
+  alt acyclic_corridor: path=S->J->P->G policy=S:fwd J:fwd P:fwd
+    paired alt-B success: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B original_return: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B policy_agree_B: 0.0000+-0.0000: tie: identical on every seed
+  alt distractor_cycle: path=S->J->P->G policy=S:fwd J:fwd P:fwd B:back
+    paired alt-B success: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B original_return: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B policy_agree_B: 0.0000+-0.0000: tie: identical on every seed
+No winner declared

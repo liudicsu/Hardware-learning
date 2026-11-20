@@ -1,5 +1,18 @@
 # Month 7 plan: Simulation, reinforcement learning & 3D perception
 
+Current / 当前：**M7 4050 min**, Batch-27 PR2. Earlier entries below retain their historical totals.
+
+## Batch-27 PR2 / 本月 H3 (+180)
+
+Base `1e3f23f0534a5f3d84170efd2f01e0dc7f57a4e8` (batch-27 PR1 #207 squash-merged; site **44820**). PR2 on M7 host: **M7 3870→4050 (+180)**; M9 moves in the same PR on its own plan. Site **44820→45180** (45180=44820+180+180), still 71 lessons.
+
+- **H3 / 7.3 rl-manipulation-sim: 420→600 (+180).** Potential-based reward shaping, Ng, Harada, Russell Theorem 1 (`potential_based_shaping_toy.py`; tabular value iteration, common random numbers, 5 seeds that repeat the same deterministic MDP). Opened 10-page Berkeley CS287 Fall 2009 course copy (sha256 `e83f9d13b8c5415d78a187a0b9000c5ab6aa90f3029d5c957f5c46caaabed207`; 以论文为准). Title-page typography read visually; this copy's title page does not print a proceedings / journal-ref banner. F = γΦ(s')-Φ(s); sufficiency and necessity kept. acyclic_corridor: B and C exact-tie A on success and original_return (`0.0000+-0.0000`, identical on every seed; declared may near-tie, held as an exact tie, kept). distractor_cycle: B preserves the unshaped optimum (paired B-A exact-tie on success, original_return `0.8100+-0.0000`, and policy_agree_A); C consistently prefers the cycle (paired C-A original_return `-0.8100+-0.0000`, clear, 5/5; uses_cycle `1.0000+-0.0000`). constant_phi: B_const exact-ties A; C loses on original-task return (same `-0.8100+-0.0000`, 5/5). 手算: potential 2-cycle sum `0.0000`, illegal cycle sum `1.0000`. Official first run 2026-11-20 13:09:53 Asia/Shanghai; expected sha256 `33f2df8cf399e2c6de96d3ca734bc9e687139557b436ecc68c387ebbaf03cd5d`. Named Phi = -2 * distance alternative printed and not adopted. ManiSkill / SB3 / a real arm 本页未运行. Not a second sparse-vs-dense or HER toy; existing toys not retuned.
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
+
+**Site accounting / 全站核算:** **45180=44820+360** with M9 +180 on month-9-plan.md; **M7=4050**, **71 lessons**.
+
+
 Current / 当前：**M7 3870 min**, Batch-25 PR2. Earlier entries below retain their historical totals.
 
 ## Batch-25 PR2 / 本月 H3 (+180)

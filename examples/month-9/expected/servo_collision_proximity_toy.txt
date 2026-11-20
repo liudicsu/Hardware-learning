@@ -1,0 +1,150 @@
+Synthetic Servo collision-proximity stand-in; not MoveIt, FCL, or a real arm
+declared demo-config constants self_collision_proximity_threshold=0.0100 scene_collision_proximity_threshold=0.0200 check_collisions=true collision_check_rate=10.0000
+declared toy DT=0.0100 V_CMD=0.0500 C_THRESHOLD=2.0000 FAR_START_CLEARANCE=1.0000 FAR_HORIZON_STEPS=100 SCENE_START_CLEARANCE=0.0300 SCENE_HORIZON_STEPS=100 SELF_START_CLEARANCE=0.0150 SELF_HORIZON_STEPS=100 SMALL_FRAC=0.2000 seeds=0,1,2,3,4
+declared scale law (B): 1 when clearance >= threshold, linear clearance/threshold down to 0 at contact
+declared arm A: check_collisions off, scale = 1, no proximity scale
+declared arm B: check_collisions on, scene 0.02 m or self 0.01 m as the regime's opened demo-config threshold
+declared arm C: check_collisions on, over-conservative C_THRESHOLD (not a demo-config value)
+hand_calc 20 percent small-vs-clear factor = 0.2000
+hand_calc far commanded travel = V_CMD * FAR_HORIZON_STEPS * DT = 0.0500 * 100 * 0.0100 = 0.0500
+hand_calc far final clearance if unscaled = FAR_START_CLEARANCE - commanded travel = 1.0000 - 0.0500 = 0.9500 (still above scene 0.0200 m)
+hand_calc in-band scene unscaled travel = 0.0500 from start 0.0300 would cross the wall by 0.0200
+hand_calc in-band self unscaled travel = 0.0500 from start 0.0150 would cross the envelope by 0.0350
+hand_calc in-band scene scale factor once inside the band = 1 - V_CMD*DT/0.0200 = 0.9750
+hand_calc in-band self scale factor once inside the band = 1 - V_CMD*DT/0.0100 = 0.9500
+Regimes and parameters were written before the first run
+Common random numbers: deterministic shared jog; seeds repeat the same timeline
+Assumptions: planar 1-D clearance; Euler step x += scale * V_CMD * DT; scale from clearance at the start of the step
+0.01 m / 0.02 m are opened demo-config constants, 以文档为准, not vendor-universal defaults and not toy measurements
+MoveIt / FCL / official keyboard demo: 本页未运行
+declared far_scene: obstacle stays beyond the 0.02 m scene band for the whole jog: A and B may exact-tie or near-tie on progress - keep; C over-conservative loses on progress - keep
+declared in_band_scene: straight jog enters the 0.02 m scene band: B consistent lower collision / penetration counts - keep; A (no scale) loses on collisions - keep
+declared in_band_self: straight jog enters the 0.01 m self-collision envelope: B consistent lower collision / penetration counts - keep; A (no scale) loses on collisions - keep
+declared expectation far_scene: obstacle stays beyond the 0.02 m scene band for the whole jog: A and B may exact-tie or near-tie on progress - keep; C over-conservative loses on progress - keep
+regime far_scene  (mean+-sd over seeds; deterministic jog) start_clearance=1.0000 steps=100 band_threshold=0.0200 horizon_s=1.0000
+  seed 0 (all 5 seeds identical):
+    A: progress=0.0500 collision_steps=0.0000 min_clearance=0.9500 terminal_speed=0.0500 max_penetration=0.0000 check_collisions=0 used_threshold=0.0200
+    B: progress=0.0500 collision_steps=0.0000 min_clearance=0.9500 terminal_speed=0.0500 max_penetration=0.0000 check_collisions=1 used_threshold=0.0200
+    C: progress=0.0247 collision_steps=0.0000 min_clearance=0.9753 terminal_speed=0.0244 max_penetration=0.0000 check_collisions=1 used_threshold=2.0000
+  A progress 0.0500+-0.0000
+  A collision_steps 0.0000+-0.0000
+  A min_clearance 0.9500+-0.0000
+  A terminal_speed 0.0500+-0.0000
+  A max_penetration 0.0000+-0.0000
+  B progress 0.0500+-0.0000
+  B collision_steps 0.0000+-0.0000
+  B min_clearance 0.9500+-0.0000
+  B terminal_speed 0.0500+-0.0000
+  B max_penetration 0.0000+-0.0000
+  C progress 0.0247+-0.0000
+  C collision_steps 0.0000+-0.0000
+  C min_clearance 0.9753+-0.0000
+  C terminal_speed 0.0244+-0.0000
+  C max_penetration 0.0000+-0.0000
+  paired B-A progress: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A progress: -0.0253+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B progress: -0.0253+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A collision_steps: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A collision_steps: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B collision_steps: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A min_clearance: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A min_clearance: 0.0253+-0.0000: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B min_clearance: 0.0253+-0.0000: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A terminal_speed: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A terminal_speed: -0.0256+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B terminal_speed: -0.0256+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A max_penetration: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A max_penetration: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B max_penetration: 0.0000+-0.0000: tie: identical on every seed
+declared expectation in_band_scene: straight jog enters the 0.02 m scene band: B consistent lower collision / penetration counts - keep; A (no scale) loses on collisions - keep
+regime in_band_scene  (mean+-sd over seeds; deterministic jog) start_clearance=0.0300 steps=100 band_threshold=0.0200 horizon_s=1.0000
+  seed 0 (all 5 seeds identical):
+    A: progress=0.0500 collision_steps=41.0000 min_clearance=-0.0200 terminal_speed=0.0500 max_penetration=0.0200 check_collisions=0 used_threshold=0.0200
+    B: progress=0.0274 collision_steps=0.0000 min_clearance=0.0026 terminal_speed=0.0068 max_penetration=0.0000 check_collisions=1 used_threshold=0.0200
+    C: progress=0.0007 collision_steps=0.0000 min_clearance=0.0293 terminal_speed=0.0007 max_penetration=0.0000 check_collisions=1 used_threshold=2.0000
+  A progress 0.0500+-0.0000
+  A collision_steps 41.0000+-0.0000
+  A min_clearance -0.0200+-0.0000
+  A terminal_speed 0.0500+-0.0000
+  A max_penetration 0.0200+-0.0000
+  B progress 0.0274+-0.0000
+  B collision_steps 0.0000+-0.0000
+  B min_clearance 0.0026+-0.0000
+  B terminal_speed 0.0068+-0.0000
+  B max_penetration 0.0000+-0.0000
+  C progress 0.0007+-0.0000
+  C collision_steps 0.0000+-0.0000
+  C min_clearance 0.0293+-0.0000
+  C terminal_speed 0.0007+-0.0000
+  C max_penetration 0.0000+-0.0000
+  paired B-A progress: -0.0226+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A progress: -0.0493+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B progress: -0.0266+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A collision_steps: -41.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A collision_steps: -41.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B collision_steps: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A min_clearance: 0.0226+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A min_clearance: 0.0493+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B min_clearance: 0.0266+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A terminal_speed: -0.0432+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A terminal_speed: -0.0493+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B terminal_speed: -0.0060+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A max_penetration: -0.0200+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A max_penetration: -0.0200+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B max_penetration: 0.0000+-0.0000: tie: identical on every seed
+declared expectation in_band_self: straight jog enters the 0.01 m self-collision envelope: B consistent lower collision / penetration counts - keep; A (no scale) loses on collisions - keep
+regime in_band_self  (mean+-sd over seeds; deterministic jog) start_clearance=0.0150 steps=100 band_threshold=0.0100 horizon_s=1.0000
+  seed 0 (all 5 seeds identical):
+    A: progress=0.0500 collision_steps=71.0000 min_clearance=-0.0350 terminal_speed=0.0500 max_penetration=0.0350 check_collisions=0 used_threshold=0.0100
+    B: progress=0.0149 collision_steps=0.0000 min_clearance=9.888e-5 terminal_speed=0.0005 max_penetration=0.0000 check_collisions=1 used_threshold=0.0100
+    C: progress=3.704e-4 collision_steps=0.0000 min_clearance=0.0146 terminal_speed=3.658e-4 max_penetration=0.0000 check_collisions=1 used_threshold=2.0000
+  A progress 0.0500+-0.0000
+  A collision_steps 71.0000+-0.0000
+  A min_clearance -0.0350+-0.0000
+  A terminal_speed 0.0500+-0.0000
+  A max_penetration 0.0350+-0.0000
+  B progress 0.0149+-0.0000
+  B collision_steps 0.0000+-0.0000
+  B min_clearance 9.888e-5+-0.0000
+  B terminal_speed 0.0005+-0.0000
+  B max_penetration 0.0000+-0.0000
+  C progress 3.704e-4+-0.0000
+  C collision_steps 0.0000+-0.0000
+  C min_clearance 0.0146+-0.0000
+  C terminal_speed 3.658e-4+-0.0000
+  C max_penetration 0.0000+-0.0000
+  paired B-A progress: -0.0351+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A progress: -0.0496+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B progress: -0.0145+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A collision_steps: -71.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A collision_steps: -71.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B collision_steps: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A min_clearance: 0.0351+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A min_clearance: 0.0496+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B min_clearance: 0.0145+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A terminal_speed: -0.0495+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A terminal_speed: -0.0496+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B terminal_speed: -1.546e-4+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A max_penetration: -0.0350+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A max_penetration: -0.0350+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B max_penetration: 0.0000+-0.0000: tie: identical on every seed
+named alternative B_quad (quadratic scale (clearance/threshold)^2) - not adopted
+  alt far_scene: progress=0.0500 collision_steps=0.0000 min_clearance=0.9500 terminal_speed=0.0500 max_penetration=0.0000
+    paired alt-B progress: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B collision_steps: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B min_clearance: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B terminal_speed: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B max_penetration: 0.0000+-0.0000: tie: identical on every seed
+  alt in_band_scene: progress=0.0234 collision_steps=0.0000 min_clearance=0.0066 terminal_speed=0.0055 max_penetration=0.0000
+    paired alt-B progress: -0.0040+-0.0000: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired alt-B collision_steps: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B min_clearance: 0.0040+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired alt-B terminal_speed: -0.0012+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired alt-B max_penetration: 0.0000+-0.0000: tie: identical on every seed
+  alt in_band_self: progress=0.0132 collision_steps=0.0000 min_clearance=0.0018 terminal_speed=0.0016 max_penetration=0.0000
+    paired alt-B progress: -0.0017+-0.0000: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired alt-B collision_steps: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B min_clearance: 0.0017+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired alt-B terminal_speed: 0.0011+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired alt-B max_penetration: 0.0000+-0.0000: tie: identical on every seed
+No winner declared

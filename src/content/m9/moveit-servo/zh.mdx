@@ -186,8 +186,616 @@ ok: scaled_rows=3 (near singularity v_scaled < v_unscaled)
 - **关掉奇异/碰撞检查只为「手感更跟手」。** 先看懂降速，再谈调参。
 - **在非实时内核上期待 SCHED_FIFO 40 一定成功。** 文档说的是「若装了实时内核则尝试」。
 
+## 碰撞接近缩放
+
+上面的奇异点玩具已经在雅可比条件数超过本课选定阈值 12.0 时缩放笛卡尔速度（`scaled_rows=3`）。那个玩具**不**在这里重做，它的 κ 表也保持不动。那里点名了碰撞检查（`check_collisions`），但没有实现接近阈值。这一节**不是** Pilz，**不是** IBVS，也**不是**现场运行 MoveIt 或 FCL。
+
+**实际打开的来源（RST 与 yaml 正文已读）**。 moveit2_tutorials 提交 `6ea5a7425d58c4b4d36788a8d105bf7715fe77d7`（2026-11-18 23:53:55 UTC = 2026-11-19 07:53:55 Asia/Shanghai，获取时的 `main` 尖端）。官方措辞以文档为准。
+
+- `doc/examples/realtime_servo/realtime_servo_tutorial.rst`（blob `151ea6dc5625bd89cb98a809c270cafbfe06d9ef`）：奇异检查与碰撞检查会在“接近奇异或碰撞（自碰撞或与其他物体碰撞）时把速度降下来”。碰撞检查与平滑是可选的（`check_collisions`、`use_smoothing`）。
+- `doc/examples/realtime_servo/config/panda_simulated_config.yaml`（blob `2b6c0f5b51bc754630a6e7602e0f1b94556aa591`）：`self_collision_proximity_threshold: 0.01`（自碰撞还有这么远时开始减速，单位米）、`scene_collision_proximity_threshold: 0.02`、`check_collisions: true`，以及 `collision_check_rate: 10.0`。这两个距离是**打开的演示配置常量**，以文档为准，不是厂商通用默认值，也不是对真实 panda 的玩具测量。
+
+在命令速度下逐渐缩小的墙壁或自碰撞间隙，若要遵守文档里“还有这么远时开始减速”的约定，就应在该阈值处开始减速，并在接触时把比例降到 0；关掉 `check_collisions` 则不应缩放，并会累积碰撞。MoveIt、FCL 与官方键盘演示：本页未运行。
+
+### 远处的墙、进入频带的接近，以及过于保守的阈值
+
+**计算例子（手算）**。 该替身使用事先声明的玩具步长 `DT = 0.0100` 秒和命令速度 `V_CMD = 0.0500` m/s，不是厂商通用默认值。因此 100 步点动命令走过 `hand_calc far commanded travel = V_CMD * FAR_HORIZON_STEPS * DT = 0.0500 * 100 * 0.0100 = 0.0500` m。在 `far_scene` 里起始间隙是 `1.0000` m，不缩放时结束于 `0.9500` m，仍然高于场景阈值 `0.0200` m。在 `in_band_scene` 里起始间隙是 `0.0300` m，同样的不缩放行程会把墙穿透 `0.0200` m。在 `in_band_self` 里起始间隙是 `0.0150` m，不缩放行程会把包络穿透 `0.0350` m。一旦进入频带，线性比例把间隙按因子 `1 - V_CMD*DT/threshold` 更新，对 `0.0200` m 是 `0.9750`，对 `0.0100` m 是 `0.9500`。臂 C 使用事先声明的、过于保守的 `C_THRESHOLD = 2.0000` m，这**不是**演示配置里的值。
+
+**计数的正确性标准**。 `progress` 是沿命令走过的米数。每当一步的间隙 `<= 0`，`collision_steps` 加一。`min_clearance` 是最小间隙（若穿透则为负）。`max_penetration` 是越过接触的最大深度，若没有接触则为 0。`terminal_speed` 是最后一步的缩放速度。当间隙至少为阈值时比例为 1，在阈值到接触之间按 `clearance / threshold` 线性降到 0，接触之后为 0。
+
+**这里没有现场碰撞检查器**。 该替身是平面一维间隙加欧拉步；它不运行 Planning Scene，`collision_check_rate = 10.0000` 只作为打开的演示配置常量打印，并不当作玩具的步频来用。
+
+### 公平设定
+
+`servo_collision_proximity_toy.py` 是**合成的**、只用标准库的平面替身，**不是** MoveIt 或 FCL。**模型假定**如下。
+
+- 共享的、朝向固定障碍（场景墙或自碰撞包络）的笛卡尔点动。间隙从事先声明的值开始，每步减少 `scale * V_CMD * DT`，比例取自该步开始时的间隙。
+- 臂 A 关掉 `check_collisions`，从不缩放。臂 B 打开 `check_collisions`，并按情形使用打开的场景常量 `0.0200` m 或打开的自碰撞常量 `0.0100` m。臂 C 打开 `check_collisions`，但使用很大的事先声明 `C_THRESHOLD`。
+
+**共用随机数**。 命令时间线与障碍位姿是确定性的，并在各臂之间共享。五个种子 `0,1,2,3,4` 重复同一条时间线，以便把精确打平打成每个种子都相同。种子不添加抖动。
+
+| 情形 | 障碍 | 事先声明的期望（第一次运行之前写好） |
+|---|---|---|
+| far_scene | 起始距 `1.0000` m，全程在 `0.0200` m 之外 | A 与 B 在 progress 上可以精确打平或接近打平（保留）；过于保守的 C 在 progress 上落败（保留） |
+| in_band_scene | 起始距 `0.0300` m，进入 `0.0200` m 的场景频带 | B 稳定地降低碰撞 / 穿透计数（保留）；不缩放的 A 在碰撞上落败（保留） |
+| in_band_self | 起始距 `0.0150` m，进入 `0.0100` m 的自碰撞包络 | B 稳定地降低碰撞 / 穿透计数（保留）；不缩放的 A 在碰撞上落败（保留） |
+
+标签：每个种子都相同是**打平**；若配对均值与标准差的绝对值都低于 `1e-9`，则是数值上为零；`|m| <= sd` 是**接近打平**；`|m| > sd` 是稳定差距，若 `|m|` 低于较小臂均值的 20 %（玩具打印 `0.2000`）则为**小**，否则为**明显**，并附带符号计数。
+
+**看到结果之后做的选择**。 无。三臂、三种情形、阈值和命令都是第一次运行之前写好的，没有改过。未采用的替代：在阈值到接触之间使用二次比例 `(clearance / threshold)^2`。该替代在同一条时间线上打印，**没有采用**。
+
+### 运行标准库玩具
+
+```bash
+cd ~/Hardware-learning/examples/month-9/moveit-servo
+python3 servo_collision_proximity_toy.py
+```
+
+<CodeSource path="examples/month-9/moveit-servo/servo_collision_proximity_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""MoveIt Servo collision-proximity scale stand-in.
+
+A planar 1-D jog toward a fixed obstacle compares (A) check_collisions
+off with no scale, (B) a linear proximity scale that is 1 at the opened
+demo-config threshold and 0 at contact, and (C) an over-conservative
+huge threshold.  Synthetic; not live MoveIt, FCL, or a real arm.
+
+The opened panda_simulated_config.yaml distances
+self_collision_proximity_threshold = 0.01 m and
+scene_collision_proximity_threshold = 0.02 m are demo-config constants,
+以文档为准, not vendor-universal defaults and not toy measurements.
+check_collisions and collision_check_rate are printed as the same opened
+constants.  The stand-in applies the scale every DT seconds; it does not
+run a Planning Scene or honour the check rate as a live servo loop.
+
+Common random numbers: the command timeline and obstacle poses are
+deterministic and shared across arms.  Five seeds repeat the same
+timeline so exact-tie cells can be printed as identical on every seed.
+Seeds do not add jitter.
+
+Metrics per seed: progress (metres travelled along the command),
+collision_steps (steps with clearance <= 0), min_clearance (metres),
+terminal_speed (m/s), max_penetration (metres, 0 if no contact).
+
+Regimes and expectations, written before the first run:
+  far_scene        obstacle stays beyond the 0.02 m scene band for the
+                   whole jog: A and B may exact-tie or near-tie on
+                   progress (keep); C over-conservative loses on
+                   progress (keep)
+  in_band_scene    a straight jog enters the 0.02 m scene band: B
+                   consistent lower collision / penetration counts
+                   (keep); A (no scale) loses on collisions (keep)
+  in_band_self     a straight jog enters the 0.01 m self-collision
+                   envelope: same B-vs-A collision reduction (keep)
+
+Named alternative, same timeline, not adopted: a quadratic scale
+(clearance / threshold)^2 between the threshold and contact.
+
+Tutorial wording 以文档为准.  MoveIt / FCL / official keyboard demo:
+本页未运行.
+"""
+from __future__ import annotations
+
+import math
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+SMALL_FRAC = 0.2000  # 20 % of the smaller-arm mean; printed as 0.2000
+
+# Opened panda_simulated_config.yaml demo-config constants (metres, Hz).
+SELF_COLLISION_PROXIMITY_THRESHOLD = 0.01
+SCENE_COLLISION_PROXIMITY_THRESHOLD = 0.02
+CHECK_COLLISIONS_DEMO = True
+COLLISION_CHECK_RATE = 10.0
+
+# Declared toy step and command (not vendor-universal defaults).
+DT = 0.01
+V_CMD = 0.05
+# Over-conservative lose-arm threshold (metres), declared, not from the yaml.
+C_THRESHOLD = 2.0000
+
+# far_scene: start 1.00 m from the wall, travel 0.05 m (1.0 s), end 0.95 m.
+FAR_START_CLEARANCE = 1.0000
+FAR_HORIZON_STEPS = 100
+# in_band_scene: start 0.030 m from the wall, 1.0 s would travel 0.05 m.
+SCENE_START_CLEARANCE = 0.0300
+SCENE_HORIZON_STEPS = 100
+# in_band_self: start 0.015 m from a self envelope, 1.0 s would travel 0.05 m.
+SELF_START_CLEARANCE = 0.0150
+SELF_HORIZON_STEPS = 100
+
+ARMS = ("A", "B", "C")
+METRICS = ("progress", "collision_steps", "min_clearance", "terminal_speed", "max_penetration")
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < SMALL_FRAC * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def proximity_scale(clearance: float, threshold: float, law: str) -> float:
+    """1 at threshold, 0 at contact; 1 when farther than the threshold."""
+    if threshold <= 0.0:
+        raise ValueError("threshold must be positive")
+    if clearance >= threshold:
+        return 1.0
+    if clearance <= 0.0:
+        return 0.0
+    frac = clearance / threshold
+    if law == "linear":
+        return frac
+    if law == "quadratic":
+        return frac * frac
+    raise ValueError(law)
+
+
+def run_arm(arm: str, start_clearance: float, steps: int, threshold: float, law: str = "linear") -> dict:
+    if arm == "A":
+        check = False
+        used_threshold = threshold
+    elif arm == "B":
+        check = True
+        used_threshold = threshold
+    elif arm == "C":
+        check = True
+        used_threshold = C_THRESHOLD
+    elif arm == "B_quad":
+        check = True
+        used_threshold = threshold
+        law = "quadratic"
+    else:
+        raise ValueError(arm)
+
+    clearance = start_clearance
+    min_clearance = clearance
+    collision_steps = 0
+    max_penetration = 0.0
+    speed = V_CMD
+    for _ in range(steps):
+        if check:
+            scale = proximity_scale(clearance, used_threshold, law)
+        else:
+            scale = 1.0
+        speed = scale * V_CMD
+        clearance = clearance - speed * DT
+        if clearance < min_clearance:
+            min_clearance = clearance
+        if clearance <= 0.0:
+            collision_steps += 1
+            pen = -clearance
+            if pen > max_penetration:
+                max_penetration = pen
+    progress = start_clearance - clearance
+    return {
+        "progress": progress,
+        "collision_steps": float(collision_steps),
+        "min_clearance": min_clearance,
+        "terminal_speed": speed,
+        "max_penetration": max_penetration,
+        "check_collisions": 1.0 if check else 0.0,
+        "used_threshold": used_threshold,
+    }
+
+
+def col(rows, metric):
+    return [row[metric] for row in rows]
+
+
+def print_regime(name: str, expl: str, start_clearance: float, steps: int, threshold: float) -> None:
+    print(f"declared expectation {name}: {expl}")
+    print(
+        f"regime {name}  (mean+-sd over seeds; deterministic jog) "
+        f"start_clearance={num(start_clearance)} steps={steps} "
+        f"band_threshold={num(threshold)} horizon_s={num(steps * DT)}"
+    )
+    rows = {arm: [] for arm in ARMS}
+    recs0 = {}
+    for seed in SEEDS:
+        _ = seed
+        for arm in ARMS:
+            rec = run_arm(arm, start_clearance, steps, threshold)
+            rows[arm].append(rec)
+        if seed == 0:
+            recs0 = {arm: rows[arm][0] for arm in ARMS}
+
+    print(f"  seed 0 (all {len(SEEDS)} seeds identical):")
+    for arm in ARMS:
+        rec = recs0[arm]
+        print(
+            f"    {arm}: progress={num(rec['progress'])} collision_steps={num(rec['collision_steps'])} "
+            f"min_clearance={num(rec['min_clearance'])} terminal_speed={num(rec['terminal_speed'])} "
+            f"max_penetration={num(rec['max_penetration'])} "
+            f"check_collisions={int(rec['check_collisions'])} used_threshold={num(rec['used_threshold'])}"
+        )
+    for arm in ARMS:
+        for metric in METRICS:
+            print(f"  {arm} {metric} {fmt_pair(*mean_sd(col(rows[arm], metric)))}")
+    for metric in METRICS:
+        print(f"  paired B-A {metric}: {verdict(col(rows['B'], metric), col(rows['A'], metric))}")
+        print(f"  paired C-A {metric}: {verdict(col(rows['C'], metric), col(rows['A'], metric))}")
+        print(f"  paired C-B {metric}: {verdict(col(rows['C'], metric), col(rows['B'], metric))}")
+
+
+def main():
+    print("Synthetic Servo collision-proximity stand-in; not MoveIt, FCL, or a real arm")
+    print(
+        "declared demo-config constants "
+        f"self_collision_proximity_threshold={num(SELF_COLLISION_PROXIMITY_THRESHOLD)} "
+        f"scene_collision_proximity_threshold={num(SCENE_COLLISION_PROXIMITY_THRESHOLD)} "
+        f"check_collisions={str(CHECK_COLLISIONS_DEMO).lower()} "
+        f"collision_check_rate={num(COLLISION_CHECK_RATE)}"
+    )
+    print(
+        "declared toy DT="
+        + num(DT)
+        + " V_CMD="
+        + num(V_CMD)
+        + " C_THRESHOLD="
+        + num(C_THRESHOLD)
+        + " FAR_START_CLEARANCE="
+        + num(FAR_START_CLEARANCE)
+        + " FAR_HORIZON_STEPS="
+        + str(FAR_HORIZON_STEPS)
+        + " SCENE_START_CLEARANCE="
+        + num(SCENE_START_CLEARANCE)
+        + " SCENE_HORIZON_STEPS="
+        + str(SCENE_HORIZON_STEPS)
+        + " SELF_START_CLEARANCE="
+        + num(SELF_START_CLEARANCE)
+        + " SELF_HORIZON_STEPS="
+        + str(SELF_HORIZON_STEPS)
+        + " SMALL_FRAC="
+        + num(SMALL_FRAC)
+        + " seeds="
+        + ",".join(str(s) for s in SEEDS)
+    )
+    print("declared scale law (B): 1 when clearance >= threshold, linear clearance/threshold down to 0 at contact")
+    print("declared arm A: check_collisions off, scale = 1, no proximity scale")
+    print("declared arm B: check_collisions on, scene 0.02 m or self 0.01 m as the regime's opened demo-config threshold")
+    print("declared arm C: check_collisions on, over-conservative C_THRESHOLD (not a demo-config value)")
+    print("hand_calc 20 percent small-vs-clear factor = " + num(SMALL_FRAC))
+    print(
+        "hand_calc far commanded travel = V_CMD * FAR_HORIZON_STEPS * DT = "
+        + num(V_CMD)
+        + " * "
+        + str(FAR_HORIZON_STEPS)
+        + " * "
+        + num(DT)
+        + " = "
+        + num(V_CMD * FAR_HORIZON_STEPS * DT)
+    )
+    print(
+        "hand_calc far final clearance if unscaled = FAR_START_CLEARANCE - commanded travel = "
+        + num(FAR_START_CLEARANCE)
+        + " - "
+        + num(V_CMD * FAR_HORIZON_STEPS * DT)
+        + " = "
+        + num(FAR_START_CLEARANCE - V_CMD * FAR_HORIZON_STEPS * DT)
+        + " (still above scene 0.0200 m)"
+    )
+    print(
+        "hand_calc in-band scene unscaled travel = "
+        + num(V_CMD * SCENE_HORIZON_STEPS * DT)
+        + " from start "
+        + num(SCENE_START_CLEARANCE)
+        + " would cross the wall by "
+        + num(V_CMD * SCENE_HORIZON_STEPS * DT - SCENE_START_CLEARANCE)
+    )
+    print(
+        "hand_calc in-band self unscaled travel = "
+        + num(V_CMD * SELF_HORIZON_STEPS * DT)
+        + " from start "
+        + num(SELF_START_CLEARANCE)
+        + " would cross the envelope by "
+        + num(V_CMD * SELF_HORIZON_STEPS * DT - SELF_START_CLEARANCE)
+    )
+    # Linear decay factor when already inside the band: d <- d * (1 - V_CMD*DT/T)
+    scene_factor = 1.0 - V_CMD * DT / SCENE_COLLISION_PROXIMITY_THRESHOLD
+    self_factor = 1.0 - V_CMD * DT / SELF_COLLISION_PROXIMITY_THRESHOLD
+    print(
+        "hand_calc in-band scene scale factor once inside the band = 1 - V_CMD*DT/0.0200 = "
+        + num(scene_factor)
+    )
+    print(
+        "hand_calc in-band self scale factor once inside the band = 1 - V_CMD*DT/0.0100 = "
+        + num(self_factor)
+    )
+    print("Regimes and parameters were written before the first run")
+    print("Common random numbers: deterministic shared jog; seeds repeat the same timeline")
+    print("Assumptions: planar 1-D clearance; Euler step x += scale * V_CMD * DT; scale from clearance at the start of the step")
+    print("0.01 m / 0.02 m are opened demo-config constants, 以文档为准, not vendor-universal defaults and not toy measurements")
+    print("MoveIt / FCL / official keyboard demo: 本页未运行")
+
+    far_expl = (
+        "obstacle stays beyond the 0.02 m scene band for the whole jog: "
+        "A and B may exact-tie or near-tie on progress - keep; "
+        "C over-conservative loses on progress - keep"
+    )
+    scene_expl = (
+        "straight jog enters the 0.02 m scene band: B consistent lower "
+        "collision / penetration counts - keep; A (no scale) loses on collisions - keep"
+    )
+    self_expl = (
+        "straight jog enters the 0.01 m self-collision envelope: B consistent "
+        "lower collision / penetration counts - keep; A (no scale) loses on collisions - keep"
+    )
+    print(f"declared far_scene: {far_expl}")
+    print(f"declared in_band_scene: {scene_expl}")
+    print(f"declared in_band_self: {self_expl}")
+
+    print_regime(
+        "far_scene",
+        far_expl,
+        FAR_START_CLEARANCE,
+        FAR_HORIZON_STEPS,
+        SCENE_COLLISION_PROXIMITY_THRESHOLD,
+    )
+    print_regime(
+        "in_band_scene",
+        scene_expl,
+        SCENE_START_CLEARANCE,
+        SCENE_HORIZON_STEPS,
+        SCENE_COLLISION_PROXIMITY_THRESHOLD,
+    )
+    print_regime(
+        "in_band_self",
+        self_expl,
+        SELF_START_CLEARANCE,
+        SELF_HORIZON_STEPS,
+        SELF_COLLISION_PROXIMITY_THRESHOLD,
+    )
+
+    print("named alternative B_quad (quadratic scale (clearance/threshold)^2) - not adopted")
+    for name, start, steps, thr in (
+        ("far_scene", FAR_START_CLEARANCE, FAR_HORIZON_STEPS, SCENE_COLLISION_PROXIMITY_THRESHOLD),
+        ("in_band_scene", SCENE_START_CLEARANCE, SCENE_HORIZON_STEPS, SCENE_COLLISION_PROXIMITY_THRESHOLD),
+        ("in_band_self", SELF_START_CLEARANCE, SELF_HORIZON_STEPS, SELF_COLLISION_PROXIMITY_THRESHOLD),
+    ):
+        alt = []
+        base = []
+        for seed in SEEDS:
+            _ = seed
+            alt.append(run_arm("B_quad", start, steps, thr))
+            base.append(run_arm("B", start, steps, thr))
+        rec = alt[0]
+        print(
+            f"  alt {name}: progress={num(rec['progress'])} collision_steps={num(rec['collision_steps'])} "
+            f"min_clearance={num(rec['min_clearance'])} terminal_speed={num(rec['terminal_speed'])} "
+            f"max_penetration={num(rec['max_penetration'])}"
+        )
+        for metric in METRICS:
+            print(f"    paired alt-B {metric}: {verdict(col(alt, metric), col(base, metric))}")
+    print("No winner declared")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic Servo collision-proximity stand-in; not MoveIt, FCL, or a real arm
+declared demo-config constants self_collision_proximity_threshold=0.0100 scene_collision_proximity_threshold=0.0200 check_collisions=true collision_check_rate=10.0000
+declared toy DT=0.0100 V_CMD=0.0500 C_THRESHOLD=2.0000 FAR_START_CLEARANCE=1.0000 FAR_HORIZON_STEPS=100 SCENE_START_CLEARANCE=0.0300 SCENE_HORIZON_STEPS=100 SELF_START_CLEARANCE=0.0150 SELF_HORIZON_STEPS=100 SMALL_FRAC=0.2000 seeds=0,1,2,3,4
+declared scale law (B): 1 when clearance >= threshold, linear clearance/threshold down to 0 at contact
+declared arm A: check_collisions off, scale = 1, no proximity scale
+declared arm B: check_collisions on, scene 0.02 m or self 0.01 m as the regime's opened demo-config threshold
+declared arm C: check_collisions on, over-conservative C_THRESHOLD (not a demo-config value)
+hand_calc 20 percent small-vs-clear factor = 0.2000
+hand_calc far commanded travel = V_CMD * FAR_HORIZON_STEPS * DT = 0.0500 * 100 * 0.0100 = 0.0500
+hand_calc far final clearance if unscaled = FAR_START_CLEARANCE - commanded travel = 1.0000 - 0.0500 = 0.9500 (still above scene 0.0200 m)
+hand_calc in-band scene unscaled travel = 0.0500 from start 0.0300 would cross the wall by 0.0200
+hand_calc in-band self unscaled travel = 0.0500 from start 0.0150 would cross the envelope by 0.0350
+hand_calc in-band scene scale factor once inside the band = 1 - V_CMD*DT/0.0200 = 0.9750
+hand_calc in-band self scale factor once inside the band = 1 - V_CMD*DT/0.0100 = 0.9500
+Regimes and parameters were written before the first run
+Common random numbers: deterministic shared jog; seeds repeat the same timeline
+Assumptions: planar 1-D clearance; Euler step x += scale * V_CMD * DT; scale from clearance at the start of the step
+0.01 m / 0.02 m are opened demo-config constants, 以文档为准, not vendor-universal defaults and not toy measurements
+MoveIt / FCL / official keyboard demo: 本页未运行
+declared far_scene: obstacle stays beyond the 0.02 m scene band for the whole jog: A and B may exact-tie or near-tie on progress - keep; C over-conservative loses on progress - keep
+declared in_band_scene: straight jog enters the 0.02 m scene band: B consistent lower collision / penetration counts - keep; A (no scale) loses on collisions - keep
+declared in_band_self: straight jog enters the 0.01 m self-collision envelope: B consistent lower collision / penetration counts - keep; A (no scale) loses on collisions - keep
+declared expectation far_scene: obstacle stays beyond the 0.02 m scene band for the whole jog: A and B may exact-tie or near-tie on progress - keep; C over-conservative loses on progress - keep
+regime far_scene  (mean+-sd over seeds; deterministic jog) start_clearance=1.0000 steps=100 band_threshold=0.0200 horizon_s=1.0000
+  seed 0 (all 5 seeds identical):
+    A: progress=0.0500 collision_steps=0.0000 min_clearance=0.9500 terminal_speed=0.0500 max_penetration=0.0000 check_collisions=0 used_threshold=0.0200
+    B: progress=0.0500 collision_steps=0.0000 min_clearance=0.9500 terminal_speed=0.0500 max_penetration=0.0000 check_collisions=1 used_threshold=0.0200
+    C: progress=0.0247 collision_steps=0.0000 min_clearance=0.9753 terminal_speed=0.0244 max_penetration=0.0000 check_collisions=1 used_threshold=2.0000
+  A progress 0.0500+-0.0000
+  A collision_steps 0.0000+-0.0000
+  A min_clearance 0.9500+-0.0000
+  A terminal_speed 0.0500+-0.0000
+  A max_penetration 0.0000+-0.0000
+  B progress 0.0500+-0.0000
+  B collision_steps 0.0000+-0.0000
+  B min_clearance 0.9500+-0.0000
+  B terminal_speed 0.0500+-0.0000
+  B max_penetration 0.0000+-0.0000
+  C progress 0.0247+-0.0000
+  C collision_steps 0.0000+-0.0000
+  C min_clearance 0.9753+-0.0000
+  C terminal_speed 0.0244+-0.0000
+  C max_penetration 0.0000+-0.0000
+  paired B-A progress: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A progress: -0.0253+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B progress: -0.0253+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A collision_steps: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A collision_steps: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B collision_steps: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A min_clearance: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A min_clearance: 0.0253+-0.0000: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B min_clearance: 0.0253+-0.0000: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A terminal_speed: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A terminal_speed: -0.0256+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B terminal_speed: -0.0256+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A max_penetration: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A max_penetration: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B max_penetration: 0.0000+-0.0000: tie: identical on every seed
+declared expectation in_band_scene: straight jog enters the 0.02 m scene band: B consistent lower collision / penetration counts - keep; A (no scale) loses on collisions - keep
+regime in_band_scene  (mean+-sd over seeds; deterministic jog) start_clearance=0.0300 steps=100 band_threshold=0.0200 horizon_s=1.0000
+  seed 0 (all 5 seeds identical):
+    A: progress=0.0500 collision_steps=41.0000 min_clearance=-0.0200 terminal_speed=0.0500 max_penetration=0.0200 check_collisions=0 used_threshold=0.0200
+    B: progress=0.0274 collision_steps=0.0000 min_clearance=0.0026 terminal_speed=0.0068 max_penetration=0.0000 check_collisions=1 used_threshold=0.0200
+    C: progress=0.0007 collision_steps=0.0000 min_clearance=0.0293 terminal_speed=0.0007 max_penetration=0.0000 check_collisions=1 used_threshold=2.0000
+  A progress 0.0500+-0.0000
+  A collision_steps 41.0000+-0.0000
+  A min_clearance -0.0200+-0.0000
+  A terminal_speed 0.0500+-0.0000
+  A max_penetration 0.0200+-0.0000
+  B progress 0.0274+-0.0000
+  B collision_steps 0.0000+-0.0000
+  B min_clearance 0.0026+-0.0000
+  B terminal_speed 0.0068+-0.0000
+  B max_penetration 0.0000+-0.0000
+  C progress 0.0007+-0.0000
+  C collision_steps 0.0000+-0.0000
+  C min_clearance 0.0293+-0.0000
+  C terminal_speed 0.0007+-0.0000
+  C max_penetration 0.0000+-0.0000
+  paired B-A progress: -0.0226+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A progress: -0.0493+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B progress: -0.0266+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A collision_steps: -41.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A collision_steps: -41.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B collision_steps: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A min_clearance: 0.0226+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A min_clearance: 0.0493+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B min_clearance: 0.0266+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A terminal_speed: -0.0432+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A terminal_speed: -0.0493+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B terminal_speed: -0.0060+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A max_penetration: -0.0200+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A max_penetration: -0.0200+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B max_penetration: 0.0000+-0.0000: tie: identical on every seed
+declared expectation in_band_self: straight jog enters the 0.01 m self-collision envelope: B consistent lower collision / penetration counts - keep; A (no scale) loses on collisions - keep
+regime in_band_self  (mean+-sd over seeds; deterministic jog) start_clearance=0.0150 steps=100 band_threshold=0.0100 horizon_s=1.0000
+  seed 0 (all 5 seeds identical):
+    A: progress=0.0500 collision_steps=71.0000 min_clearance=-0.0350 terminal_speed=0.0500 max_penetration=0.0350 check_collisions=0 used_threshold=0.0100
+    B: progress=0.0149 collision_steps=0.0000 min_clearance=9.888e-5 terminal_speed=0.0005 max_penetration=0.0000 check_collisions=1 used_threshold=0.0100
+    C: progress=3.704e-4 collision_steps=0.0000 min_clearance=0.0146 terminal_speed=3.658e-4 max_penetration=0.0000 check_collisions=1 used_threshold=2.0000
+  A progress 0.0500+-0.0000
+  A collision_steps 71.0000+-0.0000
+  A min_clearance -0.0350+-0.0000
+  A terminal_speed 0.0500+-0.0000
+  A max_penetration 0.0350+-0.0000
+  B progress 0.0149+-0.0000
+  B collision_steps 0.0000+-0.0000
+  B min_clearance 9.888e-5+-0.0000
+  B terminal_speed 0.0005+-0.0000
+  B max_penetration 0.0000+-0.0000
+  C progress 3.704e-4+-0.0000
+  C collision_steps 0.0000+-0.0000
+  C min_clearance 0.0146+-0.0000
+  C terminal_speed 3.658e-4+-0.0000
+  C max_penetration 0.0000+-0.0000
+  paired B-A progress: -0.0351+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A progress: -0.0496+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B progress: -0.0145+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A collision_steps: -71.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A collision_steps: -71.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B collision_steps: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A min_clearance: 0.0351+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A min_clearance: 0.0496+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B min_clearance: 0.0145+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A terminal_speed: -0.0495+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A terminal_speed: -0.0496+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B terminal_speed: -1.546e-4+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A max_penetration: -0.0350+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A max_penetration: -0.0350+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B max_penetration: 0.0000+-0.0000: tie: identical on every seed
+named alternative B_quad (quadratic scale (clearance/threshold)^2) - not adopted
+  alt far_scene: progress=0.0500 collision_steps=0.0000 min_clearance=0.9500 terminal_speed=0.0500 max_penetration=0.0000
+    paired alt-B progress: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B collision_steps: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B min_clearance: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B terminal_speed: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B max_penetration: 0.0000+-0.0000: tie: identical on every seed
+  alt in_band_scene: progress=0.0234 collision_steps=0.0000 min_clearance=0.0066 terminal_speed=0.0055 max_penetration=0.0000
+    paired alt-B progress: -0.0040+-0.0000: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired alt-B collision_steps: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B min_clearance: 0.0040+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired alt-B terminal_speed: -0.0012+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired alt-B max_penetration: 0.0000+-0.0000: tie: identical on every seed
+  alt in_band_self: progress=0.0132 collision_steps=0.0000 min_clearance=0.0018 terminal_speed=0.0016 max_penetration=0.0000
+    paired alt-B progress: -0.0017+-0.0000: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired alt-B collision_steps: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B min_clearance: 0.0017+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired alt-B terminal_speed: 0.0011+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+    paired alt-B max_penetration: 0.0000+-0.0000: tie: identical on every seed
+No winner declared
+```
+
+</SimOutput>
+
+### 结果
+
+`hand_calc far commanded travel = 0.0500` m；不缩放时远处的最终间隙 `0.9500` m；不缩放的场景频带会穿透 `0.0200` m；不缩放的自碰撞包络会穿透 `0.0350` m。正式第一次运行：2026-11-20 13:09:53 Asia/Shanghai。那次运行之后，**没有**改正式玩具或 `expected/`。数字冻结之后，课文是按冻结的正式输出写的。官方 `expected/` 没有重调。
+
+- **far_scene**。 A 与 B 都记录 `progress` `0.0500+-0.0000`、`collision_steps` `0.0000+-0.0000`、`min_clearance` `0.9500+-0.0000` 以及 `terminal_speed` `0.0500+-0.0000`。配对 B-A 在 `progress` 上是 `0.0000+-0.0000: tie: identical on every seed`。事先声明的远障碍精确打平或接近打平以精确打平成立。C 只走到 `progress` `0.0247+-0.0000`。配对 C-A 的 `progress` 是 `-0.0253+-0.0000`，为**明显差距，不是打平**，5 个种子符号相同。事先声明的、过于保守时在行程上落败**成立**。
+- **in_band_scene**。 A 仍有 `progress` `0.0500+-0.0000`，但记录 `collision_steps` `41.0000+-0.0000`、`min_clearance` `-0.0200+-0.0000` 以及 `max_penetration` `0.0200+-0.0000`。B 会减速：`progress` `0.0274+-0.0000`、`collision_steps` `0.0000+-0.0000`、`min_clearance` `0.0026+-0.0000`、`terminal_speed` `0.0068+-0.0000`、`max_penetration` `0.0000+-0.0000`。配对 B-A 的 `collision_steps` 是 `-41.0000+-0.0000`，`max_penetration` 是 `-0.0200+-0.0000`，都是**明显差距，不是打平**，5 个种子符号相同。事先声明的频带内碰撞下降**成立**，不缩放的那一臂在碰撞上落败。C 几乎不动（`progress` `0.0007+-0.0000`），同样报告零碰撞。
+- **in_band_self**。 A 记录 `collision_steps` `71.0000+-0.0000`、`min_clearance` `-0.0350+-0.0000` 以及 `max_penetration` `0.0350+-0.0000`。B 记录 `collision_steps` `0.0000+-0.0000`、`progress` `0.0149+-0.0000`、`min_clearance` `9.888e-5+-0.0000` 以及 `max_penetration` `0.0000+-0.0000`。配对 B-A 的 `collision_steps` 是 `-71.0000+-0.0000`，`max_penetration` 是 `-0.0350+-0.0000`，都是**明显差距，不是打平**，5 个种子符号相同。事先声明的自碰撞包络碰撞下降**成立**。C 再次在行程上落败（`3.704e-4+-0.0000`）。
+
+同一条时间线上的具名替代 `B_quad`**没有采用**。在 `far_scene` 上，它在每项指标都与 B 精确打平。在进入频带的情形里，它同样报告零碰撞，相对 B 的 `progress` 是小而稳定的差距（场景 `-0.0040+-0.0000`，自碰撞 `-0.0017+-0.0000`）。没有为了改用二次比例去改正式的臂。
+
+### 练习
+
+1. 根据打印出的 `hand_calc` 行，不缩放的 100 步点动走多远，为什么远处情形的最终间隙仍然高于 `0.0200` m？
+2. 从 `run_arm` 说明：在同一情形下，A、B、C 看到的是同一起始间隙、步数和命令速度，并且只有 A 把 `check_collisions` 关掉。
+3. 用打开的 yaml 注释说明：场景碰撞比例应在多大间隙时开始减速，接触时比例应是多少。
+4. 固定进入频带的场景点动，设想 `C_THRESHOLD = 0.0200`，与 B 的阈值相同。在运行那种变体之前，预测配对 C-B 的 `progress` 与 `collision_steps`（不要改正式玩具）。
+5. 在任何现场 MoveIt 运行之前（本页未运行），写出你如何在真实的 Servo 节点上检查正在运行的 yaml 里的接近阈值，是否与这些打开的演示配置常量一致，而不是把 `0.0100` m 和 `0.0200` m 当成厂商通用默认值。
+
+**180 分钟工作计划:** 30+25+50+40+35=180。30 分钟阅读提交 `6ea5a7425d58c4b4d36788a8d105bf7715fe77d7` 上的 realtime Servo 教程 RST 与 `panda_simulated_config.yaml`，并写下减速措辞以及 `0.0100` m / `0.0200` m 演示配置常量；25 分钟在运行前写好平面替身、三臂和三种事先声明的比较；50 分钟运行玩具并阅读正式情形；40 分钟在同一条时间线上重跑具名的二次比例替代；35 分钟写明为什么 `0.0100` m / `0.0200` m 是打开的演示配置常量而不是厂商通用默认值，对照（但不改）已有的 κ>12 奇异点玩具，以及现场 MoveIt 检查还需要看到什么（本页未运行）。
+
 <Summary>
 
-MoveIt Servo：每控制周期吃 JointJog / Twist / Pose，对比第 5 个月整条轨迹规划。安全：奇异点、碰撞、平滑（Butterworth / AccelerationLimited / Ruckig）；`check_collisions`、`use_smoothing`；`command_out_type` 可为 JointTrajectory 或 Float64MultiArray；实时内核上尝试 SCHED_FIFO 40。`servo_loop_sim.py`：κ&gt;12 时缩放末端速度，奇异附近 scaled_rows=3。官方键盘 demo 本页未运行。
+MoveIt Servo：每控制周期吃 JointJog / Twist / Pose，对比第 5 个月整条轨迹规划。安全：奇异点、碰撞、平滑（Butterworth / AccelerationLimited / Ruckig）；`check_collisions`、`use_smoothing`；`command_out_type` 可为 JointTrajectory 或 Float64MultiArray；实时内核上尝试 SCHED_FIFO 40。`servo_loop_sim.py`：κ&gt;12 时缩放末端速度，奇异附近 scaled_rows=3。官方键盘 demo 本页未运行。碰撞接近缩放使用打开的演示配置阈值 0.0100 m（自碰撞）与 0.0200 m（场景），在阈值处为 1、在接触处为 0：远离墙壁时 A 与 B 在 progress 0.0500 上精确打平，进入场景频带的点动把 collision_steps 从 41.0000 降到 0.0000，代价是更慢的末端速度，0.0100 m 的自碰撞包络同样从 71.0000 降到 0.0000，而过于保守的 2.0000 m 阈值在行程上落败（远处配对 C-A -0.0253+-0.0000，5/5）——`servo_collision_proximity_toy.py`，不是现场 MoveIt。
+
 
 </Summary>
