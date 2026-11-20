@@ -681,10 +681,816 @@ The page **does not declare a universal winner**: stage memory pays off exactly 
 4. Change the ambiguous look map from `(0, 1, 0, 1)` to `(0, 1, 2, 1)` with seeds fixed. Predict which B−A lines should shrink before you run.
 5. Before using your own logs (本页未运行), explain why C loses even though the ensemble is supposed to protect against bad retrieval, and name one check on the logged stage labels that would catch an off-by-one segmentation.
 
+## Set-valued relabeling of autonomous rollouts: SeRA
+
+This page already taught three things about interactive imitation: DAgger labels the states the learner visits; **HG-DAgger lets a human decide when to take over**; RaC splits each takeover into recovery and correction; LeRobot records that split, and MAP-VLA reuses stage-segmented corrections as memory prompts. A different question, already taught on avoided [behaviour cloning](/en/month/month-6/behaviour-cloning) and **not** reopened here, is Reward-DAgger's: the robot decides *when to request* the expert. This section is a third question: **what should we do with the unlabeled autonomous frames between interventions?** It is **not** a second HG-DAgger gate, **not** Reward-DAgger, **not** BlenDAgger blended control, **not** a second MAP-VLA memory-prompt unit, and **not** HER goal relabel.
+
+**Source actually opened (abs, HTML and PDF body read).** Zhaoting Li, Cosimo Della Santina and Jens Kober, "Old Experience, New Lessons: Relabeling Autonomous Robot Rollouts in Interactive Imitation Learning," arXiv 2611.24273 v1, 9 pages, https://arxiv.org/abs/2611.24273. Abs-order authors are those three; the PDF title page matches, with "and" before Kober. Title-page footnotes place Li and Della Santina at Delft University of Technology and Kober at the University of Stuttgart; this page invents no corresponding-author mark (none was seen on the opened title page). A live abs fetch on 2026-11-20 14:04:57 Asia/Shanghai had no Comments header and no journal-ref; the "arXiv-issued DOI via DataCite (pending registration)" line is not a journal-ref. A live Atom entry fetched the same afternoon (HTTP 200 at 2026-11-20 14:13:24 Asia/Shanghai; `published` 2026-11-18T11:51:08Z) likewise had no `arxiv:comment` and no `arxiv:journal_ref`. Submitted 18 Nov 2026. Official wording and the paper's tables stay 以论文为准. The abs reports 80 % success on a real-robot tomato-picking task, compared with 40 % for SDP, using the same human feedback and training budget — that figure is 以论文为准 and is **not** a toy output. Real robot, diffusion policy, SDP training, LIBERO and PushT: **本页未运行**.
+
+<Resource id="sera-html" />
+
+<Resource id="sera-pdf" />
+
+SeRA (Set-valued Relabeling of Autonomous experience) uses later policy checkpoints to relabel missing teacher actions on unlabeled autonomous frames. Agreement across those checkpoints builds an acceptance mask: a failed test rejects its step *and later steps of the same chunk*. Because agreement is not the same as correctness, an accepted relabel supervises a **set** — a region centered at the relabel with radius `r_N` times the distance to the historical robot action, and the historical robot action is the negative / excluded point — rather than an exact target. Historical robot actions are **not** to be imitated, because they can reinforce suboptimal behaviour. This page's stand-in is a stdlib CPU toy, **not** a diffusion trainer and **not** a reproduction of Set-Supervised Diffusion Policy.
+
+### Four regimes on a shared stream
+
+**Worked example (hand_calc).** Each trajectory is one chunk of `chunk_len = 4` steps; only step 0 is a human-labelled intervention. The optimal action is `a_star(s) = 1.0000 + 0.2500 * s`, so `a_star(0..3) = 1.0000, 1.2500, 1.5000, 1.7500`. Two later checkpoints must differ by less than `agree_abs = 0.1500` for a relabel to be accepted. The desired-set radius ratio is `radius_ratio = 1.0000`. A human-only policy that copies `a_star(0) = 1.0000` onto the unlabeled steps has `task_mse = (0.0625+0.2500+0.5625) / 3 = 0.8750/3 = 0.2917`. In `exact_target_lose`, a relabel `0.2000` with historical robot action `-2.0000` gives radius `1.0000 * |0.2000-(-2.0000)| = 2.2000` and set `[-2.0000, 2.4000]`, which still contains both `a_star(1) = 1.2500` and the human-only base `1.0000`. In `checkpoints_disagree`, step 1 has `abs_diff = |2.7500-(-0.2500)| = 3.0000` (not agreed), so steps 2 and 3 of the chunk are also rejected even though step 2 would have agreed individually (`abs_diff = 0.0000`).
+
+**Correctness criterion.** `task_mse` is mean squared error versus `a_star` on unlabeled frames (lower is better). `robot_mse` is mean squared error versus the historical robot action on those same frames; when that action is systematically wrong, a *larger* `robot_mse` is lower imitation of it.
+
+**No integration step here.** The stand-in fits a per-step scalar action from declared targets or from a set constraint; it is not a diffusion sampler and has no step-size criterion.
+
+`sera_autonomous_relabel_toy.py` is **synthetic** and stdlib only, **not** a diffusion trainer, SDP training, or a real robot. **Model assumptions:**
+
+- A shared stream of 8 trajectories, each one chunk of 4 steps, with an intervention mask that labels only step 0.
+- Arm A uses only the human labels (unlabeled frames unused for action supervision). Arm B also imitates historical robot actions on unlabeled frames. Arm C is SeRA-lite: accept a relabel only when the two later checkpoints agree within `0.1500`; supervise a set (keep the human-only action if it already lies in the set and is not the excluded historical robot action; otherwise project onto the set, falling back to the relabel if the projection would be the excluded point); on disagreement, reject that step and later steps of the chunk. Arm D is a declared exact-target variant: imitate the latest checkpoint as an exact point on every unlabeled frame.
+
+**Common random numbers:** the stream, the intervention mask and both checkpoint queries are shared across arms. Five seeds `0,1,2,3,4` repeat the same deterministic tables so exact-tie cells can be printed as identical on every seed. Seeds do not add jitter.
+
+| Regime | What is on the unlabeled frames | Expected (written before the first run) |
+|---|---|---|
+| already_good | historical robot actions already match a later good policy | B and C may near-tie each other (keep) |
+| wrong_auton_agree | early autonomous actions systematically wrong; later checkpoints agree on a better action | C consistently better than B, with lower imitation of the bad historical action (keep) |
+| checkpoints_disagree | checkpoints disagree at the first unlabeled step (later steps would agree individually) | C rejects and does not degrade to the noisy relabel; an exact-imitate-relabel or B may lose (keep) |
+| exact_target_lose | checkpoints agree on a slightly wrong relabel whose desired set still contains the optimum | the exact-target variant may lose (keep) |
+
+Labels: identical on every seed is a **tie**; numerically zero if the absolute paired mean and sd are both below `1e-9`; `|m| <= sd` is a **near-tie**; `|m| > sd` is a consistent gap, **small** if `|m|` is below the printed 0.2000 fraction of the smaller-arm mean (20 % 手算), else **clear**, with a sign count.
+
+**Choices made after seeing results.** None. The four arms, the four regimes, `agree_abs`, `radius_ratio` and the action tables were written down before the first run and not changed. Official first run: 2026-11-20 14:13:07 Asia/Shanghai. There was **no** official toy or `expected/` change after that run. Alternatives not taken: `ALT_RADIUS_RATIO = 0.0000` on accepted relabels (exact target after the agreement filter). That alternative is printed on the same streams and was **not adopted**.
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-10/intervention-logging
+python3 sera_autonomous_relabel_toy.py
+```
+
+
+<CodeSource path="examples/month-10/intervention-logging/sera_autonomous_relabel_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""SeRA stand-in: set-valued relabeling of unlabeled autonomous frames.
+
+A shared stream of short trajectories has an intervention mask. Two later
+checkpoint policies, used only as action predictors, propose relabels.
+This is a standard-library CPU stand-in, not a diffusion trainer and not
+Set-Supervised Diffusion Policy training.
+
+Arms:
+  A  train and score only on human-labelled frames; unlabeled frames
+     are unused for action supervision
+  B  also imitate historical robot actions on unlabeled frames
+  C  SeRA-lite: later checkpoints relabel unlabeled states; accept a
+     relabel only when they agree within a declared absolute tolerance;
+     supervise a set (accepted relabel as a positive, historical robot
+     action as a negative / excluded point); on disagreement, reject
+     that step and later steps of the same chunk
+  D  exact-target pseudo-label: imitate the latest checkpoint's relabel
+     as an exact point on every unlabeled frame (named variant; may
+     lose; kept)
+
+Metrics per seed, on unlabeled frames: task_mse (squared error versus
+the optimal action; lower is better) and robot_mse (squared error versus
+the historical robot action; a larger value is lower imitation of that
+historical action).
+
+Regimes and expectations, written before the first run:
+  already_good          historical robot actions already match a later
+                        good policy: B and C may near-tie each other
+                        (keep)
+  wrong_auton_agree     early autonomous actions are systematically
+                        wrong and later checkpoints agree on a better
+                        action: C is consistently better than B, with
+                        lower imitation of the bad historical action
+                        (keep)
+  checkpoints_disagree  checkpoints disagree (noisy relabels): C rejects
+                        and does not degrade to the noisy relabel; an
+                        exact-imitate-relabel or B may lose or fail to
+                        improve (keep)
+  exact_target_lose     checkpoints agree on a slightly wrong relabel
+                        whose desired set still contains the optimum:
+                        the exact-target variant may lose (keep)
+
+Named alternative, same streams, not adopted: r_N = 0 on accepted
+relabels (exact target after the agreement filter).
+
+Paper tables, tomato-picking percentages, LIBERO and PushT numbers are
+以论文为准 and are not toy outputs. Real robot / diffusion policy /
+SDP training / LIBERO / PushT: 本页未运行.
+"""
+from __future__ import annotations
+
+import math
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+SMALL_FRAC = 0.2000  # 20 % of the smaller-arm mean; printed as 0.2000
+
+N_TRAJ = 8
+CHUNK_LEN = 4
+STEPS = (0, 1, 2, 3)
+HUMAN_STEPS = (0,)  # intervention at the first step of each chunk
+N_CHECKPOINTS = 2
+MIN_CHECKPOINTS = 2
+AGREE_ABS = 0.1500  # accept iff |ckpt1 - ckpt2| < AGREE_ABS
+RADIUS_RATIO = 1.0000  # paper r_N = 1; radius = r_N * |relabel - robot|
+A_STAR_BIAS = 1.0000
+A_STAR_SLOPE = 0.2500
+# Regime-specific historical robot actions and checkpoint predictions.
+ROBOT_GOOD = "star"  # a_r = a*
+ROBOT_BAD = -1.0000
+ROBOT_FAR = -2.0000
+RELABEL_BIAS = 0.2000  # imperfect agreed relabel in exact_target_lose
+DISAGREE_DELTA = 1.5000  # ckpt offset at the first unlabeled step
+ALT_RADIUS_RATIO = 0.0000  # named alternative, not adopted
+
+ARMS = ("A", "B", "C", "D")
+REGIMES = (
+    "already_good",
+    "wrong_auton_agree",
+    "checkpoints_disagree",
+    "exact_target_lose",
+)
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+
+
+def fmt_minus(a, b):
+    """ASCII subtraction typography: 0.2000-(-2.0000), never 0.2000--2.0000."""
+    right = num(b)
+    if right.startswith("-"):
+        return f"{num(a)}-({right})"
+    return f"{num(a)}-{right}"
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < SMALL_FRAC * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def a_star(step: int) -> float:
+    return A_STAR_BIAS + A_STAR_SLOPE * step
+
+
+def is_human(step: int) -> bool:
+    return step in HUMAN_STEPS
+
+
+def robot_action(regime: str, step: int) -> float:
+    if is_human(step):
+        return a_star(step)
+    if regime == "already_good":
+        return a_star(step)
+    if regime == "exact_target_lose":
+        return ROBOT_FAR
+    return ROBOT_BAD
+
+
+def checkpoints(regime: str, step: int) -> tuple[float, float]:
+    """Two later checkpoint predictions at this step (stand-in predictors)."""
+    star = a_star(step)
+    if regime == "already_good":
+        return star, star
+    if regime == "wrong_auton_agree":
+        return star, star
+    if regime == "exact_target_lose":
+        return RELABEL_BIAS, RELABEL_BIAS
+    # checkpoints_disagree: disagreement at the first unlabeled step;
+    # later steps would agree individually (prefix rejection demo).
+    if step == 1:
+        return star + DISAGREE_DELTA, star - DISAGREE_DELTA
+    return star, star
+
+
+def agreement_ok(p1: float, p2: float) -> bool:
+    return N_CHECKPOINTS >= MIN_CHECKPOINTS and abs(p1 - p2) < AGREE_ABS
+
+
+def desired_radius(relabel: float, robot: float, radius_ratio: float) -> float:
+    return radius_ratio * abs(relabel - robot)
+
+
+def in_desired_set(x: float, relabel: float, robot: float, radius_ratio: float) -> bool:
+    radius = desired_radius(relabel, robot, radius_ratio)
+    if radius == 0.0:
+        return x == relabel
+    return abs(x - relabel) <= radius
+
+
+def set_target(base: float, relabel: float, robot: float, radius_ratio: float) -> float:
+    """Point in the desired set closest to base; never the excluded robot
+    action when the set has positive radius (fall back to the relabel)."""
+    radius = desired_radius(relabel, robot, radius_ratio)
+    if radius == 0.0:
+        return relabel
+    lo, hi = relabel - radius, relabel + radius
+    x = min(max(base, lo), hi)
+    if x == robot:
+        return relabel
+    return x
+
+
+def build_stream(regime: str):
+    """Shared chunk stream. One chunk per trajectory; identical across arms."""
+    frames = []
+    for traj in range(N_TRAJ):
+        prefix_failed = False
+        for step in STEPS:
+            human = is_human(step)
+            p1, p2 = checkpoints(regime, step)
+            would_agree = agreement_ok(p1, p2)
+            if human:
+                accepted = False
+                rejected_prefix = False
+                relabel = p1
+            else:
+                if prefix_failed:
+                    accepted = False
+                    rejected_prefix = True
+                elif would_agree:
+                    accepted = True
+                    rejected_prefix = False
+                else:
+                    accepted = False
+                    rejected_prefix = False
+                    prefix_failed = True
+                relabel = p1  # latest checkpoint stands in for the relabel
+            frames.append(
+                {
+                    "traj": traj,
+                    "step": step,
+                    "human": human,
+                    "a_h": a_star(step) if human else None,
+                    "a_r": robot_action(regime, step),
+                    "a_star": a_star(step),
+                    "p1": p1,
+                    "p2": p2,
+                    "would_agree": would_agree,
+                    "accepted": accepted,
+                    "rejected_prefix": rejected_prefix,
+                    "relabel": relabel,
+                }
+            )
+    return frames
+
+
+def human_policy(frames):
+    human_vals = [f["a_h"] for f in frames if f["human"]]
+    human_mean = sum(human_vals) / len(human_vals)
+    per_step = {}
+    for step in STEPS:
+        vals = [f["a_h"] for f in frames if f["human"] and f["step"] == step]
+        per_step[step] = (sum(vals) / len(vals)) if vals else human_mean
+    return per_step, human_mean
+
+
+def fit_arm(frames, arm: str, radius_ratio: float):
+    base, human_mean = human_policy(frames)
+    policy = dict(base)
+    if arm == "A":
+        return policy, human_mean
+    for step in STEPS:
+        step_frames = [f for f in frames if f["step"] == step and not f["human"]]
+        if not step_frames:
+            continue
+        if arm == "B":
+            policy[step] = sum(f["a_r"] for f in step_frames) / len(step_frames)
+        elif arm == "D":
+            policy[step] = sum(f["relabel"] for f in step_frames) / len(step_frames)
+        elif arm == "C":
+            accepted = [f for f in step_frames if f["accepted"]]
+            if not accepted:
+                continue  # rejected unlabeled frames: leave the human-only base
+            targets = [
+                set_target(base[step], f["relabel"], f["a_r"], radius_ratio)
+                for f in accepted
+            ]
+            policy[step] = sum(targets) / len(targets)
+    return policy, human_mean
+
+
+def score(frames, policy):
+    unlabeled = [f for f in frames if not f["human"]]
+    task = [(policy[f["step"]] - f["a_star"]) ** 2 for f in unlabeled]
+    robot = [(policy[f["step"]] - f["a_r"]) ** 2 for f in unlabeled]
+    return sum(task) / len(task), sum(robot) / len(robot)
+
+
+def mask_counts(frames):
+    unlabeled = [f for f in frames if not f["human"]]
+    n_acc = sum(1 for f in unlabeled if f["accepted"])
+    n_pref = sum(1 for f in unlabeled if f["rejected_prefix"])
+    n_rej = len(unlabeled) - n_acc
+    # unique steps (same mask on every traj)
+    one = [f for f in frames if f["traj"] == 0]
+    return n_acc, n_rej, n_pref, one
+
+
+def run_regime(regime: str, radius_ratio: float = RADIUS_RATIO):
+    # Seeds repeat the same deterministic stream so exact-tie cells print
+    # as identical on every seed. Common random numbers: the stream, the
+    # intervention mask, and both checkpoint queries are shared across arms.
+    rows = {arm: {"task_mse": [], "robot_mse": []} for arm in ARMS}
+    frames = None
+    for _seed in SEEDS:
+        frames = build_stream(regime)
+        for arm in ARMS:
+            policy, _ = fit_arm(frames, arm, radius_ratio)
+            task, robot = score(frames, policy)
+            rows[arm]["task_mse"].append(task)
+            rows[arm]["robot_mse"].append(robot)
+    return rows, frames
+
+
+def fmt_mean(xs):
+    m, s = mean_sd(xs)
+    return f"{num(m)}+-{num(s)}"
+
+
+def print_regime(name: str, expl: str) -> None:
+    rows, frames = run_regime(name)
+    n_acc, n_rej, n_pref, one = mask_counts(frames)
+    print()
+    print(f"regime {name}")
+    print(expl)
+    print(
+        f"unlabeled_frames={N_TRAJ * (CHUNK_LEN - len(HUMAN_STEPS))} "
+        f"accepted={n_acc} rejected={n_rej} rejected_prefix={n_pref}"
+    )
+    mask_bits = []
+    for f in one:
+        if f["human"]:
+            tag = "human"
+        elif f["accepted"]:
+            tag = "accept"
+        elif f["rejected_prefix"]:
+            tag = "reject_prefix"
+        else:
+            tag = "reject"
+        mask_bits.append(f"step{f['step']}:{tag}")
+    print("chunk_mask " + " ".join(mask_bits))
+    for f in one:
+        print(
+            "setup step="
+            + str(f["step"])
+            + " a_star="
+            + num(f["a_star"])
+            + " a_r="
+            + num(f["a_r"])
+            + " ckpt1="
+            + num(f["p1"])
+            + " ckpt2="
+            + num(f["p2"])
+            + " abs_diff=|"
+            + fmt_minus(f["p1"], f["p2"])
+            + "|="
+            + num(abs(f["p1"] - f["p2"]))
+            + " would_agree="
+            + ("n/a" if f["human"] else ("yes" if f["would_agree"] else "no"))
+            + " radius="
+            + (num(desired_radius(f["relabel"], f["a_r"], RADIUS_RATIO)) if not f["human"] else "n/a")
+        )
+    for arm in ARMS:
+        print(
+            f"{arm} task_mse {fmt_mean(rows[arm]['task_mse'])} "
+            f"robot_mse {fmt_mean(rows[arm]['robot_mse'])}"
+        )
+    for metric in ("task_mse", "robot_mse"):
+        for left, right in (("B", "A"), ("C", "A"), ("C", "B"), ("D", "C"), ("D", "A"), ("D", "B")):
+            print(
+                f"paired {left}-{right} {metric}: "
+                + verdict(rows[left][metric], rows[right][metric])
+            )
+
+
+def hand_calc_block() -> None:
+    print("hand_calc 20 percent small-vs-clear factor = " + num(SMALL_FRAC))
+    print(
+        "hand_calc a_star(s) = A_STAR_BIAS + A_STAR_SLOPE * s = "
+        + num(A_STAR_BIAS)
+        + " + "
+        + num(A_STAR_SLOPE)
+        + " * s"
+    )
+    for s in STEPS:
+        print("hand_calc a_star(" + str(s) + ") = " + num(a_star(s)))
+
+    errs = [(a_star(0) - a_star(s)) ** 2 for s in STEPS if not is_human(s)]
+    mse = sum(errs) / len(errs)
+    print(
+        "hand_calc human-only unlabeled task_mse = ("
+        + "+".join(num(e) for e in errs)
+        + ") / "
+        + str(len(errs))
+        + " = "
+        + num(sum(errs))
+        + "/"
+        + str(len(errs))
+        + " = "
+        + num(mse)
+    )
+    # D on disagree: latest p1 at steps 1,2,3
+    d_errs = []
+    for s in STEPS:
+        if is_human(s):
+            continue
+        pred = checkpoints("checkpoints_disagree", s)[0]
+        d_errs.append((pred - a_star(s)) ** 2)
+    print(
+        "hand_calc exact-imitate latest unlabeled task_mse on checkpoints_disagree = ("
+        + "+".join(num(e) for e in d_errs)
+        + ") / "
+        + str(len(d_errs))
+        + " = "
+        + num(sum(d_errs))
+        + "/"
+        + str(len(d_errs))
+        + " = "
+        + num(sum(d_errs) / len(d_errs))
+    )
+    e_errs = [(RELABEL_BIAS - a_star(s)) ** 2 for s in STEPS if not is_human(s)]
+    print(
+        "hand_calc exact-target RELABEL_BIAS unlabeled task_mse = ("
+        + "+".join(num(e) for e in e_errs)
+        + ") / "
+        + str(len(e_errs))
+        + " = "
+        + num(sum(e_errs))
+        + "/"
+        + str(len(e_errs))
+        + " = "
+        + num(sum(e_errs) / len(e_errs))
+    )
+    # already_good radius at step 1
+    rel, rob = a_star(1), a_star(1)
+    print(
+        "hand_calc already_good step=1 radius = RADIUS_RATIO * |relabel-robot| = "
+        + num(RADIUS_RATIO)
+        + " * |"
+        + fmt_minus(rel, rob)
+        + "| = "
+        + num(desired_radius(rel, rob, RADIUS_RATIO))
+    )
+    # exact_target_lose set at step 1
+    rel, rob = RELABEL_BIAS, ROBOT_FAR
+    radius = desired_radius(rel, rob, RADIUS_RATIO)
+    lo, hi = rel - radius, rel + radius
+    print(
+        "hand_calc exact_target_lose step=1 radius = "
+        + num(RADIUS_RATIO)
+        + " * |"
+        + fmt_minus(rel, rob)
+        + "| = "
+        + num(radius)
+        + " set=["
+        + num(lo)
+        + ","
+        + num(hi)
+        + "] a_star(1)="
+        + num(a_star(1))
+        + " inside="
+        + ("yes" if in_desired_set(a_star(1), rel, rob, RADIUS_RATIO) else "no")
+        + " base="
+        + num(a_star(0))
+        + " inside="
+        + ("yes" if in_desired_set(a_star(0), rel, rob, RADIUS_RATIO) else "no")
+    )
+    # prefix rejection
+    p1, p2 = checkpoints("checkpoints_disagree", 1)
+    print(
+        "hand_calc checkpoints_disagree step=1 abs_diff = |"
+        + fmt_minus(p1, p2)
+        + "| = "
+        + num(abs(p1 - p2))
+        + " agree_abs="
+        + num(AGREE_ABS)
+        + " would_agree="
+        + ("yes" if agreement_ok(p1, p2) else "no")
+        + " so steps 2 and 3 of the chunk are also rejected"
+    )
+    p1, p2 = checkpoints("checkpoints_disagree", 2)
+    print(
+        "hand_calc checkpoints_disagree step=2 abs_diff = |"
+        + fmt_minus(p1, p2)
+        + "| = "
+        + num(abs(p1 - p2))
+        + " would_agree_individually="
+        + ("yes" if agreement_ok(p1, p2) else "no")
+        + " but rejected because step 1 failed"
+    )
+
+
+def print_alternative() -> None:
+    print()
+    print(
+        "named alternative ALT_RADIUS_RATIO="
+        + num(ALT_RADIUS_RATIO)
+        + " on accepted relabels (exact target after the agreement filter), "
+        "same streams, not adopted"
+    )
+    for name in REGIMES:
+        rows, _ = run_regime(name, radius_ratio=ALT_RADIUS_RATIO)
+        official, _ = run_regime(name, radius_ratio=RADIUS_RATIO)
+        print(
+            "alt "
+            + name
+            + " C_task_mse "
+            + fmt_mean(rows["C"]["task_mse"])
+            + " official_C_task_mse "
+            + fmt_mean(official["C"]["task_mse"])
+            + " paired altC-officialC task_mse: "
+            + verdict(rows["C"]["task_mse"], official["C"]["task_mse"])
+        )
+
+
+def main() -> None:
+    print("sera_autonomous_relabel_toy")
+    print("stdlib CPU stand-in, not a diffusion trainer")
+    print(
+        "seeds="
+        + ",".join(str(s) for s in SEEDS)
+        + " n_seeds="
+        + str(len(SEEDS))
+        + " n_traj="
+        + str(N_TRAJ)
+        + " chunk_len="
+        + str(CHUNK_LEN)
+        + " human_steps="
+        + ",".join(str(s) for s in HUMAN_STEPS)
+        + " n_checkpoints="
+        + str(N_CHECKPOINTS)
+        + " min_checkpoints="
+        + str(MIN_CHECKPOINTS)
+        + " agree_abs="
+        + num(AGREE_ABS)
+        + " radius_ratio="
+        + num(RADIUS_RATIO)
+        + " small_frac="
+        + num(SMALL_FRAC)
+    )
+    print(
+        "setup A_STAR_BIAS="
+        + num(A_STAR_BIAS)
+        + " A_STAR_SLOPE="
+        + num(A_STAR_SLOPE)
+        + " ROBOT_BAD="
+        + num(ROBOT_BAD)
+        + " ROBOT_FAR="
+        + num(ROBOT_FAR)
+        + " RELABEL_BIAS="
+        + num(RELABEL_BIAS)
+        + " DISAGREE_DELTA="
+        + num(DISAGREE_DELTA)
+    )
+    print(
+        "Common random numbers: the shared stream, intervention mask and "
+        "checkpoint queries are identical across arms; five seeds repeat "
+        "the same deterministic tables so exact-tie cells are identical "
+        "on every seed. Seeds do not add jitter."
+    )
+    hand_calc_block()
+    print_regime(
+        "already_good",
+        "historical robot actions already match a later good policy; "
+        "B and C may near-tie each other (keep)",
+    )
+    print_regime(
+        "wrong_auton_agree",
+        "early autonomous actions are systematically wrong and later "
+        "checkpoints agree on a better action; C consistently better / "
+        "lower imitation of the bad historical action (keep)",
+    )
+    print_regime(
+        "checkpoints_disagree",
+        "checkpoints disagree at the first unlabeled step; C rejects "
+        "that step and later steps of the chunk and does not degrade "
+        "to the noisy relabel; an exact-imitate-relabel or B may lose "
+        "(keep)",
+    )
+    print_regime(
+        "exact_target_lose",
+        "checkpoints agree on a slightly wrong relabel whose desired "
+        "set still contains the optimum; the exact-target variant may "
+        "lose (keep)",
+    )
+    print_alternative()
+    print()
+    print(
+        "No universal winner declared; paper tables and tomato-picking "
+        "percentages 以论文为准; real robot / diffusion policy / SDP "
+        "training / LIBERO / PushT 本页未运行"
+    )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+sera_autonomous_relabel_toy
+stdlib CPU stand-in, not a diffusion trainer
+seeds=0,1,2,3,4 n_seeds=5 n_traj=8 chunk_len=4 human_steps=0 n_checkpoints=2 min_checkpoints=2 agree_abs=0.1500 radius_ratio=1.0000 small_frac=0.2000
+setup A_STAR_BIAS=1.0000 A_STAR_SLOPE=0.2500 ROBOT_BAD=-1.0000 ROBOT_FAR=-2.0000 RELABEL_BIAS=0.2000 DISAGREE_DELTA=1.5000
+Common random numbers: the shared stream, intervention mask and checkpoint queries are identical across arms; five seeds repeat the same deterministic tables so exact-tie cells are identical on every seed. Seeds do not add jitter.
+hand_calc 20 percent small-vs-clear factor = 0.2000
+hand_calc a_star(s) = A_STAR_BIAS + A_STAR_SLOPE * s = 1.0000 + 0.2500 * s
+hand_calc a_star(0) = 1.0000
+hand_calc a_star(1) = 1.2500
+hand_calc a_star(2) = 1.5000
+hand_calc a_star(3) = 1.7500
+hand_calc human-only unlabeled task_mse = (0.0625+0.2500+0.5625) / 3 = 0.8750/3 = 0.2917
+hand_calc exact-imitate latest unlabeled task_mse on checkpoints_disagree = (2.2500+0.0000+0.0000) / 3 = 2.2500/3 = 0.7500
+hand_calc exact-target RELABEL_BIAS unlabeled task_mse = (1.1025+1.6900+2.4025) / 3 = 5.1950/3 = 1.7317
+hand_calc already_good step=1 radius = RADIUS_RATIO * |relabel-robot| = 1.0000 * |1.2500-1.2500| = 0.0000
+hand_calc exact_target_lose step=1 radius = 1.0000 * |0.2000-(-2.0000)| = 2.2000 set=[-2.0000,2.4000] a_star(1)=1.2500 inside=yes base=1.0000 inside=yes
+hand_calc checkpoints_disagree step=1 abs_diff = |2.7500-(-0.2500)| = 3.0000 agree_abs=0.1500 would_agree=no so steps 2 and 3 of the chunk are also rejected
+hand_calc checkpoints_disagree step=2 abs_diff = |1.5000-1.5000| = 0.0000 would_agree_individually=yes but rejected because step 1 failed
+
+regime already_good
+historical robot actions already match a later good policy; B and C may near-tie each other (keep)
+unlabeled_frames=24 accepted=24 rejected=0 rejected_prefix=0
+chunk_mask step0:human step1:accept step2:accept step3:accept
+setup step=0 a_star=1.0000 a_r=1.0000 ckpt1=1.0000 ckpt2=1.0000 abs_diff=|1.0000-1.0000|=0.0000 would_agree=n/a radius=n/a
+setup step=1 a_star=1.2500 a_r=1.2500 ckpt1=1.2500 ckpt2=1.2500 abs_diff=|1.2500-1.2500|=0.0000 would_agree=yes radius=0.0000
+setup step=2 a_star=1.5000 a_r=1.5000 ckpt1=1.5000 ckpt2=1.5000 abs_diff=|1.5000-1.5000|=0.0000 would_agree=yes radius=0.0000
+setup step=3 a_star=1.7500 a_r=1.7500 ckpt1=1.7500 ckpt2=1.7500 abs_diff=|1.7500-1.7500|=0.0000 would_agree=yes radius=0.0000
+A task_mse 0.2917+-0.0000 robot_mse 0.2917+-0.0000
+B task_mse 0.0000+-0.0000 robot_mse 0.0000+-0.0000
+C task_mse 0.0000+-0.0000 robot_mse 0.0000+-0.0000
+D task_mse 0.0000+-0.0000 robot_mse 0.0000+-0.0000
+paired B-A task_mse: -0.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired C-A task_mse: -0.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired C-B task_mse: 0.0000+-0.0000: tie: identical on every seed
+paired D-C task_mse: 0.0000+-0.0000: tie: identical on every seed
+paired D-A task_mse: -0.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-B task_mse: 0.0000+-0.0000: tie: identical on every seed
+paired B-A robot_mse: -0.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired C-A robot_mse: -0.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired C-B robot_mse: 0.0000+-0.0000: tie: identical on every seed
+paired D-C robot_mse: 0.0000+-0.0000: tie: identical on every seed
+paired D-A robot_mse: -0.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-B robot_mse: 0.0000+-0.0000: tie: identical on every seed
+
+regime wrong_auton_agree
+early autonomous actions are systematically wrong and later checkpoints agree on a better action; C consistently better / lower imitation of the bad historical action (keep)
+unlabeled_frames=24 accepted=24 rejected=0 rejected_prefix=0
+chunk_mask step0:human step1:accept step2:accept step3:accept
+setup step=0 a_star=1.0000 a_r=1.0000 ckpt1=1.0000 ckpt2=1.0000 abs_diff=|1.0000-1.0000|=0.0000 would_agree=n/a radius=n/a
+setup step=1 a_star=1.2500 a_r=-1.0000 ckpt1=1.2500 ckpt2=1.2500 abs_diff=|1.2500-1.2500|=0.0000 would_agree=yes radius=2.2500
+setup step=2 a_star=1.5000 a_r=-1.0000 ckpt1=1.5000 ckpt2=1.5000 abs_diff=|1.5000-1.5000|=0.0000 would_agree=yes radius=2.5000
+setup step=3 a_star=1.7500 a_r=-1.0000 ckpt1=1.7500 ckpt2=1.7500 abs_diff=|1.7500-1.7500|=0.0000 would_agree=yes radius=2.7500
+A task_mse 0.2917+-0.0000 robot_mse 4.0000+-0.0000
+B task_mse 6.2917+-0.0000 robot_mse 0.0000+-0.0000
+C task_mse 0.2917+-0.0000 robot_mse 4.0000+-0.0000
+D task_mse 0.0000+-0.0000 robot_mse 6.2917+-0.0000
+paired B-A task_mse: 6.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired C-A task_mse: 0.0000+-0.0000: tie: identical on every seed
+paired C-B task_mse: -6.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-C task_mse: -0.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-A task_mse: -0.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-B task_mse: -6.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired B-A robot_mse: -4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired C-A robot_mse: 0.0000+-0.0000: tie: identical on every seed
+paired C-B robot_mse: 4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-C robot_mse: 2.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-A robot_mse: 2.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-B robot_mse: 6.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+
+regime checkpoints_disagree
+checkpoints disagree at the first unlabeled step; C rejects that step and later steps of the chunk and does not degrade to the noisy relabel; an exact-imitate-relabel or B may lose (keep)
+unlabeled_frames=24 accepted=0 rejected=24 rejected_prefix=16
+chunk_mask step0:human step1:reject step2:reject_prefix step3:reject_prefix
+setup step=0 a_star=1.0000 a_r=1.0000 ckpt1=1.0000 ckpt2=1.0000 abs_diff=|1.0000-1.0000|=0.0000 would_agree=n/a radius=n/a
+setup step=1 a_star=1.2500 a_r=-1.0000 ckpt1=2.7500 ckpt2=-0.2500 abs_diff=|2.7500-(-0.2500)|=3.0000 would_agree=no radius=3.7500
+setup step=2 a_star=1.5000 a_r=-1.0000 ckpt1=1.5000 ckpt2=1.5000 abs_diff=|1.5000-1.5000|=0.0000 would_agree=yes radius=2.5000
+setup step=3 a_star=1.7500 a_r=-1.0000 ckpt1=1.7500 ckpt2=1.7500 abs_diff=|1.7500-1.7500|=0.0000 would_agree=yes radius=2.7500
+A task_mse 0.2917+-0.0000 robot_mse 4.0000+-0.0000
+B task_mse 6.2917+-0.0000 robot_mse 0.0000+-0.0000
+C task_mse 0.2917+-0.0000 robot_mse 4.0000+-0.0000
+D task_mse 0.7500+-0.0000 robot_mse 9.2917+-0.0000
+paired B-A task_mse: 6.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired C-A task_mse: 0.0000+-0.0000: tie: identical on every seed
+paired C-B task_mse: -6.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-C task_mse: 0.4583+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-A task_mse: 0.4583+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-B task_mse: -5.5417+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired B-A robot_mse: -4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired C-A robot_mse: 0.0000+-0.0000: tie: identical on every seed
+paired C-B robot_mse: 4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-C robot_mse: 5.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-A robot_mse: 5.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-B robot_mse: 9.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+
+regime exact_target_lose
+checkpoints agree on a slightly wrong relabel whose desired set still contains the optimum; the exact-target variant may lose (keep)
+unlabeled_frames=24 accepted=24 rejected=0 rejected_prefix=0
+chunk_mask step0:human step1:accept step2:accept step3:accept
+setup step=0 a_star=1.0000 a_r=1.0000 ckpt1=0.2000 ckpt2=0.2000 abs_diff=|0.2000-0.2000|=0.0000 would_agree=n/a radius=n/a
+setup step=1 a_star=1.2500 a_r=-2.0000 ckpt1=0.2000 ckpt2=0.2000 abs_diff=|0.2000-0.2000|=0.0000 would_agree=yes radius=2.2000
+setup step=2 a_star=1.5000 a_r=-2.0000 ckpt1=0.2000 ckpt2=0.2000 abs_diff=|0.2000-0.2000|=0.0000 would_agree=yes radius=2.2000
+setup step=3 a_star=1.7500 a_r=-2.0000 ckpt1=0.2000 ckpt2=0.2000 abs_diff=|0.2000-0.2000|=0.0000 would_agree=yes radius=2.2000
+A task_mse 0.2917+-0.0000 robot_mse 9.0000+-0.0000
+B task_mse 12.2917+-0.0000 robot_mse 0.0000+-0.0000
+C task_mse 0.2917+-0.0000 robot_mse 9.0000+-0.0000
+D task_mse 1.7317+-0.0000 robot_mse 4.8400+-0.0000
+paired B-A task_mse: 12.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired C-A task_mse: 0.0000+-0.0000: tie: identical on every seed
+paired C-B task_mse: -12.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-C task_mse: 1.4400+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-A task_mse: 1.4400+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-B task_mse: -10.5600+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired B-A robot_mse: -9.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired C-A robot_mse: 0.0000+-0.0000: tie: identical on every seed
+paired C-B robot_mse: 9.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-C robot_mse: -4.1600+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-A robot_mse: -4.1600+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-B robot_mse: 4.8400+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+
+named alternative ALT_RADIUS_RATIO=0.0000 on accepted relabels (exact target after the agreement filter), same streams, not adopted
+alt already_good C_task_mse 0.0000+-0.0000 official_C_task_mse 0.0000+-0.0000 paired altC-officialC task_mse: 0.0000+-0.0000: tie: identical on every seed
+alt wrong_auton_agree C_task_mse 0.0000+-0.0000 official_C_task_mse 0.2917+-0.0000 paired altC-officialC task_mse: -0.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alt checkpoints_disagree C_task_mse 0.2917+-0.0000 official_C_task_mse 0.2917+-0.0000 paired altC-officialC task_mse: 0.0000+-0.0000: tie: identical on every seed
+alt exact_target_lose C_task_mse 1.7317+-0.0000 official_C_task_mse 0.2917+-0.0000 paired altC-officialC task_mse: 1.4400+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+
+No universal winner declared; paper tables and tomato-picking percentages 以论文为准; real robot / diffusion policy / SDP training / LIBERO / PushT 本页未运行
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used here: **tie** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when both the absolute paired mean and sd are below `1e-9` (checked before the sd test; such lines carry no sign count and are never called consistent or clear); **near-tie / small gap, within seed noise** when `|m| <= sd`; a **consistent** gap when `|m| > sd`, called **small** if `|m|` is under the printed 0.2000 fraction of the smaller-arm mean (20 % 手算) and **clear** otherwise. Every consistent or clear line carries a same-sign count over the 5 seeds. Paired differences are printed as mean `+-` sd over seeds.
+
+- **already_good — B and C exact-tie when the historical robot action is already good:** B, C and D all have `task_mse 0.0000+-0.0000`. Paired C-B `task_mse` is a **tie: identical on every seed** (`0.0000+-0.0000`). The declared cell was that B and C may near-tie each other; it held as an exact tie and is kept. Arm A, which never uses the unlabeled frames, stays at the human-only `task_mse 0.2917+-0.0000`; paired B-A and C-A are a **clear** gap (`-0.2917+-0.0000`, same sign on all 5 seeds).
+- **wrong_auton_agree — C beats B and imitates the bad historical action less:** B copies `a_r = -1.0000` and has `task_mse 6.2917+-0.0000`, `robot_mse 0.0000+-0.0000`. C keeps the human-only base inside the agreed desired set (`task_mse 0.2917+-0.0000`, `robot_mse 4.0000+-0.0000`). Paired C-B `task_mse` is a **clear** gap (`-6.0000+-0.0000`, same sign on all 5 seeds); C's larger `robot_mse` is lower imitation of the bad historical action (paired C-B `robot_mse 4.0000+-0.0000`, clear, 5/5). C exact-ties A on both metrics. The declared cell is kept. Arm D happens to use the exact good relabel here and is better than C; that is printed, not a retune.
+- **checkpoints_disagree — C rejects and does not degrade; D and B lose:** the chunk mask is `step0:human step1:reject step2:reject_prefix step3:reject_prefix` (`rejected_prefix=16` over 8 trajectories). C exact-ties A (`task_mse 0.2917+-0.0000`). D imitates the latest noisy relabel and has `task_mse 0.7500+-0.0000`; paired D-C is a **clear** gap (`0.4583+-0.0000`, same sign on all 5 seeds). B again copies the bad historical action (`task_mse 6.2917+-0.0000`; paired C-B `-6.0000+-0.0000`, clear, 5/5). The declared cell is kept.
+- **exact_target_lose — the exact-target variant loses when the relabel is slightly wrong:** C keeps the human-only base `1.0000` inside the printed set `[-2.0000, 2.4000]` and stays at `task_mse 0.2917+-0.0000`. D snaps to `RELABEL_BIAS = 0.2000` and has `task_mse 1.7317+-0.0000`. Paired D-C `task_mse` is a **clear** gap (`1.4400+-0.0000`, same sign on all 5 seeds). B, imitating `a_r = -2.0000`, is worse still (`task_mse 12.2917+-0.0000`). The declared may-lose cell is kept.
+
+The named alternative `ALT_RADIUS_RATIO = 0.0000` (exact target after the agreement filter) is printed on the same streams and was **not adopted**. On `exact_target_lose` it matches D's `task_mse 1.7317+-0.0000` and is clearly worse than official C (`1.4400+-0.0000`, 5/5).
+
+The page **does not declare a universal winner**: SeRA-lite pays off when later checkpoints agree on a better action than the historical robot, stays with the human-only policy when they disagree, and set-valued supervision can keep a base action that already sits in the desired set even when the relabel itself is slightly wrong. Paper tables and tomato-picking percentages: **以论文为准**; real robot, diffusion policy, SDP training, LIBERO and PushT: **本页未运行**.
+
+**180-minute work plan:** 30+25+50+40+35=180. 30 min read the opened SeRA method (relabel, agreement mask, set-valued targets) and write the three IIL questions; 25 min write the 手算 for `a_star`, the `0.2917` human-only mse, the `2.2000` radius and the prefix-rejection mask before running; 50 min run the toy and read the official regimes; 40 min rerun the named `r_N = 0` alternative on the same streams; 35 min write why agreement is not correctness, contrast (without editing) HG-DAgger and MAP-VLA already on this page and Reward-DAgger on avoided behaviour-cloning, and what a real-robot / SDP / LIBERO check would still have to show (本页未运行).
+
+### Exercises
+
+1. From the printed `hand_calc` lines, what is `a_star(2)`, and what is the human-only unlabeled `task_mse`?
+2. Show from `build_stream` and `fit_arm` that A, B, C and D read the same stream, the same intervention mask and the same checkpoint queries at a given step.
+3. In `checkpoints_disagree`, why are steps 2 and 3 rejected even though step 2 would have agreed individually? Quote the printed `abs_diff` values.
+4. In `exact_target_lose`, show from the printed set `[-2.0000, 2.4000]` that both `a_star(1) = 1.2500` and the human-only base `1.0000` lie inside it, and explain why arm D still has a larger `task_mse` than C.
+5. Before using this idea on your own logs (本页未运行), say why imitating historical robot actions can make arm B worse, and name one check that would tell you the later checkpoints are disagreeing rather than agreeing on a better action.
+
 <Summary>
 
 DAgger labels what the learner visits; HG-DAgger lets a human decide when to take over; RaC splits each takeover into recovery and correction. LeRobot v0.6.x records this with `lerobot-rollout --strategy.type=dagger` (Space pause, Tab correction), tags human frames in an `intervention` column, and needs `remove_feature` before `merge`. In the toy the intervention rate is 18.8 % over 10 segments of 27.1 frames (0.90 s) on average, recovery is 18.1 % of intervention frames, and the merge fails on `only in hil: ['intervention']` until the column is removed.
 
 MAP-VLA stage memory prompts: on shared episodes, retrieving a stage soft prompt by trajectory similarity and ensembling it with the base chunk raises stage success with a clear gap when two stages look the same (`stage` paired 0.3500±0.1075, same sign on all 5 seeds), is a near-tie when every stage has its own look, **ties** on success for a single-stage task (identical on every seed), and a memory from the wrong stage loses clearly — a synthetic stand-in for a frozen VLA; π0 and real sessions 本页未运行.
+
+SeRA set-valued relabeling of autonomous rollouts: later checkpoints relabel unlabeled frames between interventions, agreement filters the relabels, and accepted relabels supervise a set rather than an exact point, because agreement is not correctness and historical robot actions are not to be imitated. On a shared stdlib stream, when historical robot actions already match a later good policy B and C exact-tie on task_mse (`0.0000+-0.0000`, identical on every seed); when early autonomous actions are systematically wrong and later checkpoints agree, C beats B with a clear gap (paired C-B task_mse `-6.0000+-0.0000`, 5/5) and lower imitation of the bad historical action; when checkpoints disagree, C rejects the rest of the chunk and exact-ties A, while an exact-imitate-relabel loses (paired D-C task_mse `0.4583+-0.0000`, 5/5); an exact-target variant also loses when checkpoints agree on a slightly wrong relabel whose desired set still contains the optimum (paired D-C `1.4400+-0.0000`, 5/5) — `sera_autonomous_relabel_toy.py`, not a diffusion trainer; paper tables and tomato-picking 80 % vs 40 % 以论文为准; real robot, SDP training, LIBERO and PushT 本页未运行.
 
 </Summary>

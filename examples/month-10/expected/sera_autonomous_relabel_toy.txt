@@ -1,0 +1,126 @@
+sera_autonomous_relabel_toy
+stdlib CPU stand-in, not a diffusion trainer
+seeds=0,1,2,3,4 n_seeds=5 n_traj=8 chunk_len=4 human_steps=0 n_checkpoints=2 min_checkpoints=2 agree_abs=0.1500 radius_ratio=1.0000 small_frac=0.2000
+setup A_STAR_BIAS=1.0000 A_STAR_SLOPE=0.2500 ROBOT_BAD=-1.0000 ROBOT_FAR=-2.0000 RELABEL_BIAS=0.2000 DISAGREE_DELTA=1.5000
+Common random numbers: the shared stream, intervention mask and checkpoint queries are identical across arms; five seeds repeat the same deterministic tables so exact-tie cells are identical on every seed. Seeds do not add jitter.
+hand_calc 20 percent small-vs-clear factor = 0.2000
+hand_calc a_star(s) = A_STAR_BIAS + A_STAR_SLOPE * s = 1.0000 + 0.2500 * s
+hand_calc a_star(0) = 1.0000
+hand_calc a_star(1) = 1.2500
+hand_calc a_star(2) = 1.5000
+hand_calc a_star(3) = 1.7500
+hand_calc human-only unlabeled task_mse = (0.0625+0.2500+0.5625) / 3 = 0.8750/3 = 0.2917
+hand_calc exact-imitate latest unlabeled task_mse on checkpoints_disagree = (2.2500+0.0000+0.0000) / 3 = 2.2500/3 = 0.7500
+hand_calc exact-target RELABEL_BIAS unlabeled task_mse = (1.1025+1.6900+2.4025) / 3 = 5.1950/3 = 1.7317
+hand_calc already_good step=1 radius = RADIUS_RATIO * |relabel-robot| = 1.0000 * |1.2500-1.2500| = 0.0000
+hand_calc exact_target_lose step=1 radius = 1.0000 * |0.2000-(-2.0000)| = 2.2000 set=[-2.0000,2.4000] a_star(1)=1.2500 inside=yes base=1.0000 inside=yes
+hand_calc checkpoints_disagree step=1 abs_diff = |2.7500-(-0.2500)| = 3.0000 agree_abs=0.1500 would_agree=no so steps 2 and 3 of the chunk are also rejected
+hand_calc checkpoints_disagree step=2 abs_diff = |1.5000-1.5000| = 0.0000 would_agree_individually=yes but rejected because step 1 failed
+
+regime already_good
+historical robot actions already match a later good policy; B and C may near-tie each other (keep)
+unlabeled_frames=24 accepted=24 rejected=0 rejected_prefix=0
+chunk_mask step0:human step1:accept step2:accept step3:accept
+setup step=0 a_star=1.0000 a_r=1.0000 ckpt1=1.0000 ckpt2=1.0000 abs_diff=|1.0000-1.0000|=0.0000 would_agree=n/a radius=n/a
+setup step=1 a_star=1.2500 a_r=1.2500 ckpt1=1.2500 ckpt2=1.2500 abs_diff=|1.2500-1.2500|=0.0000 would_agree=yes radius=0.0000
+setup step=2 a_star=1.5000 a_r=1.5000 ckpt1=1.5000 ckpt2=1.5000 abs_diff=|1.5000-1.5000|=0.0000 would_agree=yes radius=0.0000
+setup step=3 a_star=1.7500 a_r=1.7500 ckpt1=1.7500 ckpt2=1.7500 abs_diff=|1.7500-1.7500|=0.0000 would_agree=yes radius=0.0000
+A task_mse 0.2917+-0.0000 robot_mse 0.2917+-0.0000
+B task_mse 0.0000+-0.0000 robot_mse 0.0000+-0.0000
+C task_mse 0.0000+-0.0000 robot_mse 0.0000+-0.0000
+D task_mse 0.0000+-0.0000 robot_mse 0.0000+-0.0000
+paired B-A task_mse: -0.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired C-A task_mse: -0.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired C-B task_mse: 0.0000+-0.0000: tie: identical on every seed
+paired D-C task_mse: 0.0000+-0.0000: tie: identical on every seed
+paired D-A task_mse: -0.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-B task_mse: 0.0000+-0.0000: tie: identical on every seed
+paired B-A robot_mse: -0.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired C-A robot_mse: -0.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired C-B robot_mse: 0.0000+-0.0000: tie: identical on every seed
+paired D-C robot_mse: 0.0000+-0.0000: tie: identical on every seed
+paired D-A robot_mse: -0.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-B robot_mse: 0.0000+-0.0000: tie: identical on every seed
+
+regime wrong_auton_agree
+early autonomous actions are systematically wrong and later checkpoints agree on a better action; C consistently better / lower imitation of the bad historical action (keep)
+unlabeled_frames=24 accepted=24 rejected=0 rejected_prefix=0
+chunk_mask step0:human step1:accept step2:accept step3:accept
+setup step=0 a_star=1.0000 a_r=1.0000 ckpt1=1.0000 ckpt2=1.0000 abs_diff=|1.0000-1.0000|=0.0000 would_agree=n/a radius=n/a
+setup step=1 a_star=1.2500 a_r=-1.0000 ckpt1=1.2500 ckpt2=1.2500 abs_diff=|1.2500-1.2500|=0.0000 would_agree=yes radius=2.2500
+setup step=2 a_star=1.5000 a_r=-1.0000 ckpt1=1.5000 ckpt2=1.5000 abs_diff=|1.5000-1.5000|=0.0000 would_agree=yes radius=2.5000
+setup step=3 a_star=1.7500 a_r=-1.0000 ckpt1=1.7500 ckpt2=1.7500 abs_diff=|1.7500-1.7500|=0.0000 would_agree=yes radius=2.7500
+A task_mse 0.2917+-0.0000 robot_mse 4.0000+-0.0000
+B task_mse 6.2917+-0.0000 robot_mse 0.0000+-0.0000
+C task_mse 0.2917+-0.0000 robot_mse 4.0000+-0.0000
+D task_mse 0.0000+-0.0000 robot_mse 6.2917+-0.0000
+paired B-A task_mse: 6.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired C-A task_mse: 0.0000+-0.0000: tie: identical on every seed
+paired C-B task_mse: -6.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-C task_mse: -0.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-A task_mse: -0.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-B task_mse: -6.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired B-A robot_mse: -4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired C-A robot_mse: 0.0000+-0.0000: tie: identical on every seed
+paired C-B robot_mse: 4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-C robot_mse: 2.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-A robot_mse: 2.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-B robot_mse: 6.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+
+regime checkpoints_disagree
+checkpoints disagree at the first unlabeled step; C rejects that step and later steps of the chunk and does not degrade to the noisy relabel; an exact-imitate-relabel or B may lose (keep)
+unlabeled_frames=24 accepted=0 rejected=24 rejected_prefix=16
+chunk_mask step0:human step1:reject step2:reject_prefix step3:reject_prefix
+setup step=0 a_star=1.0000 a_r=1.0000 ckpt1=1.0000 ckpt2=1.0000 abs_diff=|1.0000-1.0000|=0.0000 would_agree=n/a radius=n/a
+setup step=1 a_star=1.2500 a_r=-1.0000 ckpt1=2.7500 ckpt2=-0.2500 abs_diff=|2.7500-(-0.2500)|=3.0000 would_agree=no radius=3.7500
+setup step=2 a_star=1.5000 a_r=-1.0000 ckpt1=1.5000 ckpt2=1.5000 abs_diff=|1.5000-1.5000|=0.0000 would_agree=yes radius=2.5000
+setup step=3 a_star=1.7500 a_r=-1.0000 ckpt1=1.7500 ckpt2=1.7500 abs_diff=|1.7500-1.7500|=0.0000 would_agree=yes radius=2.7500
+A task_mse 0.2917+-0.0000 robot_mse 4.0000+-0.0000
+B task_mse 6.2917+-0.0000 robot_mse 0.0000+-0.0000
+C task_mse 0.2917+-0.0000 robot_mse 4.0000+-0.0000
+D task_mse 0.7500+-0.0000 robot_mse 9.2917+-0.0000
+paired B-A task_mse: 6.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired C-A task_mse: 0.0000+-0.0000: tie: identical on every seed
+paired C-B task_mse: -6.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-C task_mse: 0.4583+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-A task_mse: 0.4583+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-B task_mse: -5.5417+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired B-A robot_mse: -4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired C-A robot_mse: 0.0000+-0.0000: tie: identical on every seed
+paired C-B robot_mse: 4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-C robot_mse: 5.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-A robot_mse: 5.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-B robot_mse: 9.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+
+regime exact_target_lose
+checkpoints agree on a slightly wrong relabel whose desired set still contains the optimum; the exact-target variant may lose (keep)
+unlabeled_frames=24 accepted=24 rejected=0 rejected_prefix=0
+chunk_mask step0:human step1:accept step2:accept step3:accept
+setup step=0 a_star=1.0000 a_r=1.0000 ckpt1=0.2000 ckpt2=0.2000 abs_diff=|0.2000-0.2000|=0.0000 would_agree=n/a radius=n/a
+setup step=1 a_star=1.2500 a_r=-2.0000 ckpt1=0.2000 ckpt2=0.2000 abs_diff=|0.2000-0.2000|=0.0000 would_agree=yes radius=2.2000
+setup step=2 a_star=1.5000 a_r=-2.0000 ckpt1=0.2000 ckpt2=0.2000 abs_diff=|0.2000-0.2000|=0.0000 would_agree=yes radius=2.2000
+setup step=3 a_star=1.7500 a_r=-2.0000 ckpt1=0.2000 ckpt2=0.2000 abs_diff=|0.2000-0.2000|=0.0000 would_agree=yes radius=2.2000
+A task_mse 0.2917+-0.0000 robot_mse 9.0000+-0.0000
+B task_mse 12.2917+-0.0000 robot_mse 0.0000+-0.0000
+C task_mse 0.2917+-0.0000 robot_mse 9.0000+-0.0000
+D task_mse 1.7317+-0.0000 robot_mse 4.8400+-0.0000
+paired B-A task_mse: 12.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired C-A task_mse: 0.0000+-0.0000: tie: identical on every seed
+paired C-B task_mse: -12.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-C task_mse: 1.4400+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-A task_mse: 1.4400+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-B task_mse: -10.5600+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired B-A robot_mse: -9.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired C-A robot_mse: 0.0000+-0.0000: tie: identical on every seed
+paired C-B robot_mse: 9.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-C robot_mse: -4.1600+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-A robot_mse: -4.1600+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+paired D-B robot_mse: 4.8400+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+
+named alternative ALT_RADIUS_RATIO=0.0000 on accepted relabels (exact target after the agreement filter), same streams, not adopted
+alt already_good C_task_mse 0.0000+-0.0000 official_C_task_mse 0.0000+-0.0000 paired altC-officialC task_mse: 0.0000+-0.0000: tie: identical on every seed
+alt wrong_auton_agree C_task_mse 0.0000+-0.0000 official_C_task_mse 0.2917+-0.0000 paired altC-officialC task_mse: -0.2917+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alt checkpoints_disagree C_task_mse 0.2917+-0.0000 official_C_task_mse 0.2917+-0.0000 paired altC-officialC task_mse: 0.0000+-0.0000: tie: identical on every seed
+alt exact_target_lose C_task_mse 1.7317+-0.0000 official_C_task_mse 0.2917+-0.0000 paired altC-officialC task_mse: 1.4400+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+
+No universal winner declared; paper tables and tomato-picking percentages 以论文为准; real robot / diffusion policy / SDP training / LIBERO / PushT 本页未运行

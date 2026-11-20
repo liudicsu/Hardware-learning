@@ -8,7 +8,7 @@ CPU-reproducible scripts for Month 10 (site supplement). Run `./check.sh` from t
 | real-time-chunking | `real-time-chunking/rtc_blend_toy.py`, `forge_tree_mctd_toy.py`, `vela_spline_action_toy.py` | stdlib |
 | edge-deploy-checklist | `edge-deploy-checklist/int8_quant_toy.py`, `edge-deploy-checklist/latency_budget.py`, `edge-deploy-checklist/vla_edge_budget_toy.py`, `edge-deploy-checklist/vla_adapter_bridge_attention_toy.py`, `edge-deploy-checklist/tacitvla_reasoning_latency_toy.py` | stdlib |
 | multi-view-extrinsics | `multi-view-extrinsics/extrinsics_chain_toy.py` | stdlib |
-| intervention-logging | `intervention-logging/intervention_log_toy.py` | stdlib |
+| intervention-logging | `intervention-logging/intervention_log_toy.py`, `sera_autonomous_relabel_toy.py` | stdlib |
 | real-world-rl | `real-world-rl/rlpd_chain_toy.py`, `thinkact_visual_latent_toy.py` | stdlib |
 | vla-rl-finetune | `vla-rl-finetune/advantage_filter_toy.py` | stdlib |
 
