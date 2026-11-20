@@ -1053,3 +1053,473 @@ ok: three modes on shared plant/jitter; nominal-Δt velocity amplifies jitter; D
 
 <Quiz id="q-ecat1" question="从站跑 SM-synchronous。主站帧晚到 40 µs。相对标称节拍，采样时刻如何？" options={["仍在标称节拍（本地定时器）", "晚 40 µs（帧事件）", "无论帧如何都由 SYNC0 对齐"]} answer={1} explanation="SM-sync 由 Sync Manager / 帧到达事件触发，采样 1:1 跟随主站帧抖动。FreeRun 用本地定时器；DC SYNC0 用补偿后的 SYNC0 边沿。" />
 
+
+## 控制器链式与串级控制
+
+官方 Jazzy `ros2_control` 文档描述了**控制器链式**（串级控制是其中一种）：先行控制器占用随后控制器的**参考接口**，控制器管理器先更新先行控制器，再更新随后控制器（Controller Chaining / Cascade Control，Jazzy；以文档为准）。本次打开的 Jazzy 链式页面是 git 提交 `b558c3ab693fbf9aa472392cafc0c0f14f9fc549`（2026-11-17 21:59:51 UTC = 2026-11-18 05:59:51 Asia/Shanghai），blob `0b91260a4064e51fce45e0de1e09101c5147fd02`。DiffBot 示例 16 的提交是 `b34cc5917f216b36ff3bda1ca0cc0736ecc00235`（2025-07-10 07:15:16 UTC = 2025-07-10 15:15:16 Asia/Shanghai），blob `331f9881206b6a71a60b6c5b0463161c2039e99b`。
+
+激活顺序是文档里的约定，不是风格选择：必须先激活所有随后控制器，才能激活先行控制器；停用则相反——必须先停用所有先行控制器，才能停用随后控制器（同一页；以文档为准）。`switch_controllers` 可以把整条链当作一个列表；spawner 有 `--activate-as-group`（以文档为准）。
+
+处于**链式模式**的可链接控制器会关掉它的外部订阅（PID 停止 `<controller_name>/pid_reference`；`diff_drive_controller` 停止 `cmd_vel` / `cmd_vel_unstamped`；发布者可以继续）。参考接口在导出者未激活时不可用，在已激活但尚未链式时可用且未被占用（参考来自订阅），在已链式时可用且已被占用（Jazzy 链式页；DiffBot 示例 16 的 `[claimed]` / `[unclaimed]` 读法；以文档为准）。
+
+本节**不是** EtherCAT 的 FreeRun / SM 同步 / DC SYNC0 重讲，**不是** Ziegler-Nichols / PID 整定，**不是** QoS Deadline，**不是** 硬件组件生命周期 / JointLimiter / CAN 故障约束，也**不是** `rmw_zenoh` 的改写。
+
+### 公平设置
+
+`controller_chaining_cascade_toy.py` 是**离散时间站位模型**，只用标准库。模型假设: 两个一阶对象的精确 ZOH，`TAU_INNER = 0.0250` s 与 `TAU_OUTER = 0.6000` s（`hand_calc TAU_OUTER/TAU_INNER = 24.0000`；内环 ZOH `a = 0.9231`、`b = 0.0769`；外环 ZOH `a = 0.9967`、`b = 0.0033`），`DT = 0.0020` s，`T_SIM = 8.0000` s，RMSE 从 `T_WARM = 1.0000` s 之后算起（`hand_calc` 窗口 `3500` 步），慢参考为 `1 - exp(-t/T_REF)`，`T_REF = 2.5000` s。A 臂把外环命令直接写到硬件命令接口（没有内环），声明增益 `KP_SINGLE = 1.8500`。B 臂是串级：先行外环控制器占用随后内环控制器的参考接口（`KP_OUTER = 2.0000`，`KP_INNER = 12.0000`）；内环处于链式模式，订阅已关闭。C 臂在随后控制器仍未激活时就激活了先行控制器，因此导出的参考接口保持不可用 / 未被占用，硬件命令停在 `U_BROKEN = 0.0000`。不启动真实的 `controller_manager` 进程。该站位模型不抄袭教材里「串级总是好 2 倍」之类未经打开的数字断言。
+
+**公共随机数:** 五个种子 `0,1,2,3,4`。外环参考共享。测量噪声序列（`SIG_Y = 0.0100`）和可选的内环状态阶跃（从 `DIST_START = 2.0000` s 起的 `DIST_AMP = 0.3500`）在每种情形、每个种子上只抽一次，三臂共用。内环 RMSE 对每一臂都使用同一个诊断内环参考 `KP_OUTER * (r - y_meas)`，以便比较对这一请求的内环跟踪。
+
+**各情形在首次运行前写下:** `slow_no_dist` — 慢参考、整定得当、没有内环扰动：A 与 B 在外环误差上可能**接近打平**（**保留**）；`inner_disturbance` — 同一套双时间尺度对象加上内环阶跃：B 在内环跟踪和外环误差上**稳定地**更好（**保留**）；`broken_chain` — 因为随后控制器未激活、参考不可用，C **失败**（**保留**）。标签规则与上文相同：打平 / 数值为零 / 接近打平 / 按 20 % 分界的小与明显（手算；玩具打印为 `0.2000`）。
+
+### 运行标准库模型
+
+脚本在 `examples/month-4/ros2-control`。
+
+```bash
+cd ~/Hardware-learning/examples/month-4/ros2-control
+python3 controller_chaining_cascade_toy.py
+```
+
+<CodeSource path="examples/month-4/ros2-control/controller_chaining_cascade_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic ros2_control controller-chaining / cascade stand-in.
+
+Stdlib only. Discrete-time two-time-scale plant. No real controller_manager
+process is started, and no EtherCAT timing or Ziegler-Nichols tuning is
+re-taught here.
+
+A shared outer reference, shared measurement-noise sequence and shared
+inner-disturbance draws are generated once per (regime, seed) and then
+read by every arm (common random numbers).
+
+Arms:
+  A_single -- the outer command is written straight to the hardware
+    command interface (no inner loop).
+  B_cascade -- the preceding outer controller claims the following inner
+    controller's reference interfaces; the inner loop is in chained mode
+    and its subscriber is disabled.
+  C_broken -- the preceding controller is activated while the following
+    controller is still inactive, so the exported reference interfaces
+    stay unavailable / unclaimed and the hardware command stays at 0.
+
+Regimes and parameters were written before the first run.
+
+Labels: tie = identical on every seed; numerically zero = |paired mean| and sd
+both < 1e-9; |m| <= sd = near-tie; |m| > sd = consistent gap (small if |m| < 20 %
+of the smaller arm mean, else clear), with a sign count. ROUND_HALF_UP output.
+
+Activation order, chained-mode subscriber behaviour, and reference-interface
+availability stay 以文档为准.
+Real ros2_control / DiffBot / hardware: 本页未运行.
+"""
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+SMALL_FRAC = 0.2000  # 20 % of the smaller-arm mean; printed as 0.2000
+
+# Declared discrete-time stand-in (not a textbook "cascade is always 2x" claim).
+DT = 0.002  # s
+T_SIM = 8.0000  # s
+T_WARM = 1.0000  # s, dropped from the RMSE window
+N_STEP = int(round(T_SIM / DT))
+TAU_INNER = 0.0250  # s, fast inner plant
+TAU_OUTER = 0.6000  # s, slow outer plant
+T_REF = 2.5000  # s, slow reference time constant
+KP_SINGLE = 1.8500  # single-loop gain on the hardware command
+KP_OUTER = 2.0000  # preceding outer gain, writes the inner reference
+KP_INNER = 12.0000  # following inner gain, chained mode
+SIG_Y = 0.0100  # shared measurement-noise stddev
+DIST_AMP = 0.3500  # inner-state step disturbance
+DIST_START = 2.0000  # s
+U_BROKEN = 0.0000  # hardware command when the following controller is inactive
+
+# Named alternative, same seeds, not adopted.
+KP_SINGLE_ALT = 1.5000
+
+ARMS = ("A_single", "B_cascade", "C_broken")
+METRICS = ("outer_rmse", "inner_rmse")
+PAIRS = (("B", "A"), ("C", "A"), ("C", "B"))
+
+# name: (has_inner_dist, declared expectation); written before the first run
+REGIMES = {
+    "slow_no_dist": (
+        False,
+        "A and B may near-tie on outer error - keep",
+    ),
+    "inner_disturbance": (
+        True,
+        "B consistent better inner tracking / outer error - keep",
+    ),
+    "broken_chain": (
+        False,
+        "C loses (following inactive, reference unavailable) - keep",
+    ),
+}
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < SMALL_FRAC * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def zoh(tau, dt=DT):
+    a = math.exp(-dt / tau)
+    return a, 1.0 - a
+
+
+def rng_for(*parts):
+    h = 16
+    for part in parts:
+        if isinstance(part, str):
+            for ch in part:
+                h = (h * 131 + ord(ch)) & 0xFFFFFFFFFFFFFFFF
+        else:
+            h = (h * 131 + int(part)) & 0xFFFFFFFFFFFFFFFF
+    return random.Random(h)
+
+
+def shared_draws(seed, has_inner_dist, tag="official"):
+    """Common random numbers: reference is deterministic; noise and optional step shared."""
+    rng = rng_for("chain-draws", tag, seed, int(round(SIG_Y * 1e6)), int(has_inner_dist))
+    meas = [SIG_Y * rng.gauss(0.0, 1.0) for _ in range(N_STEP)]
+    dist = []
+    for k in range(N_STEP):
+        t = k * DT
+        if has_inner_dist and t >= DIST_START:
+            dist.append(DIST_AMP)
+        else:
+            dist.append(0.0)
+    return {"meas": meas, "dist": dist}
+
+
+def reference(k):
+    return 1.0 - math.exp(-(k * DT) / T_REF)
+
+
+def evaluate(arm, draws, kp_single=KP_SINGLE):
+    a_i, b_i = zoh(TAU_INNER)
+    a_o, b_o = zoh(TAU_OUTER)
+    y = 0.0
+    v = 0.0
+    u = 0.0
+    outer_sq = 0.0
+    inner_sq = 0.0
+    n_win = 0
+    for k in range(N_STEP):
+        r = reference(k)
+        y_meas = y + draws["meas"][k]
+        # Diagnostic inner reference (same outer gain for every arm) so
+        # inner_rmse compares how well the inner state tracks that request.
+        v_ref_diag = KP_OUTER * (r - y_meas)
+        if arm == "A_single":
+            u = kp_single * (r - y_meas)
+        elif arm == "B_cascade":
+            # Preceding outer claims the following inner reference; subscriber off.
+            u = KP_INNER * (v_ref_diag - v)
+        elif arm == "C_broken":
+            # Following controller inactive: reference interfaces unavailable.
+            u = U_BROKEN
+        else:
+            raise ValueError(arm)
+        v = a_i * v + b_i * u + draws["dist"][k]
+        y = a_o * y + b_o * v
+        if k * DT >= T_WARM:
+            outer_sq += (r - y) ** 2
+            inner_sq += (v_ref_diag - v) ** 2
+            n_win += 1
+    return {
+        "outer_rmse": math.sqrt(outer_sq / n_win),
+        "inner_rmse": math.sqrt(inner_sq / n_win),
+    }
+
+
+def run_regime(name, seed, kp_single=KP_SINGLE, tag="official"):
+    has_dist, _decl = REGIMES[name]
+    draws = shared_draws(seed, has_dist, tag=f"{tag}|{name}")
+    row = {}
+    for arm in ARMS:
+        row[arm] = evaluate(arm, draws, kp_single=kp_single)
+    return row
+
+
+def print_regime(title, rows):
+    print(f"regime {title}  (mean+-sd over seeds)")
+    for arm in ARMS:
+        outer = [r[arm]["outer_rmse"] for r in rows]
+        inner = [r[arm]["inner_rmse"] for r in rows]
+        print(
+            f"  {arm} outer_rmse {num(mean_sd(outer)[0])}+-{num(mean_sd(outer)[1])} "
+            f"inner_rmse {num(mean_sd(inner)[0])}+-{num(mean_sd(inner)[1])}"
+        )
+    for left, right in PAIRS:
+        la = [a for a in ARMS if a.startswith(left)][0]
+        ra = [a for a in ARMS if a.startswith(right)][0]
+        for key in METRICS:
+            xa = [r[la][key] for r in rows]
+            xb = [r[ra][key] for r in rows]
+            print(f"  paired {left}-{right} {key}: {verdict(xa, xb)}")
+
+
+def official_rows(name, kp_single=KP_SINGLE, tag="official"):
+    return [run_regime(name, seed, kp_single=kp_single, tag=tag) for seed in SEEDS]
+
+
+def main():
+    a_i, b_i = zoh(TAU_INNER)
+    a_o, b_o = zoh(TAU_OUTER)
+    n_win = sum(1 for k in range(N_STEP) if k * DT >= T_WARM)
+    print("Synthetic controller-chaining cascade stand-in; not a real controller_manager")
+    print(
+        f"declared DT={num(DT)} s T_SIM={num(T_SIM)} s T_WARM={num(T_WARM)} s "
+        f"N_STEP={N_STEP} TAU_INNER={num(TAU_INNER)} s TAU_OUTER={num(TAU_OUTER)} s "
+        f"T_REF={num(T_REF)} s"
+    )
+    print(
+        f"declared KP_SINGLE={num(KP_SINGLE)} KP_OUTER={num(KP_OUTER)} "
+        f"KP_INNER={num(KP_INNER)} SIG_Y={num(SIG_Y)} DIST_AMP={num(DIST_AMP)} "
+        f"DIST_START={num(DIST_START)} s U_BROKEN={num(U_BROKEN)} "
+        f"SMALL_FRAC={num(SMALL_FRAC)} seeds={','.join(str(s) for s in SEEDS)}"
+    )
+    print(
+        "declared arms: A_single writes the hardware command interface; "
+        "B_cascade preceding outer claims the following inner reference "
+        "(chained mode, subscriber disabled); C_broken following still inactive"
+    )
+    print(f"hand_calc inner ZOH a={num(a_i)} b={num(b_i)}")
+    print(f"hand_calc outer ZOH a={num(a_o)} b={num(b_o)}")
+    print(f"hand_calc TAU_OUTER/TAU_INNER = {num(TAU_OUTER / TAU_INNER)}")
+    print(f"hand_calc RMSE window steps after T_WARM = {n_win}")
+    print(f"hand_calc 20 percent small-vs-clear factor = {num(SMALL_FRAC)}")
+    print(
+        "docs_commit=b558c3ab693fbf9aa472392cafc0c0f14f9fc549 "
+        "(2026-11-17 21:59:51 UTC = 2026-11-18 05:59:51 Asia/Shanghai)"
+    )
+    print("docs_blob=0b91260a4064e51fce45e0de1e09101c5147fd02")
+    print(
+        "docs_example16_commit=b34cc5917f216b36ff3bda1ca0cc0736ecc00235 "
+        "(2025-07-10 07:15:16 UTC = 2025-07-10 15:15:16 Asia/Shanghai)"
+    )
+    print("docs_example16_blob=331f9881206b6a71a60b6c5b0463161c2039e99b")
+    print(
+        "docs_contract: first activate all following controllers before the preceding one; "
+        "deactivation is the inverse; switch_controllers may take the chain as a list; "
+        "spawner --activate-as-group (Jazzy chaining page; 以文档为准)"
+    )
+    print(
+        "docs_chained_mode: a chainable controller in chained mode disables its external "
+        "subscribers (PID <controller_name>/pid_reference; diff_drive_controller cmd_vel "
+        "and cmd_vel_unstamped; publishers may continue) (以文档为准)"
+    )
+    print(
+        "docs_reference_interfaces: unavailable+unclaimed when the exporter is inactive; "
+        "available+unclaimed when active but not chained (references from the subscriber); "
+        "available+claimed when chained (Jazzy chaining page / DiffBot example 16; 以文档为准)"
+    )
+    print("Regimes and parameters were written before the first run")
+    print(
+        "Common random numbers: the measurement-noise sequence and inner-disturbance "
+        "step are shared across arms at each regime and seed; the outer reference is shared"
+    )
+    print(
+        "Assumptions: discrete-time ZOH stand-in, not controller_manager, not a copied "
+        "numerical claim that cascade is always 2x better"
+    )
+    print("Documentation figures (activation order, chained mode, claimed/unclaimed) 以文档为准")
+    print("Real ros2_control / DiffBot / hardware: 本页未运行")
+    print("declared slow_no_dist: A and B may near-tie on outer error - keep")
+    print("declared inner_disturbance: B consistent better inner tracking / outer error - keep")
+    print("declared broken_chain: C loses (following inactive, reference unavailable) - keep")
+
+    official = {name: official_rows(name) for name in REGIMES}
+    for name, (_has, decl) in REGIMES.items():
+        print(f"declared expectation {name}: {decl}")
+        print_regime(name, official[name])
+
+    print(f"alternative same seeds KP_SINGLE={num(KP_SINGLE_ALT)} (not adopted)")
+    print(
+        f"hand_calc alternative KP_SINGLE={num(KP_SINGLE_ALT)} vs official {num(KP_SINGLE)}"
+    )
+    for name in REGIMES:
+        print_regime(
+            f"{name} alt_kp_single={num(KP_SINGLE_ALT)}",
+            official_rows(name, kp_single=KP_SINGLE_ALT, tag="official"),
+        )
+
+    print("No real controller_manager process was started")
+    print(
+        "No winner is universal: a well-tuned single loop may near-tie a cascade on a "
+        "slow undisturbed reference; the chain matters when the inner loop must reject "
+        "a disturbance, and a broken activation order leaves the command at zero"
+    )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic controller-chaining cascade stand-in; not a real controller_manager
+declared DT=0.0020 s T_SIM=8.0000 s T_WARM=1.0000 s N_STEP=4000 TAU_INNER=0.0250 s TAU_OUTER=0.6000 s T_REF=2.5000 s
+declared KP_SINGLE=1.8500 KP_OUTER=2.0000 KP_INNER=12.0000 SIG_Y=0.0100 DIST_AMP=0.3500 DIST_START=2.0000 s U_BROKEN=0.0000 SMALL_FRAC=0.2000 seeds=0,1,2,3,4
+declared arms: A_single writes the hardware command interface; B_cascade preceding outer claims the following inner reference (chained mode, subscriber disabled); C_broken following still inactive
+hand_calc inner ZOH a=0.9231 b=0.0769
+hand_calc outer ZOH a=0.9967 b=0.0033
+hand_calc TAU_OUTER/TAU_INNER = 24.0000
+hand_calc RMSE window steps after T_WARM = 3500
+hand_calc 20 percent small-vs-clear factor = 0.2000
+docs_commit=b558c3ab693fbf9aa472392cafc0c0f14f9fc549 (2026-11-17 21:59:51 UTC = 2026-11-18 05:59:51 Asia/Shanghai)
+docs_blob=0b91260a4064e51fce45e0de1e09101c5147fd02
+docs_example16_commit=b34cc5917f216b36ff3bda1ca0cc0736ecc00235 (2025-07-10 07:15:16 UTC = 2025-07-10 15:15:16 Asia/Shanghai)
+docs_example16_blob=331f9881206b6a71a60b6c5b0463161c2039e99b
+docs_contract: first activate all following controllers before the preceding one; deactivation is the inverse; switch_controllers may take the chain as a list; spawner --activate-as-group (Jazzy chaining page; 以文档为准)
+docs_chained_mode: a chainable controller in chained mode disables its external subscribers (PID <controller_name>/pid_reference; diff_drive_controller cmd_vel and cmd_vel_unstamped; publishers may continue) (以文档为准)
+docs_reference_interfaces: unavailable+unclaimed when the exporter is inactive; available+unclaimed when active but not chained (references from the subscriber); available+claimed when chained (Jazzy chaining page / DiffBot example 16; 以文档为准)
+Regimes and parameters were written before the first run
+Common random numbers: the measurement-noise sequence and inner-disturbance step are shared across arms at each regime and seed; the outer reference is shared
+Assumptions: discrete-time ZOH stand-in, not controller_manager, not a copied numerical claim that cascade is always 2x better
+Documentation figures (activation order, chained mode, claimed/unclaimed) 以文档为准
+Real ros2_control / DiffBot / hardware: 本页未运行
+declared slow_no_dist: A and B may near-tie on outer error - keep
+declared inner_disturbance: B consistent better inner tracking / outer error - keep
+declared broken_chain: C loses (following inactive, reference unavailable) - keep
+declared expectation slow_no_dist: A and B may near-tie on outer error - keep
+regime slow_no_dist  (mean+-sd over seeds)
+  A_single outer_rmse 0.2899+-4.051e-5 inner_rmse 0.0484+-1.313e-4
+  B_cascade outer_rmse 0.2899+-4.160e-5 inner_rmse 0.0447+-8.423e-6
+  C_broken outer_rmse 0.7938+-0.0000 inner_rmse 1.5879+-1.983e-4
+  paired B-A outer_rmse: 1.234e-7+-1.824e-6: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired B-A inner_rmse: -0.0037+-1.330e-4: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A outer_rmse: 0.5039+-4.051e-5: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A inner_rmse: 1.5395+-2.663e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B outer_rmse: 0.5039+-4.160e-5: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B inner_rmse: 1.5432+-1.901e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+declared expectation inner_disturbance: B consistent better inner tracking / outer error - keep
+regime inner_disturbance  (mean+-sd over seeds)
+  A_single outer_rmse 1.1632+-4.684e-5 inner_rmse 4.3842+-1.419e-5
+  B_cascade outer_rmse 0.1858+-5.432e-5 inner_rmse 0.2984+-4.093e-6
+  C_broken outer_rmse 3.1147+-0.0000 inner_rmse 10.3528+-1.123e-4
+  paired B-A outer_rmse: -0.9775+-9.508e-5: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A inner_rmse: -4.0858+-1.412e-5: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A outer_rmse: 1.9514+-4.684e-5: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A inner_rmse: 5.9686+-1.182e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B outer_rmse: 2.9289+-5.432e-5: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B inner_rmse: 10.0544+-1.088e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+declared expectation broken_chain: C loses (following inactive, reference unavailable) - keep
+regime broken_chain  (mean+-sd over seeds)
+  A_single outer_rmse 0.2900+-5.761e-5 inner_rmse 0.0484+-3.859e-5
+  B_cascade outer_rmse 0.2900+-5.723e-5 inner_rmse 0.0447+-5.547e-6
+  C_broken outer_rmse 0.7938+-0.0000 inner_rmse 1.5878+-1.583e-4
+  paired B-A outer_rmse: -1.536e-6+-1.199e-6: small but consistent gap, not a tie (|m| > sd); 1 of 5 seeds has the opposite sign
+  paired B-A inner_rmse: -0.0037+-3.914e-5: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A outer_rmse: 0.5038+-5.761e-5: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A inner_rmse: 1.5394+-1.678e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B outer_rmse: 0.5038+-5.723e-5: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B inner_rmse: 1.5432+-1.534e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative same seeds KP_SINGLE=1.5000 (not adopted)
+hand_calc alternative KP_SINGLE=1.5000 vs official 1.8500
+regime slow_no_dist alt_kp_single=1.5000  (mean+-sd over seeds)
+  A_single outer_rmse 0.3297+-3.573e-5 inner_rmse 0.1670+-4.924e-5
+  B_cascade outer_rmse 0.2899+-4.160e-5 inner_rmse 0.0447+-8.423e-6
+  C_broken outer_rmse 0.7938+-0.0000 inner_rmse 1.5879+-1.983e-4
+  paired B-A outer_rmse: -0.0398+-6.176e-6: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A inner_rmse: -0.1223+-4.516e-5: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A outer_rmse: 0.4641+-3.573e-5: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A inner_rmse: 1.4209+-1.838e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B outer_rmse: 0.5039+-4.160e-5: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B inner_rmse: 1.5432+-1.901e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+regime inner_disturbance alt_kp_single=1.5000  (mean+-sd over seeds)
+  A_single outer_rmse 1.3201+-4.331e-5 inner_rmse 4.8630+-1.697e-5
+  B_cascade outer_rmse 0.1858+-5.432e-5 inner_rmse 0.2984+-4.093e-6
+  C_broken outer_rmse 3.1147+-0.0000 inner_rmse 10.3528+-1.123e-4
+  paired B-A outer_rmse: -1.1343+-9.207e-5: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A inner_rmse: -4.5646+-1.404e-5: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A outer_rmse: 1.7946+-4.331e-5: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A inner_rmse: 5.4898+-1.074e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B outer_rmse: 2.9289+-5.432e-5: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B inner_rmse: 10.0544+-1.088e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+regime broken_chain alt_kp_single=1.5000  (mean+-sd over seeds)
+  A_single outer_rmse 0.3298+-5.379e-5 inner_rmse 0.1670+-2.632e-5
+  B_cascade outer_rmse 0.2900+-5.723e-5 inner_rmse 0.0447+-5.547e-6
+  C_broken outer_rmse 0.7938+-0.0000 inner_rmse 1.5878+-1.583e-4
+  paired B-A outer_rmse: -0.0398+-4.097e-6: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A inner_rmse: -0.1223+-2.145e-5: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A outer_rmse: 0.4641+-5.379e-5: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A inner_rmse: 1.4208+-1.396e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B outer_rmse: 0.5038+-5.723e-5: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B inner_rmse: 1.5432+-1.534e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No real controller_manager process was started
+No winner is universal: a well-tuned single loop may near-tie a cascade on a slow undisturbed reference; the chain matters when the inner loop must reject a disturbance, and a broken activation order leaves the command at zero
+```
+
+</SimOutput>
+
+### 读懂各情形
+
+正式首次运行：2026-11-20 04:07:30 Asia/Shanghai。此后**没有**改正式玩具或 `expected/`。数字冻结之后，运行片段补上了开头的 `cd ~/Hardware-learning/examples/month-4/ros2-control`，让该代码块自己带上工作目录；中文课文里紧贴全角冒号的加粗标记也做了调整。官方 `expected/` 没有重调。
+
+- **slow_no_dist** 情形，A 的外环 RMSE 为 `0.2899+-4.051e-5`，B 为 `0.2899+-4.160e-5`。成对 B-A 外环 RMSE 为 `1.234e-7+-1.824e-6`，接近打平、差距很小，在种子噪声之内（`|m| <= sd`；5 个种子里有 2 个异号）。预声明的「可能接近打平」成立。C 的外环 RMSE 为 `0.7938+-0.0000`；C-B 外环为 `0.5039+-4.160e-5`，是**明显**差距，5 个种子全部同号。安静情形的内环 RMSE 比较不是预声明的那一格。
+- **inner_disturbance** 情形，A 的外环 RMSE 为 `1.1632+-4.684e-5`，B 为 `0.1858+-5.432e-5`。成对 B-A 外环为 `-0.9775+-9.508e-5`，B-A 内环为 `-4.0858+-1.412e-5`，都是**明显差距，不是打平**，5 个种子全部同号，因此如预声明那样，B 在内环跟踪和外环误差上稳定更好（**成立**）。C 的外环 RMSE 为 `3.1147+-0.0000`；C-B 外环为 `2.9289+-5.432e-5`，**明显**，5/5。
+- **broken_chain** 情形，随后控制器保持未激活，硬件命令停在 `0.0000`。C 的外环 RMSE 为 `0.7938+-0.0000`，B 为 `0.2900+-5.723e-5`。成对 C-B 外环为 `0.5038+-5.723e-5`，为明显差距、不是打平，5 个种子全部同号。预声明的失败成立。这一格不是预声明的 A/B 接近打平；这里的 A/B 外环是**小而稳定的差距** `-1.536e-6+-1.199e-6`（5 个种子里有 1 个异号），按打印结果保留。
+
+同一组种子上名为 `KP_SINGLE = 1.5000` 的替代**未采用**（`hand_calc` 正式值 `1.8500` 对替代 `1.5000`）。在 `slow_no_dist` 上，它会把 B-A 外环变成**小而稳定的差距** `-0.0398+-6.176e-6`（A `0.3297+-3.573e-5`，B 仍为 `0.2899+-4.160e-5`），那会在安静格子上制造出串级获胜。正式的 `KP_SINGLE = 1.8500` 在首次运行之后没有改动。
+
+本页不宣布普遍赢家。在慢且无扰动的参考下，整定得当的单环可能与串级接近打平；当内环必须抑制扰动时，这条链才起作用；错误的激活顺序会把命令留在零。文档数字以文档为准。真实 `ros2_control` / DiffBot / 硬件：本页未运行。
+
+### 练习
+
+1. 先行控制器和随后控制器应按什么顺序激活？停用的相反规则是什么？请引用 Jazzy 链式页，并以文档为准。
+2. PID 进入链式模式后，哪个订阅会被关掉？`diff_drive_controller` 上的 `cmd_vel` 会怎样？发布者还可以继续吗？
+3. 在 `slow_no_dist` 中，B-A 外环 RMSE 为 `1.234e-7+-1.824e-6`，属于接近打平。如果采用了替代 `KP_SINGLE = 1.5000`，结果会怎样变？
+4. 为什么 C 在 `broken_chain` 中失败？请用文档里「导出者未激活时参考接口不可用」来回答。
+5. 本节放在 EtherCAT 定时玩具之后。请各举一项：这个站位模型**没有**对 FreeRun / SM 同步 / DC SYNC0 作出的主张，以及它**没有**从一本未打开的教材里抄来的主张。
+
+**180 分钟工作计划:** 30+25+50+40+35=180。30 分钟阅读提交 `b558c3ab693fbf9aa472392cafc0c0f14f9fc549` 的 Jazzy 链式页和提交 `b34cc5917f216b36ff3bda1ca0cc0736ecc00235` 的 DiffBot 示例 16，写下激活约定、链式模式以及已被占用 / 未被占用的接口；25 分钟在运行前写好双时间尺度站位模型、三臂和三种情形；50 分钟运行玩具并阅读正式情形；40 分钟在同一组种子上重跑具名替代 `KP_SINGLE = 1.5000`；35 分钟写明这不是 EtherCAT 定时，也不是 Ziegler-Nichols，以及真实 `controller_manager` / DiffBot 检查还需要看到什么（本页未运行）。

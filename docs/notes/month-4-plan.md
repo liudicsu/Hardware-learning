@@ -1,6 +1,19 @@
 # Month 4 plan / 第4个月计划
 
+Current / 当前：**M4 3930 min**, Batch-26 PR1. Earlier entries below retain their historical totals.
+
 Current / 当前：**M4 3750 min**, Batch-25 PR1. Earlier entries below retain their historical totals.
+
+## Batch-26 PR1 / 本月 H2 (+180)
+
+Base `783242044cfd250be2d3747a5b31633f650b1369` (batch-25 PR3 #203 squash-merged; site **43380**). PR1 on M4 host: **M4 3750→3930 (+180)**; M3 moves in the same PR on its own plan. Site **43380→43740** (43740=43380+180+180), still 71 lessons.
+
+- **H2 / 4.5 ros2-control: 420→600 (+180).** Official Jazzy controller chaining / cascade contract (`controller_chaining_cascade_toy.py`; common random numbers, 5 seeds; shared reference, measurement noise and inner-disturbance draws). Jazzy chaining page commit `b558c3ab693fbf9aa472392cafc0c0f14f9fc549` (2026-11-18 05:59:51 Asia/Shanghai), blob `0b91260a4064e51fce45e0de1e09101c5147fd02`; DiffBot example 16 commit `b34cc5917f216b36ff3bda1ca0cc0736ecc00235` (2025-07-10 15:15:16 Asia/Shanghai), blob `331f9881206b6a71a60b6c5b0463161c2039e99b`; 以文档为准. Activate following controllers first; chained mode disables subscribers; reference interfaces unavailable / unclaimed / claimed as documented. Declared stand-in: `DT=0.0020` s, `TAU_INNER=0.0250` s, `TAU_OUTER=0.6000` s, `T_REF=2.5000` s, `KP_SINGLE=1.8500`, `KP_OUTER=2.0000`, `KP_INNER=12.0000`, `SIG_Y=0.0100`, `DIST_AMP=0.3500`. Hand calc (printed): inner ZOH `0.9231` / `0.0769`, outer ZOH `0.9967` / `0.0033`, ratio `24.0000`, window `3500`, `0.2000`. slow_no_dist: B-A outer `1.234e-7+-1.824e-6`, **near-tie** (2 of 5 opposite; declared may near-tie **held**); A/B outer `0.2899`. inner_disturbance: B-A outer `-0.9775+-9.508e-5` and inner `-4.0858+-1.412e-5`, **clear**, 5/5 (held). broken_chain: C-B outer `0.5038+-5.723e-5`, **clear**, 5/5 (held). Alternatives (declared, same seeds): `KP_SINGLE=1.5000` turns the quiet B-A outer cell into a small consistent gap `-0.0398+-6.176e-6` (not adopted). No official toy or expected/ change after the first official run 2026-11-20 04:07:30 Asia/Shanghai. ≠ EtherCAT / Ziegler-Nichols / Deadline / rmw_zenoh. Real controller_manager / DiffBot 本页未运行. / 慢参考无扰动时单环与串级接近打平；内环扰动下串级稳定更好；随后控制器未激活则链断开失败。
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
+
+**Site accounting / 全站核算:** **43740=43380+360** with M3 +180 on month-3-plan.md; **M4=3930**, **71 lessons**.
+
 
 ## Batch-25 PR1 / 本月 H1 (+180)
 

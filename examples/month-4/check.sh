@@ -27,6 +27,7 @@ check_py rmw_zenoh_qos_discovery_toy.txt python3 "$M4/ros2-setup/rmw_zenoh_qos_d
 check_py composition_container_toy.txt python3 "$M4/ros2-graph/composition_container_toy.py"
 check_py icp_point_plane_toy.txt python3 "$M4/slam-nav/icp_point_plane_toy.py"
 check_py ethercat_dc_timing_toy.txt python3 "$M4/ros2-control/ethercat_dc_timing_toy.py"
+check_py controller_chaining_cascade_toy.txt python3 "$M4/ros2-control/controller_chaining_cascade_toy.py"
 check_py gazebo_step_contact_stability_toy.txt python3 "$M4/gazebo-sim/gazebo_step_contact_stability_toy.py"
 check_py tf_buffer_time_lookup_toy.txt python3 "$M4/urdf-tf/tf_buffer_time_lookup_toy.py"
 check_py dwa_vs_pure_pursuit_toy.txt python3 "$M4/slam-nav/dwa_vs_pure_pursuit_toy.py"

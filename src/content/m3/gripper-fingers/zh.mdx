@@ -1091,6 +1091,451 @@ Real gripper: 本页未运行; contact counts 以论文为准
 
 **180 分钟安排:** 30 分钟读入门讲义 §2.5 和综述定义 1，包括 4 与 7 的计数；40 分钟画出正方形、四个偏置接触和一阶间隙检验；40 分钟运行模型、读懂三种情形；40 分钟把边中点替代和 `μ = 0.2` 替代与打印数字对照；30 分钟写下形状封闭与本页开头有摩擦夹紧、以及 Ferrari–Canny ε 那课有何不同。
 
+## 颗粒阻塞夹爪：摩擦、膜密封与互锁的保持力
+
+颗粒阻塞万用夹爪用一袋颗粒代替一根根手指：未阻塞时颗粒会流向物体并贴合其形状，抽真空提高堆积约束后则变硬（Brown、Rodenberg、Amend、Mozeika、Steltz、Zakin、Lipson、Jaeger，arXiv 1009.4444 v2，投稿 2010-09-22，本版 2010-11-05；以论文为准）。摘要与扉页作者顺序为：Eric Brown、Nicholas Rodenberg、John Amend、Annan Mozeika、Erik Steltz、Mitchell R. Zakin、Hod Lipson、Heinrich M. Jaeger。arXiv v2 扉页上看不到共同一作或通讯作者的排版标记，这里也不虚构。引用已打开的正文为 arXiv 1009.4444 v2；本页不把未读的 PNAS 页码当作第二份正文。
+
+体积变化不到 0.5 % 就足以夹住物体（摘要 / 第 1 页；以论文为准）。三种机制共同起作用：摩擦、膜密封造成的吸力，以及几何互锁（摘要；以论文为准）。论文里的「吸力」是一层膜密封：阻塞把袋口捏紧之后，在提起物体时保住夹缝里的真空。阻塞的作用是捏出密封，它本身并不产生夹缝真空。这**不是**仍停放的工业吸盘夹爪，**不是**本页形状封闭的重讲，**不是**感知到抓取课上的 Ferrari-Canny ε / 对跖力封闭玩具，也**不是**鳍条 / TPU / 指尖重定向。
+
+定量模型把捏紧接触当成宽度为 `d` 的 O 形圈。对无法密封的多孔球，式 1 为 `F_h = F_f = 2 * pi * R * d * sigma_star * (mu * sin(theta) - cos(theta)) * sin(theta)^2`。当 `theta` 低于 `theta_c = arctan(1/mu)` 时，界面在任何约束下都会滑脱（橡胶 `mu` 约为 1 时，大约是 `pi/4`）。对能密封的光滑实心球，再叠加吸力 `F_s = P_g * A_star`，合力为式 2：`F_h = F_s + F_f = pi * R^2 * sigma_star * (mu * sin(theta) - cos(theta)) * sin(theta)^3 * (1 + 2*d/(R*sin(theta)))`。论文拟合值 `mu = 1.04 +- 0.06`、`sigma_star = 50 +- 4 kPa`、`d = 1.07 +- 0.07 mm` 以论文为准，不是玩具测量。`theta > pi/2` 时的互锁是第三种机制（图 3A 蓝线；以论文为准）；玩具不为该区编造屈服应力公式。论文所说「能形成密封的球，保持力约为多孔球的 10 倍」同样以论文为准，不是玩具输出。
+
+### 公平设置
+
+`jamming_gripper_holding_force_toy.py` 是**合成**模型，只用标准库。模型假设: 式 1 与式 2，并在 `theta_c` 及以下把 `F_h` 截成 0；声明的球半径 `R = 0.0125` m；正式材料常数 `MU = 1.0400`、`SIGMA_STAR = 50000.0000` Pa（`D = 0.00107` m，`hand_calc D = 1.0700` mm、`SIGMA_STAR = 50.0000` kPa）；未阻塞 `SIGMA_UNJAMMED = 0.0000` Pa。A 臂未阻塞。B 臂已阻塞、仅摩擦（多孔，式 1）。C 臂已阻塞，在允许密封时用摩擦加膜密封吸力（式 2）。不启动真实真空泵或袋。
+
+**公共随机数:** 五个种子 `0,1,2,3,4`。接触角在每种情形、每个种子上只抽一次，三臂共用。`below_theta_c` 在 `[0.0500, 0.9000 * theta_c)` 上抽样（手算）；`modest_seal` 与 `good_theta_unjammed` 在 `[pi/4, pi/2)` 上抽样（`hand_calc pi/4 = 0.7854` rad，`pi/2 = 1.5708` rad）；`thin_disk` 在 `[0.0200, 0.1000]` rad 上抽样（手算）。
+
+**各情形在首次运行前写下:** `below_theta_c` — 无论 `sigma_star` 多大，摩擦与密封保持力都为零（**失败保留**）；`modest_seal` — 允许密封时，C 的 `F_h` **稳定地**高于仅摩擦的 B（**保留**）；`good_theta_unjammed` — 未阻塞的 A 相对已阻塞的 B 与 C **夹不住**（**保留**）；`thin_disk` — 包覆不足 **夹不住**（**保留**）。标签：每个种子都相同为**打平**；成对均值绝对值与标准差都低于 `1e-9` 为数值上为零；`|m| <= sd` 为**接近打平**；`|m| > sd` 为稳定差距，若 `|m|` 低于较小臂均值的 20 %（手算；玩具打印为 `0.2000`）则为**小**，否则为**明显**，并报告同号计数。
+
+### 运行标准库模型
+
+脚本在 `examples/month-3/gripper-fingers`。
+
+```bash
+cd ~/Hardware-learning/examples/month-3/gripper-fingers
+python3 jamming_gripper_holding_force_toy.py
+```
+
+<CodeSource path="examples/month-3/gripper-fingers/jamming_gripper_holding_force_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic jamming-gripper holding-force stand-in.
+
+Stdlib only. Evaluates the friction and membrane-seal holding-force model
+from Brown, Rodenberg, Amend, Mozeika, Steltz, Zakin, Lipson, Jaeger,
+arXiv 1009.4444 v2 (submitted 2010-09-22, this version 2010-11-05).
+No real vacuum pump, bag, or Instron is started.
+
+A shared sphere radius and shared contact-angle draws are generated once
+per (regime, seed) and then read by every arm (common random numbers).
+Declared material constants are shared across arms; only confinement and
+whether a membrane seal is allowed change.
+
+Arms:
+  A_unjammed -- no confinement, sigma_star = 0.
+  B_friction -- jammed, porous / friction-only, Eq. 1.
+  C_seal -- jammed, friction plus membrane-seal suction when a seal is
+    allowed, Eq. 2. The paper's suction is a membrane seal that holds a
+    gap vacuum while the object is lifted after jamming has pinched the
+    bag; it is not an industrial vacuum cup.
+
+When theta is below theta_c = arctan(1/mu), both Eq. 1 and Eq. 2 are
+clamped to zero: the interface slips for any confinement.
+
+Regimes and parameters were written before the first run.
+
+Labels: tie = identical on every seed; numerically zero = |paired mean| and sd
+both < 1e-9; |m| <= sd = near-tie; |m| > sd = consistent gap (small if |m| < 20 %
+of the smaller arm mean, else clear), with a sign count. ROUND_HALF_UP output.
+
+Paper fits, the < 0.5 % volume-change remark, and the order-of-magnitude
+suction enhancement stay 以论文为准 and are not toy measurements.
+Real jamming bag / vacuum pump / Instron: 本页未运行.
+"""
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+SMALL_FRAC = 0.2000  # 20 % of the smaller-arm mean; printed as 0.2000
+
+# Declared sphere and official material constants (paper-like; printed).
+R = 0.0125  # m, declared sphere radius
+MU = 1.04  # official toy mu; paper fit 1.04 +- 0.06 以论文为准
+SIGMA_STAR = 50_000.0  # Pa; paper fit 50 +- 4 kPa 以论文为准
+D = 0.00107  # m; paper fit 1.07 +- 0.07 mm 以论文为准
+SIGMA_UNJAMMED = 0.0
+
+# Named alternative, same seeds, not adopted: independent inclined-plane mu
+# from the paper Methods (1.10 +- 0.03 以论文为准), used only as a named alt.
+MU_ALT = 1.10
+
+ARMS = ("A_unjammed", "B_friction", "C_seal")
+METRICS = ("F_h",)
+PAIRS = (("B", "A"), ("C", "A"), ("C", "B"))
+
+# theta draws, written before the first run
+THETA_BELOW_LO = 0.0500  # rad, still positive so sin(theta) is defined
+THETA_BELOW_HI_FRAC = 0.9000  # fraction of theta_c
+THETA_MODEST_LO = math.pi / 4.0  # rad; pi/4 < theta < pi/2
+THETA_MODEST_HI = math.pi / 2.0
+THETA_DISK_LO = 0.0200
+THETA_DISK_HI = 0.1000
+
+# name: (kind, declared expectation); written before the first run
+REGIMES = {
+    "below_theta_c": (
+        "below_theta_c",
+        "friction and seal holding force is zero regardless of sigma_star - lose kept",
+    ),
+    "modest_seal": (
+        "modest_seal",
+        "C consistent higher F_h than friction-only B - keep",
+    ),
+    "good_theta_unjammed": (
+        "good_theta",
+        "unjammed A loses hold against jammed B and C - keep",
+    ),
+    "thin_disk": (
+        "thin_disk",
+        "insufficient wrap loses hold - keep",
+    ),
+}
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < SMALL_FRAC * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def theta_c(mu):
+    return math.atan(1.0 / mu)
+
+
+def holding_force(theta, sigma_star, mu, radius, width, seal):
+    """Eq. 1 (seal=False) or Eq. 2 (seal=True); clamp to 0 at or below theta_c."""
+    if sigma_star <= 0.0 or theta <= 0.0:
+        return 0.0
+    s = math.sin(theta)
+    c = math.cos(theta)
+    factor = mu * s - c
+    if factor <= 0.0 or s <= 0.0:
+        return 0.0
+    if not seal:
+        return 2.0 * math.pi * radius * width * sigma_star * factor * (s ** 2)
+    return math.pi * (radius ** 2) * sigma_star * factor * (s ** 3) * (
+        1.0 + 2.0 * width / (radius * s)
+    )
+
+
+def rng_for(*parts):
+    h = 10094444
+    for part in parts:
+        if isinstance(part, str):
+            for ch in part:
+                h = (h * 131 + ord(ch)) & 0xFFFFFFFFFFFFFFFF
+        else:
+            h = (h * 131 + int(part)) & 0xFFFFFFFFFFFFFFFF
+    return random.Random(h)
+
+
+def shared_theta(seed, kind, mu):
+    """Common random numbers: one contact angle per regime and seed, all arms."""
+    rng = rng_for("theta", kind, seed)
+    if kind == "below_theta_c":
+        lo = THETA_BELOW_LO
+        hi = THETA_BELOW_HI_FRAC * theta_c(mu)
+        return rng.uniform(lo, hi)
+    if kind in ("modest_seal", "good_theta"):
+        return rng.uniform(THETA_MODEST_LO, THETA_MODEST_HI)
+    if kind == "thin_disk":
+        return rng.uniform(THETA_DISK_LO, THETA_DISK_HI)
+    raise ValueError(kind)
+
+
+def evaluate(arm, theta, mu=MU):
+    if arm == "A_unjammed":
+        fh = holding_force(theta, SIGMA_UNJAMMED, mu, R, D, seal=False)
+    elif arm == "B_friction":
+        fh = holding_force(theta, SIGMA_STAR, mu, R, D, seal=False)
+    elif arm == "C_seal":
+        fh = holding_force(theta, SIGMA_STAR, mu, R, D, seal=True)
+    else:
+        raise ValueError(arm)
+    return {"F_h": fh, "theta": theta}
+
+
+def run_regime(name, seed, mu=MU):
+    kind, _decl = REGIMES[name]
+    theta = shared_theta(seed, kind, mu)
+    row = {"theta": theta}
+    for arm in ARMS:
+        row[arm] = evaluate(arm, theta, mu=mu)
+    return row
+
+
+def print_regime(title, rows):
+    print(f"regime {title}  (mean+-sd over seeds)")
+    thetas = [r["theta"] for r in rows]
+    print(f"  theta_rad {num(mean_sd(thetas)[0])}+-{num(mean_sd(thetas)[1])}")
+    for arm in ARMS:
+        fh = [r[arm]["F_h"] for r in rows]
+        print(f"  {arm} F_h_N {num(mean_sd(fh)[0])}+-{num(mean_sd(fh)[1])}")
+    for left, right in PAIRS:
+        la = [a for a in ARMS if a.startswith(left)][0]
+        ra = [a for a in ARMS if a.startswith(right)][0]
+        for key in METRICS:
+            xa = [r[la][key] for r in rows]
+            xb = [r[ra][key] for r in rows]
+            print(f"  paired {left}-{right} {key}: {verdict(xa, xb)}")
+
+
+def official_rows(name, mu=MU):
+    return [run_regime(name, seed, mu=mu) for seed in SEEDS]
+
+
+def main():
+    tc = theta_c(MU)
+    tc_alt = theta_c(MU_ALT)
+    print("Synthetic jamming-gripper holding-force stand-in; not a real bag or pump")
+    print(
+        f"declared R={num(R)} m MU={num(MU)} SIGMA_STAR={num(SIGMA_STAR)} Pa "
+        f"D=0.00107 m SIGMA_UNJAMMED={num(SIGMA_UNJAMMED)} Pa "
+        f"SMALL_FRAC={num(SMALL_FRAC)} seeds={','.join(str(s) for s in SEEDS)}"
+    )
+    print("hand_calc D=1.0700 mm, SIGMA_STAR=50.0000 kPa")
+    print(
+        "declared arms: A_unjammed sigma_star=0; B_friction jammed Eq. 1; "
+        "C_seal jammed Eq. 2 when a membrane seal is allowed"
+    )
+    print(f"hand_calc theta_c = arctan(1/MU) = {num(tc)} rad")
+    print(f"hand_calc pi/4 = {num(math.pi / 4.0)} rad")
+    print(f"hand_calc pi/2 = {num(math.pi / 2.0)} rad")
+    print(f"hand_calc 20 percent small-vs-clear factor = {num(SMALL_FRAC)}")
+    print(
+        "paper_fit mu=1.04 +- 0.06, sigma_star=50 +- 4 kPa, d=1.07 +- 0.07 mm "
+        "(arXiv 1009.4444 v2; 以论文为准)"
+    )
+    print("paper_volume_change_less_than=0.5 % (arXiv 1009.4444 v2 abs / p.1; 以论文为准)")
+    print(
+        "paper_suction_enhancement_order=10 times for spheres that form a seal "
+        "(arXiv 1009.4444 v2; 以论文为准, not a toy output)"
+    )
+    print(
+        "paper_authors=Eric Brown, Nicholas Rodenberg, John Amend, Annan Mozeika, "
+        "Erik Steltz, Mitchell R. Zakin, Hod Lipson, Heinrich M. Jaeger "
+        "(abs / title-page order; 以论文为准)"
+    )
+    print("paper_version=arXiv 1009.4444 v2, submitted 2010-09-22, this version 2010-11-05")
+    print("Regimes and parameters were written before the first run")
+    print(
+        "Common random numbers: the contact angle is shared across arms at each "
+        "regime and seed"
+    )
+    print(
+        "Assumptions: Eqs. 1-2 with F_h clamped to 0 at or below theta_c; "
+        "no interlocking yield law; no real bag"
+    )
+    print("Paper figures (fits, 0.5 %, 10 times, authorship) 以论文为准")
+    print("Real jamming bag / vacuum pump / Instron: 本页未运行")
+    print("declared below_theta_c: friction and seal holding force is zero regardless of sigma_star - lose kept")
+    print("declared modest_seal: C consistent higher F_h than friction-only B - keep")
+    print("declared good_theta_unjammed: unjammed A loses hold against jammed B and C - keep")
+    print("declared thin_disk: insufficient wrap loses hold - keep")
+
+    official = {name: official_rows(name) for name in REGIMES}
+    for name, (_kind, decl) in REGIMES.items():
+        print(f"declared expectation {name}: {decl}")
+        print_regime(name, official[name])
+
+    print(f"alternative same seeds MU={num(MU_ALT)} (not adopted)")
+    print(f"hand_calc theta_c at MU_ALT = arctan(1/MU_ALT) = {num(tc_alt)} rad")
+    print(
+        "paper_independent_mu=1.10 +- 0.03 from the inclined-plane test "
+        "(arXiv 1009.4444 v2 Methods; 以论文为准, named alternative only)"
+    )
+    for name in REGIMES:
+        print_regime(f"{name} alt_mu={num(MU_ALT)}", official_rows(name, mu=MU_ALT))
+
+    print("No real vacuum pump or bag was started")
+    print(
+        "No winner is universal: below theta_c both jammed arms lose hold; "
+        "a membrane seal can raise F_h only when theta exceeds theta_c and a seal is allowed"
+    )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic jamming-gripper holding-force stand-in; not a real bag or pump
+declared R=0.0125 m MU=1.0400 SIGMA_STAR=50000.0000 Pa D=0.00107 m SIGMA_UNJAMMED=0.0000 Pa SMALL_FRAC=0.2000 seeds=0,1,2,3,4
+hand_calc D=1.0700 mm, SIGMA_STAR=50.0000 kPa
+declared arms: A_unjammed sigma_star=0; B_friction jammed Eq. 1; C_seal jammed Eq. 2 when a membrane seal is allowed
+hand_calc theta_c = arctan(1/MU) = 0.7658 rad
+hand_calc pi/4 = 0.7854 rad
+hand_calc pi/2 = 1.5708 rad
+hand_calc 20 percent small-vs-clear factor = 0.2000
+paper_fit mu=1.04 +- 0.06, sigma_star=50 +- 4 kPa, d=1.07 +- 0.07 mm (arXiv 1009.4444 v2; 以论文为准)
+paper_volume_change_less_than=0.5 % (arXiv 1009.4444 v2 abs / p.1; 以论文为准)
+paper_suction_enhancement_order=10 times for spheres that form a seal (arXiv 1009.4444 v2; 以论文为准, not a toy output)
+paper_authors=Eric Brown, Nicholas Rodenberg, John Amend, Annan Mozeika, Erik Steltz, Mitchell R. Zakin, Hod Lipson, Heinrich M. Jaeger (abs / title-page order; 以论文为准)
+paper_version=arXiv 1009.4444 v2, submitted 2010-09-22, this version 2010-11-05
+Regimes and parameters were written before the first run
+Common random numbers: the contact angle is shared across arms at each regime and seed
+Assumptions: Eqs. 1-2 with F_h clamped to 0 at or below theta_c; no interlocking yield law; no real bag
+Paper figures (fits, 0.5 %, 10 times, authorship) 以论文为准
+Real jamming bag / vacuum pump / Instron: 本页未运行
+declared below_theta_c: friction and seal holding force is zero regardless of sigma_star - lose kept
+declared modest_seal: C consistent higher F_h than friction-only B - keep
+declared good_theta_unjammed: unjammed A loses hold against jammed B and C - keep
+declared thin_disk: insufficient wrap loses hold - keep
+declared expectation below_theta_c: friction and seal holding force is zero regardless of sigma_star - lose kept
+regime below_theta_c  (mean+-sd over seeds)
+  theta_rad 0.3545+-0.2154
+  A_unjammed F_h_N 0.0000+-0.0000
+  B_friction F_h_N 0.0000+-0.0000
+  C_seal F_h_N 0.0000+-0.0000
+  paired B-A F_h: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A F_h: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B F_h: 0.0000+-0.0000: tie: identical on every seed
+declared expectation modest_seal: C consistent higher F_h than friction-only B - keep
+regime modest_seal  (mean+-sd over seeds)
+  theta_rad 1.1793+-0.2364
+  A_unjammed F_h_N 0.0000+-0.0000
+  B_friction F_h_N 2.1295+-1.4229
+  C_seal F_h_N 13.9682+-9.9559
+  paired B-A F_h: 2.1295+-1.4229: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A F_h: 13.9682+-9.9559: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B F_h: 11.8387+-8.5333: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+declared expectation good_theta_unjammed: unjammed A loses hold against jammed B and C - keep
+regime good_theta_unjammed  (mean+-sd over seeds)
+  theta_rad 1.3386+-0.1593
+  A_unjammed F_h_N 0.0000+-0.0000
+  B_friction F_h_N 3.0794+-0.9884
+  C_seal F_h_N 20.6079+-7.1491
+  paired B-A F_h: 3.0794+-0.9884: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A F_h: 20.6079+-7.1491: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B F_h: 17.5285+-6.1607: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+declared expectation thin_disk: insufficient wrap loses hold - keep
+regime thin_disk  (mean+-sd over seeds)
+  theta_rad 0.0504+-0.0226
+  A_unjammed F_h_N 0.0000+-0.0000
+  B_friction F_h_N 0.0000+-0.0000
+  C_seal F_h_N 0.0000+-0.0000
+  paired B-A F_h: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A F_h: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B F_h: 0.0000+-0.0000: tie: identical on every seed
+alternative same seeds MU=1.1000 (not adopted)
+hand_calc theta_c at MU_ALT = arctan(1/MU_ALT) = 0.7378 rad
+paper_independent_mu=1.10 +- 0.03 from the inclined-plane test (arXiv 1009.4444 v2 Methods; 以论文为准, named alternative only)
+regime below_theta_c alt_mu=1.1000  (mean+-sd over seeds)
+  theta_rad 0.3426+-0.2069
+  A_unjammed F_h_N 0.0000+-0.0000
+  B_friction F_h_N 0.0000+-0.0000
+  C_seal F_h_N 0.0000+-0.0000
+  paired B-A F_h: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A F_h: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B F_h: 0.0000+-0.0000: tie: identical on every seed
+regime modest_seal alt_mu=1.1000  (mean+-sd over seeds)
+  theta_rad 1.1793+-0.2364
+  A_unjammed F_h_N 0.0000+-0.0000
+  B_friction F_h_N 2.3202+-1.4772
+  C_seal F_h_N 15.1888+-10.3904
+  paired B-A F_h: 2.3202+-1.4772: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A F_h: 15.1888+-10.3904: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B F_h: 12.8686+-8.9134: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+regime good_theta_unjammed alt_mu=1.1000  (mean+-sd over seeds)
+  theta_rad 1.3386+-0.1593
+  A_unjammed F_h_N 0.0000+-0.0000
+  B_friction F_h_N 3.3059+-1.0177
+  C_seal F_h_N 22.1152+-7.3941
+  paired B-A F_h: 3.3059+-1.0177: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A F_h: 22.1152+-7.3941: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B F_h: 18.8093+-6.3765: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+regime thin_disk alt_mu=1.1000  (mean+-sd over seeds)
+  theta_rad 0.0504+-0.0226
+  A_unjammed F_h_N 0.0000+-0.0000
+  B_friction F_h_N 0.0000+-0.0000
+  C_seal F_h_N 0.0000+-0.0000
+  paired B-A F_h: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A F_h: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B F_h: 0.0000+-0.0000: tie: identical on every seed
+No real vacuum pump or bag was started
+No winner is universal: below theta_c both jammed arms lose hold; a membrane seal can raise F_h only when theta exceeds theta_c and a seal is allowed
+```
+
+</SimOutput>
+
+### 读懂各情形
+
+`hand_calc theta_c = arctan(1/MU) = 0.7658` rad。正式首次运行：2026-11-20 04:07:30 Asia/Shanghai。此后**没有**改正式玩具或 `expected/`。数字冻结之后，运行片段补上了开头的 `cd ~/Hardware-learning/examples/month-3/gripper-fingers`，让该代码块自己带上工作目录；中文课文里紧贴全角冒号的加粗标记也做了调整。公平设置句里声明的 θ 抽样上下界 `0.0500`、`0.9000`、`0.0200`、`0.1000` 补上了手算标记，因为这四个数没有出现在 `expected/` 打印里。官方 `expected/` 没有重调。
+
+- **below_theta_c** 情形，`theta` 为 `0.3545+-0.2154` rad，低于 `theta_c`。A、B、C 的 `F_h` 都是 `0.0000+-0.0000`。成对 B-A、C-A、C-B 都是 `0.0000+-0.0000: tie: identical on every seed`。预声明的失败成立：在 `theta_c` 以下，两条已阻塞臂在模型里无论约束多大都会失去保持力。
+- **modest_seal** 情形，`theta` 为 `1.1793+-0.2364` rad，落在 `(pi/4, pi/2)`。B 为 `2.1295+-1.4229` N，C 为 `13.9682+-9.9559` N。成对 C-B 为 `11.8387+-8.5333`，为明显差距、不是打平（`|m| > sd`；5 个种子全部同号）。预声明的密封侧稳定增益成立。未阻塞的 A 仍是 `0.0000+-0.0000`。论文「约 10 倍」的吸力说法仍以论文为准，不从这一格读取。
+- **good_theta_unjammed** 情形，`theta` 为 `1.3386+-0.1593` rad。A 为 `0.0000+-0.0000`；B 为 `3.0794+-0.9884` N，C 为 `20.6079+-7.1491` N。成对 B-A 为 `3.0794+-0.9884`，C-A 为 `20.6079+-7.1491`，都是**明显差距，不是打平**，5 个种子全部同号。预声明的未阻塞失败成立。
+- **thin_disk** 情形，`theta` 为 `0.0504+-0.0226` rad，远低于 `theta_c`。三臂都是 `0.0000+-0.0000`，每一对都是 `0.0000+-0.0000: tie: identical on every seed`。预声明的包覆不足失败成立。
+
+同一组种子上名为 `MU = 1.1000` 的替代未采用。该值是论文方法部分独立斜面试验的 `mu = 1.10 +- 0.03`（以论文为准），只作为具名替代（`hand_calc theta_c at MU_ALT = 0.7378` rad）。在 `theta_c` 以下和薄圆盘上，力仍为 `0.0000`；在 `modest_seal` 中，C-B 仍是**明显**差距 `12.8686+-8.9134`（C `15.1888+-10.3904` N，B `2.3202+-1.4772` N），5 个种子全部同号。正式的 `MU = 1.0400` 没有为了追论文里的「10 倍」而改动。
+
+本页不宣布普遍赢家。在 `theta_c` 以下以及薄圆盘上，两条已阻塞臂都会失去保持力；只有 `theta` 超过 `theta_c` 并且允许密封时，膜密封才能提高 `F_h`。论文数字以论文为准。真实阻塞袋 / 真空泵 / Instron：本页未运行。
+
+### 练习
+
+1. 由式 1 说明：当 `theta < theta_c` 时，为什么任意 `sigma_star` 下 `F_h` 都为零？请用打印的 `hand_calc theta_c = 0.7658` rad。
+2. 用一句话说明：论文里的膜密封吸力与工业吸盘有何不同？夹缝真空是在什么时候出现的？
+3. 在 `modest_seal` 中，C-B 为 `11.8387+-8.5333` N，**明显**，5/5。为什么「约 10 倍」的说法仍必须以论文为准，而不能当作玩具输出？
+4. `thin_disk` 这一格保留的是什么？它怎样对应论文里那些膜无法包到侧边、因而夹不住的物体？
+5. 替代 `MU = 1.1000` 在同一组种子上跑过且未采用。如果看到 `F_h` 之后悄悄改 `mu`、`d` 或 `sigma_star`，错在哪里？
+
+**180 分钟工作计划:** 30+25+50+40+35=180。30 分钟阅读 arXiv 1009.4444 v2（摘要、HTML 与 PDF 的式 1–2、`theta_c` 滑脱条件，以及把吸力写成膜密封的说明），写下三种机制和摘要顺序的作者名单；25 分钟在运行前写好式 1–2、`theta_c` 处的截断、声明常数和四种情形；50 分钟运行玩具并阅读正式情形；40 分钟在同一组种子上重跑具名替代 `MU = 1.1000`；35 分钟写明这不是形状封闭、不是工业吸盘，以及真实袋 / 泵 / Instron 检查还需要看到什么（本页未运行）。
+
 <Summary>
 
 **本课要点**
@@ -1104,6 +1549,7 @@ Real gripper: 本页未运行; contact counts 以论文为准
 - 每种物体、每套手指各抓 10 次；抬起 10 cm、保持 5 s、放下时不掉不损坏才算成功。
 - 课内多指玩具：4×3 = 12 DoF；LEAP Hand 论文为 16 DoF（以论文为准）。在杆长比、限位与缩放目标变体下比较指尖 IK 与关节拷贝；报告 RMSE、限位违反与 mean |Δq|——任一臂都不按构造必胜。
 - 形状封闭是无摩擦卡住（间隙检验 `ψ(u + du, q) ≥ 0 ⇒ du = 0`；以论文为准）。在共享正方形上，四个循环偏置接触在 `μ = 0` 时卡住（`form = 1.0000±0.0000`），三点接触和两指抓取都会逃逸（成对 B−A 与 B−C 均为 `1.0000±0.0000`，**明显**，5 个种子全部同号）；在 `μ = 1` 时两指抓取在力封闭上与另外两臂**打平**（每个种子都相同），但仍不是形状封闭；四个对齐法向接触的形状封闭为 `0.0000±0.0000`，尽管四个接触是必要的。论文计数：2-D至少 4 个无摩擦扳手，3-D至少 7 个接触点（以论文为准）。不是 Ferrari–Canny ε 玩具；真实夹爪本页未运行。
+- 颗粒阻塞保持力（Brown、Rodenberg、Amend、Mozeika、Steltz、Zakin、Lipson、Jaeger，arXiv 1009.4444 v2；以论文为准）：一袋颗粒在真空下阻塞；体积变化不到 0.5 % 就够；机制是摩擦、膜密封吸力（不是工业吸盘）和互锁。在共享球上，`theta < theta_c` 与薄圆盘的 `F_h = 0.0000+-0.0000`（**失败保留**）；中等包覆时，有密封的 C 比仅摩擦的 B 高 `11.8387+-8.5333` N，**明显**，5/5；良好 `theta` 下未阻塞的 A 夹不住。真实袋 / 泵 / Instron 本页未运行。
 
 **常见错误**
 

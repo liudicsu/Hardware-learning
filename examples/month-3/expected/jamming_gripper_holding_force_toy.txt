@@ -1,0 +1,95 @@
+Synthetic jamming-gripper holding-force stand-in; not a real bag or pump
+declared R=0.0125 m MU=1.0400 SIGMA_STAR=50000.0000 Pa D=0.00107 m SIGMA_UNJAMMED=0.0000 Pa SMALL_FRAC=0.2000 seeds=0,1,2,3,4
+hand_calc D=1.0700 mm, SIGMA_STAR=50.0000 kPa
+declared arms: A_unjammed sigma_star=0; B_friction jammed Eq. 1; C_seal jammed Eq. 2 when a membrane seal is allowed
+hand_calc theta_c = arctan(1/MU) = 0.7658 rad
+hand_calc pi/4 = 0.7854 rad
+hand_calc pi/2 = 1.5708 rad
+hand_calc 20 percent small-vs-clear factor = 0.2000
+paper_fit mu=1.04 +- 0.06, sigma_star=50 +- 4 kPa, d=1.07 +- 0.07 mm (arXiv 1009.4444 v2; 以论文为准)
+paper_volume_change_less_than=0.5 % (arXiv 1009.4444 v2 abs / p.1; 以论文为准)
+paper_suction_enhancement_order=10 times for spheres that form a seal (arXiv 1009.4444 v2; 以论文为准, not a toy output)
+paper_authors=Eric Brown, Nicholas Rodenberg, John Amend, Annan Mozeika, Erik Steltz, Mitchell R. Zakin, Hod Lipson, Heinrich M. Jaeger (abs / title-page order; 以论文为准)
+paper_version=arXiv 1009.4444 v2, submitted 2010-09-22, this version 2010-11-05
+Regimes and parameters were written before the first run
+Common random numbers: the contact angle is shared across arms at each regime and seed
+Assumptions: Eqs. 1-2 with F_h clamped to 0 at or below theta_c; no interlocking yield law; no real bag
+Paper figures (fits, 0.5 %, 10 times, authorship) 以论文为准
+Real jamming bag / vacuum pump / Instron: 本页未运行
+declared below_theta_c: friction and seal holding force is zero regardless of sigma_star - lose kept
+declared modest_seal: C consistent higher F_h than friction-only B - keep
+declared good_theta_unjammed: unjammed A loses hold against jammed B and C - keep
+declared thin_disk: insufficient wrap loses hold - keep
+declared expectation below_theta_c: friction and seal holding force is zero regardless of sigma_star - lose kept
+regime below_theta_c  (mean+-sd over seeds)
+  theta_rad 0.3545+-0.2154
+  A_unjammed F_h_N 0.0000+-0.0000
+  B_friction F_h_N 0.0000+-0.0000
+  C_seal F_h_N 0.0000+-0.0000
+  paired B-A F_h: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A F_h: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B F_h: 0.0000+-0.0000: tie: identical on every seed
+declared expectation modest_seal: C consistent higher F_h than friction-only B - keep
+regime modest_seal  (mean+-sd over seeds)
+  theta_rad 1.1793+-0.2364
+  A_unjammed F_h_N 0.0000+-0.0000
+  B_friction F_h_N 2.1295+-1.4229
+  C_seal F_h_N 13.9682+-9.9559
+  paired B-A F_h: 2.1295+-1.4229: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A F_h: 13.9682+-9.9559: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B F_h: 11.8387+-8.5333: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+declared expectation good_theta_unjammed: unjammed A loses hold against jammed B and C - keep
+regime good_theta_unjammed  (mean+-sd over seeds)
+  theta_rad 1.3386+-0.1593
+  A_unjammed F_h_N 0.0000+-0.0000
+  B_friction F_h_N 3.0794+-0.9884
+  C_seal F_h_N 20.6079+-7.1491
+  paired B-A F_h: 3.0794+-0.9884: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A F_h: 20.6079+-7.1491: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B F_h: 17.5285+-6.1607: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+declared expectation thin_disk: insufficient wrap loses hold - keep
+regime thin_disk  (mean+-sd over seeds)
+  theta_rad 0.0504+-0.0226
+  A_unjammed F_h_N 0.0000+-0.0000
+  B_friction F_h_N 0.0000+-0.0000
+  C_seal F_h_N 0.0000+-0.0000
+  paired B-A F_h: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A F_h: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B F_h: 0.0000+-0.0000: tie: identical on every seed
+alternative same seeds MU=1.1000 (not adopted)
+hand_calc theta_c at MU_ALT = arctan(1/MU_ALT) = 0.7378 rad
+paper_independent_mu=1.10 +- 0.03 from the inclined-plane test (arXiv 1009.4444 v2 Methods; 以论文为准, named alternative only)
+regime below_theta_c alt_mu=1.1000  (mean+-sd over seeds)
+  theta_rad 0.3426+-0.2069
+  A_unjammed F_h_N 0.0000+-0.0000
+  B_friction F_h_N 0.0000+-0.0000
+  C_seal F_h_N 0.0000+-0.0000
+  paired B-A F_h: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A F_h: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B F_h: 0.0000+-0.0000: tie: identical on every seed
+regime modest_seal alt_mu=1.1000  (mean+-sd over seeds)
+  theta_rad 1.1793+-0.2364
+  A_unjammed F_h_N 0.0000+-0.0000
+  B_friction F_h_N 2.3202+-1.4772
+  C_seal F_h_N 15.1888+-10.3904
+  paired B-A F_h: 2.3202+-1.4772: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A F_h: 15.1888+-10.3904: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B F_h: 12.8686+-8.9134: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+regime good_theta_unjammed alt_mu=1.1000  (mean+-sd over seeds)
+  theta_rad 1.3386+-0.1593
+  A_unjammed F_h_N 0.0000+-0.0000
+  B_friction F_h_N 3.3059+-1.0177
+  C_seal F_h_N 22.1152+-7.3941
+  paired B-A F_h: 3.3059+-1.0177: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A F_h: 22.1152+-7.3941: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B F_h: 18.8093+-6.3765: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+regime thin_disk alt_mu=1.1000  (mean+-sd over seeds)
+  theta_rad 0.0504+-0.0226
+  A_unjammed F_h_N 0.0000+-0.0000
+  B_friction F_h_N 0.0000+-0.0000
+  C_seal F_h_N 0.0000+-0.0000
+  paired B-A F_h: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A F_h: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B F_h: 0.0000+-0.0000: tie: identical on every seed
+No real vacuum pump or bag was started
+No winner is universal: below theta_c both jammed arms lose hold; a membrane seal can raise F_h only when theta exceeds theta_c and a seal is allowed
