@@ -60,6 +60,8 @@ check reward_dagger_progress_gate_toy.txt python3 "$M6/behaviour-cloning/reward_
 
 check internvla_m1_spatial_prompt_toy.txt python3 "$M6/vla-models/internvla_m1_spatial_prompt_toy.py"
 
+check cobovla_paraphrase_codes_toy.txt python3 "$M6/vla-models/cobovla_paraphrase_codes_toy.py"
+
 check hi_robot_hierarchical_feedback_toy.txt python3 "$M6/policy-evaluation/hi_robot_hierarchical_feedback_toy.py"
 
 exit $fail

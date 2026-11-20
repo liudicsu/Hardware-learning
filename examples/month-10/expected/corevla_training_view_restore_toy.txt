@@ -1,0 +1,62 @@
+Synthetic CoRe-VLA training-view restore stand-in; not a real RGB-D or VLA run
+declared SHIFT_OFFICIAL=0.2000 SHIFT_ALT=0.4000 SHIFT_NONE=0.0000 RENDER_SIGMA=0.5000 FX=400.0000 FY=400.0000 CX=160.0000 CY=160.0000 SMALL_FRAC=0.2000 seeds=0,1,2,3,4
+hand_calc 20 percent small-vs-clear factor = 0.2000
+hand_calc FX=FY=400.0000 CX=CY=160.0000
+hand_calc TRAIN_EYE=(0.0000, -0.8000, 0.6000) m
+hand_calc official SHIFT=0.2000 m along +x, fixed training orientation
+hand_calc alternative SHIFT=0.4000 m (not adopted)
+hand_calc RENDER_SIGMA=0.5000 px
+hand_calc noiseless training cup uv=(136.4172, 152.1053), bowl uv=(246.4702, 152.1053)
+hand_calc training principal-point distances cup=24.8691 px, bowl=86.8298 px, closer=cup
+hand_calc noiseless official-shift RMSE vs training view = 78.5675 px, closer=bowl
+declared arms: A_shifted uses the shifted view as training; B_restore lifts with the correct shift and reprojects; C_wrong uses a leaked identity
+paper_authors=Tianhang Pan, Xuanhao Wang, Yiwen Pang, Bo Zhou, Jun Yang, Min-Ling Zhang, Shimin Di (abs / title-page order; 以论文为准)
+paper_title_page=emails {tianhang.pan,shimin.di}@seu.edu.cn; no corresponding-author dagger and no equal-contribution star (以论文为准)
+paper_version=arXiv 2609.37150 v1, submitted 2026-09-29
+paper_figures=pi0.5 success 13.3 % to 83.3 % at a 1.6 m real-robot camera shift (arXiv 2609.37150 v1; 以论文为准, not toy outputs)
+Regimes and parameters were written before the first run
+Common random numbers: the scene markers, training extrinsics, shifted extrinsics and render-noise draws are shared across arms at each regime and seed
+Assumptions: pinhole stand-in with known depth; fixed training orientation under a lateral mount translation; leaked-identity C pretends the shift is zero; RMSE is against the noiseless training-view projection; order_acc is 1 when the object nearer the principal point matches the training view
+R2C Restoration is named; this toy does not re-implement ETCA
+Paper figures 以论文为准
+Real RGB-D / point-cloud renderer / VLA weights: 本页未运行
+declared no_shift: A and B may near-tie on agreement with the training-view observation - keep
+declared large_shift: B consistent better agreement with the training-view observation than A - keep
+declared C_wrong on large_shift: C loses or mis-reports because it pretends the shift did not happen - lose kept
+declared expectation no_shift: A and B may near-tie on agreement with the training-view observation - keep
+regime no_shift  shift_m=0.0000  (mean+-sd over seeds)
+  A_shifted rmse_px 0.7012+-0.1065 order_acc 1.0000+-0.0000
+  B_restore rmse_px 0.7012+-0.1065 order_acc 1.0000+-0.0000
+  C_wrong rmse_px 0.7012+-0.1065 order_acc 1.0000+-0.0000
+  paired B-A rmse_px: -4.863e-15+-1.254e-14: numerically zero (floating-point residue), effectively a tie
+  paired B-A order_acc: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C rmse_px: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C order_acc: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A rmse_px: -4.863e-15+-1.254e-14: numerically zero (floating-point residue), effectively a tie
+  paired C-A order_acc: 0.0000+-0.0000: tie: identical on every seed
+declared expectation large_shift: B consistent better agreement with the training-view observation than A - keep
+regime large_shift  shift_m=0.2000  (mean+-sd over seeds)
+  A_shifted rmse_px 78.5488+-0.1307 order_acc 0.0000+-0.0000
+  B_restore rmse_px 0.6137+-0.1714 order_acc 1.0000+-0.0000
+  C_wrong rmse_px 78.5488+-0.1307 order_acc 0.0000+-0.0000
+  paired B-A rmse_px: -77.9351+-0.2948: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A order_acc: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C rmse_px: -77.9351+-0.2948: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C order_acc: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A rmse_px: 0.0000+-1.005e-14: numerically zero (floating-point residue), effectively a tie
+  paired C-A order_acc: 0.0000+-0.0000: tie: identical on every seed
+alternative same seeds SHIFT=0.4000 m (not adopted)
+hand_calc official SHIFT=0.2000 m vs alternative 0.4000 m
+declared expectation large_shift_alt: alternative larger shift, same seeds, not adopted
+regime large_shift_alt  shift_m=0.4000  (mean+-sd over seeds)
+  A_shifted rmse_px 157.1513+-0.2164 order_acc 0.0000+-0.0000
+  B_restore rmse_px 0.7278+-0.1350 order_acc 1.0000+-0.0000
+  C_wrong rmse_px 157.1513+-0.2164 order_acc 0.0000+-0.0000
+  paired B-A rmse_px: -156.4236+-0.2585: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A order_acc: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C rmse_px: -156.4236+-0.2585: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C order_acc: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A rmse_px: 1.137e-14+-1.557e-14: numerically zero (floating-point residue), effectively a tie
+  paired C-A order_acc: 0.0000+-0.0000: tie: identical on every seed
+No real RGB-D, point-cloud renderer, or VLA weight was started
+No winner is universal: with no shift the raw and restored views may near-tie; a large external-camera translation is where correct-extrinsic restore matters, and a leaked identity leaves that shift uncorrected

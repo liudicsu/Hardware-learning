@@ -29,6 +29,7 @@ check vla_adapter_bridge_attention_toy.txt "$PY" "$M10/edge-deploy-checklist/vla
 check tacitvla_reasoning_latency_toy.txt "$PY" "$M10/edge-deploy-checklist/tacitvla_reasoning_latency_toy.py"
 check extrinsics_chain_toy.txt "$PY" "$M10/multi-view-extrinsics/extrinsics_chain_toy.py"
 check spatialvla_ego3d_grid_toy.txt "$PY" "$M10/multi-view-extrinsics/spatialvla_ego3d_grid_toy.py"
+check corevla_training_view_restore_toy.txt "$PY" "$M10/multi-view-extrinsics/corevla_training_view_restore_toy.py"
 check intervention_log_toy.txt "$PY" "$M10/intervention-logging/intervention_log_toy.py"
 check map_vla_memory_prompt_toy.txt "$PY" "$M10/intervention-logging/map_vla_memory_prompt_toy.py"
 check rlpd_chain_toy.txt "$PY" "$M10/real-world-rl/rlpd_chain_toy.py"
