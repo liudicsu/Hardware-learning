@@ -85,4 +85,5 @@ check fdm_build_orientation_anisotropy_toy.txt python3 "$M3/fdm-printing/fdm_bui
 check so101_shared_rail_sag_toy.txt python3 "$M3/so101-arm/so101_shared_rail_sag_toy.py"
 check ziegler_nichols_ultimate_gain_toy.txt python3 "$M3/pid-control/ziegler_nichols_ultimate_gain_toy.py"
 check jamming_gripper_holding_force_toy.txt python3 "$M3/gripper-fingers/jamming_gripper_holding_force_toy.py"
+check first_third_angle_projection_toy.txt python3 "$M3/cad-parametric/first_third_angle_projection_toy.py"
 exit $fail

@@ -22,3 +22,6 @@ Rendered and checked in software only; not printed by the site editor. / 只在�
 
 **`interference_press_fit_toy.py`**: clearance fit + set screw vs a light shrink fit vs excessive interference on one shared shaft and hub (stdlib, 5 seeds, common random numbers). Not the CAD clash check, not GD&T. Expected output: `../expected/interference_press_fit_toy.txt`.
 同一根轴和轮毂上比较间隙配合 + 紧定螺钉、轻度热装和过大过盈（标准库，5 个种子，共用随机数）。不是 CAD 碰撞检查，也不是 GD&T。期望输出见 `../expected/interference_press_fit_toy.txt`。真实压入实验本页未运行。
+
+**`first_third_angle_projection_toy.py`**: first- vs third-angle orthographic projection and the truncated-cone symbol on one shared stepped block (stdlib, 5 seeds, common random numbers). Not the GD&T stack, not the interference-fit toy. Expected output: `../expected/first_third_angle_projection_toy.txt`.
+**`first_third_angle_projection_toy.py`**：在同一块不对称阶梯块上比较第一角与第三角正投影和截锥符号（标准库，5 个种子，共用随机数）。不是 GD&T 累积，也不是过盈配合玩具。期望输出见 `../expected/first_third_angle_projection_toy.txt`。真实 CAD 图纸本页未运行。

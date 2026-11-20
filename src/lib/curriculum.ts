@@ -355,10 +355,10 @@ const month3Lessons: Lesson[] = [
     slug: "cad-parametric",
     title: { zh: "CAD：选好工具，用参数设计", en: "CAD: pick a tool, then design with parameters" },
     summary: {
-      zh: "选一个 CAD 工具深入下去：完全约束的草图、参数驱动的尺寸、照数据手册建模，以及 STEP 和 STL 的区别。再用共享双边尺寸链比较最坏情况 / RSS / 基准重根累积。再看过盈配合：在同一根轴和轮毂上比较间隙配合、轻度热装和过大过盈，区分它和装配体的干涉检查。",
-      en: "Pick one CAD tool and go deep: fully constrained sketches, parameters that drive every size, modelling from the datasheet, and STEP versus STL. Then compare worst-case / RSS / datum-reroot stacks on a shared bilateral chain. Then look at interference fits: on one shaft and hub, compare a clearance fit, a light shrink fit and excessive interference, and tell them apart from the assembly's interference check.",
+      zh: "选一个 CAD 工具深入下去：完全约束的草图、参数驱动的尺寸、照数据手册建模，以及 STEP 和 STL 的区别。再用共享双边尺寸链比较最坏情况 / RSS / 基准重根累积。再看过盈配合：在同一根轴和轮毂上比较间隙配合、轻度热装和过大过盈，区分它和装配体的干涉检查。再比较第一角与第三角正投影：同一块阶梯块上，同约定布置与识图是精确打平，跨约定识图会左右或上下对调，忽略截锥符号会在正确标注的图上把左右读反。",
+      en: "Pick one CAD tool and go deep: fully constrained sketches, parameters that drive every size, modelling from the datasheet, and STEP versus STL. Then compare worst-case / RSS / datum-reroot stacks on a shared bilateral chain. Then look at interference fits: on one shaft and hub, compare a clearance fit, a light shrink fit and excessive interference, and tell them apart from the assembly's interference check. Then compare first- and third-angle orthographic projection: on one shared stepped block, same-convention placement and reading are an exact tie, a cross-convention read swaps left/right or top/bottom, and ignoring the truncated-cone symbol swaps left/right on a correctly marked sheet.",
     },
-    minutes: 450,
+    minutes: 630,
     objectives: [
       { zh: "在共享双边尺寸链上比较最坏情况、RSS 与基准重根预测半宽，并用蒙特卡洛说明短链平局与偏斜分布下 RSS 可能不安全；不声称 ASME Y14.5 认证。", en: "On a shared bilateral chain, compare worst-case, RSS and datum-reroot predicted half-widths; use Monte Carlo to show a short-chain tie and RSS under-coverage on skewed stacks; no ASME Y14.5 certification claim." },
       { zh: "能用 cut_l = servo_l + 2 * clearance 计算派生切口尺寸（22.2 mm + 2 * 0.4 mm = 23.0 mm）。", en: "Compute a derived cut-out with cut_l = servo_l + 2 * clearance (22.2 mm + 2 * 0.4 mm = 23.0 mm)." },
@@ -366,6 +366,7 @@ const month3Lessons: Lesson[] = [
       { zh: "能用卡尺测孔距：外到外减一个孔径（29.5 mm − 2.0 mm = 27.5 mm）。", en: "Measure hole spacing from calipers as outside-to-outside minus one hole diameter (29.5 mm − 2.0 mm = 27.5 mm)." },
       { zh: "能解释为什么需要修改孔径的协作者必须拿到 STEP 文件，而 STL 只是不可再参数化的三角网格。", en: "Explain why a collaborator who must change a hole size needs the STEP file, while STL is a triangle mesh with no editable features." },
       { zh: "能写出过盈量 δ = d_shaft − d_hole 和热装的孔径增量 α · ΔT · d，在共享零件与负载下指出：振动负载下轻度热装在打滑上明显胜过带紧定螺钉的间隙配合（配对打滑 −25.4300±4.5789，5/5），没有负载时两者打平，冷态压入时在压入力上落败，过大过盈让轮毂屈服；区分它与 CAD 碰撞检查和 GD&T 累积；不声称做过压入实验。", en: "Write the interference δ = d_shaft − d_hole and the shrink-fit bore growth α · ΔT · d, and show on shared parts and loads that a light shrink fit clearly beats a clearance fit with a set screw on slip under a vibrating load (paired slip −25.4300±4.5789, 5/5), ties it with no load, loses on press force when pressed cold, and that excessive interference yields the hub; tell it apart from the CAD clash check and the GD&T stack; no press-test claim." },
+      { zh: "能在同一块不对称阶梯块上说明：按第一角或第三角布置并按同一约定识图时，视图槽位和特征朝向精确打平（配对 B-A 的 slot_match、boss_ok、notch_ok 均为 0.0000+-0.0000，每个种子都相同）；把第三角图纸按第一角来读会左右和对上对下调换（C 落败，配对 C-A -1.0000+-0.0000，5/5）；在正确标注的第一角图纸上忽略截锥符号会把左右读反（D 在 boss_ok 上落败）；不声称打开过 ISO 5456-2 或 ASME Y14.3，真实 CAD 图纸本页未运行。", en: "On one shared stepped block, show that first- or third-angle placement read under the matching convention is an exact tie on view-slot identity and feature side (paired B-A slot_match, boss_ok and notch_ok 0.0000+-0.0000, identical on every seed), that a third-angle sheet read as first-angle swaps left/right and top/bottom (C loses, paired C-A -1.0000+-0.0000, 5/5), and that ignoring the truncated-cone symbol on a correctly marked first-angle sheet swaps left/right (D loses on boss_ok); no claim to have opened ISO 5456-2 or ASME Y14.3; no real CAD sheet." },
     ],
     prereqs: [],
     resources: ["onshape-free", "onshape-learn", "fusion-personal", "pdo-fusion30", "freecad", "mangojelly", "solidworks-makers", "openscad", "wiki-gdt", "wiki-tol-analysis", "wiki-interference-fit"],
@@ -376,6 +377,7 @@ const month3Lessons: Lesson[] = [
       { id: "constrained", text: { zh: "画一个完全约束（0 自由度）的草图，尺寸都从基准标注", en: "Draw a fully constrained (0 DOF) sketch with every dimension taken from a datum" } },
       { id: "measure-servo", text: { zh: "用卡尺测量你自己的舵机（机身、安装耳宽度、孔距），和数据手册对比并记录差异", en: "Measure your own servo with calipers (body, tab span, hole spacing), compare with the datasheet and log the differences" } },
       { id: "bracket", text: { zh: "按数据手册和实测尺寸建一个参数化舵机支架，导出 STEP 和 STL", en: "Model a parametric servo bracket from the datasheet and your measurements; export STEP and STL" } },
+      { id: "first-third-angle", text: { zh: "运行 first_third_angle_projection_toy.py，核对手算截锥符号（短边远离圆为第一角、朝向圆为第三角），比较同约定、跨约定和忽略符号三组在槽位与特征朝向上的结果，并说明具名的符号反读替代为何未采用", en: "Run first_third_angle_projection_toy.py, check the hand-calc truncated-cone symbol (shortest side away from the circles is first-angle, towards the circles is third-angle), compare same-convention, cross-convention and symbol-ignored results on slot identity and feature side, and explain why the named invert-symbol alternative was not adopted" } },
     ],
   },
   {
@@ -555,16 +557,17 @@ const month4Lessons: Lesson[] = [
     slug: "ros2-graph",
     title: { zh: "节点、话题、服务与动作", en: "Nodes, topics, services and actions" },
     summary: {
-      zh: "不用机器人、不用仿真器，搭一个完整的多节点系统：自定义 msg/srv/action、Python 和 C++ 节点、参数与 YAML、带参数的 launch 文件、ros2 bag 录制回放，以及“发了却收不到”的 QoS 问题。再看 QoS 的 Deadline 与 Lifespan：在共享时间线上比较只设可靠性、设 deadline + lifespan 和过紧的 deadline。",
-      en: "A complete multi-node system with no robot and no simulator: your own msg/srv/action, Python and C++ nodes, parameters and YAML, a launch file with arguments, recording and replaying with ros2 bag, and the QoS mismatch behind “it publishes but nothing receives”. Then look at QoS Deadline and Lifespan: on a shared timeline, compare reliability only, deadline + lifespan, and a deadline that is too tight.",
+      zh: "不用机器人、不用仿真器，搭一个完整的多节点系统：自定义 msg/srv/action、Python 和 C++ 节点、参数与 YAML、带参数的 launch 文件、ros2 bag 录制回放，以及“发了却收不到”的 QoS 问题。再看 QoS 的 Deadline 与 Lifespan：在共享时间线上比较只设可靠性、设 deadline + lifespan 和过紧的 deadline。再看官方 Executor 与 callback group 契约：默认组是互斥组，把所有回调放进该组时即便指定多线程执行器也仍等同单线程，共享互斥组里的同步调用必定死锁。",
+      en: "A complete multi-node system with no robot and no simulator: your own msg/srv/action, Python and C++ nodes, parameters and YAML, a launch file with arguments, recording and replaying with ros2 bag, and the QoS mismatch behind “it publishes but nothing receives”. Then look at QoS Deadline and Lifespan: on a shared timeline, compare reliability only, deadline + lifespan, and a deadline that is too tight. Then look at the official executor and callback-group contract: the default group is Mutually Exclusive, a Multi-Threaded Executor with everything in that group still acts as Single-Threaded, and a synchronous call that shares a Mutually Exclusive group with the server always deadlocks.",
     },
-    minutes: 570,
+    minutes: 750,
     objectives: [
       { zh: "能为连续数据选择 topic、为即时请求选择 service、为需要反馈或取消的任务选择 action。", en: "Choose a topic for continuous data, a service for an immediate request, and an action for work needing feedback or cancellation." },
       { zh: "能编写 .msg、.srv、.action 文件，并用 rosidl_generate_interfaces 生成 C++ 与 Python 代码。", en: "Write .msg, .srv and .action files and generate C++ and Python code with rosidl_generate_interfaces." },
       { zh: "能实现指数滑动平均 y ← y + α(x − y)，并在参数回调中拒绝 (0, 1] 之外的 α。", en: "Implement an exponential moving average y ← y + α(x − y), and reject α outside (0, 1] in a parameter callback." },
       { zh: "能用参数与重映射启动整张图，用 ros2 bag 录制并回放 /raw 与 /filtered，并诊断 QoS 不兼容。", en: "Launch the graph with arguments and remappings, record and replay /raw and /filtered with ros2 bag, and diagnose QoS mismatches." },
       { zh: "能说出 Deadline、Lifespan 与 Liveliness 的定义和兼容性规则（请求的 deadline 不能短于提供的），在共享时间线上指出：传感器停顿时 deadline + lifespan 明显减少陈旧动作（配对陈旧使用 −6.6633±1.6806，5/5）但付出同样多的保持，准时的数据流上打平，lifespan 丢掉晚到的重传时在保持上落败；不声称做过真实 ros2 运行。", en: "State the Deadline, Lifespan and Liveliness definitions and the compatibility rule (a requested deadline may not be shorter than the offered one), and show on a shared timeline that deadline + lifespan clearly cut stale actions during sensor stalls (paired stale-use −6.6633±1.6806, 5/5) at the cost of as many holds, tie on an on-time stream, and lose on holds when lifespan drops late repairs; no real ros2-run claim." },
+      { zh: "能说明 spin(node) 是单线程执行器、节点默认 callback group 是互斥组，并在共享离散时间线上指出：无需同步调用时单线程与“多线程但全部放进默认互斥组”在完成回调上精确打平；出现长同步调用时二者仍会死锁且内部 handler 进度为 0；分到不同组的多线程在订阅服务上明显更好（配对 B-A_single 的 sub_done 20.0000+-0.0000、starved_ticks -39.0000+-0.0000，5/5）；共享互斥组在多线程下仍会死锁（C 与 A_mt_default 在 handler_progress 上 0.0000+-0.0000 打平）；官方措辞以文档为准，真实 rclpy 本页未运行。", en: "State that spin(node) is a Single-Threaded Executor and that the node's default callback group is Mutually Exclusive, and show on a shared discrete-time timeline that Single-Threaded and Multi-Threaded with everything in that default group exact-tie on completed callbacks when no synchronous call is needed, that both still deadlock with zero inner-handler progress when a timer makes a long synchronous call in that group, that Multi-Threaded with separate groups consistently serves the subscription better (paired B-A_single sub_done 20.0000+-0.0000 and starved_ticks -39.0000+-0.0000, 5/5), and that a shared Mutually Exclusive group under Multi-Threaded still deadlocks (C ties A_mt_default on handler_progress 0.0000+-0.0000); official wording 以文档为准; real rclpy 本页未运行." },
     ],
     prereqs: ["ros2-setup"],
     resources: ["ros2-composition", "ros2-intraprocess", "ros2-composable-launch", "ros2-tutorials", "renard-ros2-l1", "articulated-robotics", "mogi-ros", "automatic-addison", "ros2-qos"],
@@ -576,6 +579,7 @@ const month4Lessons: Lesson[] = [
       { id: "bag", text: { zh: "用 ros2 bag 录一段数据，再把它回放给单独运行的处理节点", en: "Record a run with ros2 bag and replay it into the processing node running on its own" } },
       { id: "b17p1-qos-deadline", text: { zh: "运行 qos_deadline_lifespan_toy.py，手算 lifespan + deadline 给出的最大样本年龄和一个 50 ms 间隔里的未满足次数，比较三种情形下三组的陈旧使用、保持和样本年龄", en: "Run qos_deadline_lifespan_toy.py, compute the age bound lifespan + deadline and the misses in a 50 ms gap by hand, and compare the three arms' stale uses, holds and sample age in the three regimes" } },
       { id: "qos", text: { zh: "故意制造一次 QoS 不兼容，读懂警告，再修好它", en: "Cause a QoS mismatch on purpose, read the warning, then fix it" } },
+      { id: "executor-callback-groups", text: { zh: "运行 executor_callback_group_toy.py，核对手算 horizon=40、订阅到达 20 次与 TIMER_PERIOD=10，比较无同步调用和长同步调用两组下四臂的完成回调、handler 进度和饥饿节拍，并说明具名的 Reentrant 替代为何未采用", en: "Run executor_callback_group_toy.py, check the hand-calc horizon=40, 20 subscription arrivals and TIMER_PERIOD=10, compare completed callbacks, handler progress and starved ticks for the four arms in the no-sync and long-sync regimes, and explain why the named Reentrant alternative was not adopted" } },
     ],
   },
   {

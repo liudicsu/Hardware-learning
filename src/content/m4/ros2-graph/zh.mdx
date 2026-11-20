@@ -1355,6 +1355,683 @@ Real ros2 topic / rclpy QoS events: 本页未运行; ROS 2 Jazzy QoS definitions
 4. 固定种子，把 `LS_B` 设为 40 ms。运行前预测 `lossy_reliable` 里 B−A 陈旧使用和 B−A 保持会怎样变化。
 5. 在任何真实 ROS 2 运行之前（本页未运行），写出你如何在实际系统上判断一次 requested deadline missed 事件来自发布者（同时出现 offered deadline missed）还是来自网络。
 
+## Executor 与 callback group
+
+本页前面的服务例子已经展示了默认单线程死锁：服务回调里再做一次同步的 `call(...)`，会堵住执行器唯一的那条线程，于是回复永远得不到处理。那里的修法是 `MultiThreadedExecutor`，再给客户端自己的 `MutuallyExclusiveCallbackGroup`。`/collect` 动作同样使用 `MultiThreadedExecutor` 和 `ReentrantCallbackGroup`，好让 `execute` 进行时读数仍能到达。那些代码片段在这里**没有改写**。本节要讲的是它们背后的官方契约，尤其是： **多线程再加上默认组，或任何共享的互斥组，仍然不是并发的，仍然会死锁**。本节**不是**把 composition 再做一遍，**不是**把 QoS Deadline / Lifespan 再做一遍，也**不是**一次真正的 `rclpy` 运行。第 4.5 课的 DriveDistance 动作服务器使用 `MultiThreadedExecutor` 和 `ReentrantCallbackGroup`，以免很长的 `execute` 把里程计饿死；那条用法说明在此对照，但不修改。
+
+**实际打开的来源（RST 正文已读）:** ros2_documentation 提交 `bb5ba426fe4de413362f605c27074385c83ff9e3`（2026-11-19 08:49:59 UTC = 2026-11-19 16:49:59 Asia/Shanghai，调查时的 Jazzy 尖端）。官方措辞以文档为准。
+
+- **About-Executors.rst**（blob `2a4e909434eb0f5e60f92ab72237e8cd89da3a6b`）：
+  - `spin(node)` “basically expands to an instantiation and invocation of the Single-Threaded Executor”。
+  - “Currently, rclcpp provides three Executor types”：Single-Threaded、Multi-Threaded 与 Static Single-Threaded。Static Single-Threaded “performs this scan only once when the node is added”；它是只扫描一次的变体，不是并发变体，也不是玩具里的一臂。
+  - “In case of a Multi-Threaded Executor, the actual parallelism depends on the callback groups.”
+  - 互斥组：“Callbacks of this group must not be executed in parallel。” 可重入组：“Callbacks of this group may be executed in parallel。” “Callbacks of different callback groups may always be executed in parallel。”
+  - “The Single-Threaded Executor is also used by the container process for components。” 只作入门说明，不是第二个 composition 玩具。
+  - Outlook 点名了 `WaitSet` 和 rclc Executor。它**没有**点名 EventsExecutor，本页也不编造这一种。
+- **Using-callback-groups.rst**（blob `829b66d96d7e0de22d5ee29bcdd24196fdcea54f`）：
+  - “The default callback group is a Mutually Exclusive Callback Group.”
+  - “If everything in a node uses the same Mutually Exclusive Callback Group, that node essentially acts as if it was handled by a Single-Threaded Executor, even if a multi-threaded one is specified!”
+  - 可重入组还允许 “different instances of the same callback” 并发运行。
+  - “If you make a synchronous call in any type of a callback, this callback and the client making the call need to belong to different callback groups (of any type), or a Reentrant Callback Group.” “Failing the first point will always cause a deadlock.”
+- 表述以文档为准。真实的 `rclpy` / `rclcpp` / composition 容器运行： **本页未运行**。
+
+### 默认组、同步调用，以及必须持续得到服务的订阅
+
+**手算例题**。 玩具的时间范围是 `HORIZON = 40` 个节拍，打印为 `hand_calc ticks in horizon = 40`。订阅每隔 `SUB_PERIOD = 2` 个节拍到达，从 `SUB_FIRST = 1` 开始，所以 `hand_calc subscription arrivals in horizon = 20`。定时器每隔 `TIMER_PERIOD = 10` 触发，从 `TIMER_FIRST = 0` 开始，所以 `hand_calc timer firings in horizon = 4`。一次长同步请求需要 `SVC_WORK_LONG = 8` 个 handler 节拍。多线程臂使用 `N_THREADS = 3`。
+
+**计数的正确性判据**。 只有当服务 handler 跑完全部 `SVC_WORK_LONG` 个节拍、被堵住的调用方已经返回时，才计入一次完成的请求。如果到时间范围结束时调用方仍被堵住且完成请求数为零，就记一次死锁。饥饿节拍是指队列里已有订阅、但本节能尚未能启动的那些节拍。测试会用手搭无同步调用和长同步调用两种情形，并核对这些计数。
+
+**这里没有积分步长**。 这个替身比较的是整数节拍，没有被控对象，所以每次比较都是精确的，也没有步长判据。
+
+### 公平设定
+
+`executor_callback_group_toy.py` 是**合成的**，只用标准库，是离散时间替身，**不是** `rclpy`，也不是正在运行的执行器。**模型假设:**
+
+- 定时器回调可以发出一次同步服务请求，然后一直堵住直到请求完成；堵住期间它仍然占用自己的互斥组和一条线程。服务 handler 回调推进尚未完成的请求。订阅回调必须持续得到服务。
+- A_single 是单线程执行器，所有回调都在默认互斥组里。A_mt_default 是多线程（`N_THREADS = 3`），一切仍在同一个默认组里。B_two_groups 是多线程，定时器、服务和订阅分在三个不同的互斥组。C_shared_me 是多线程，但定时器、服务和订阅共享一个不是默认组的互斥组。
+
+| 臂 | 执行器 | 组 |
+|---|---|---|
+| A_single | 单线程 | 默认互斥组 |
+| A_mt_default | 多线程，3 条线程 | 默认互斥组 |
+| B_two_groups | 多线程，3 条线程 | 三个互斥组（client、server、sub） |
+| C_shared_me | 多线程，3 条线程 | 一个共享互斥组 |
+
+**共用随机数:** 事件时间线是确定性的，各臂共用。五个种子 `0,1,2,3,4` 重复同一条时间线，以便把精确打平打印成“每个种子都相同”。种子不加抖动。
+
+| 情形 | 同步调用 | 事先写下的预期（第一次运行前） |
+|---|---|---|
+| no_sync_no_overlap | 无 | A_single、A_mt_default 与 B_two_groups 在完成回调上精确打平（保留） |
+| overlap_sync | 长 handler，8 个节拍 | B 在订阅服务上稳定好于 A，饥饿节拍更少（保留）；C 落败，死锁 / 内部 handler 进度为零（保留） |
+
+标签：每个种子都完全相同是**打平**；若配对均值和标准差的绝对值都低于 `1e-9`，则是数值上为零；`|m| <= sd` 是**接近打平**；`|m| > sd` 是稳定差距，若 `|m|` 低于较小一臂均值的 20 %（玩具打印 `0.2000`）则是**小而稳定**，否则是**明显**，并统计符号。
+
+**看过结果后做的选择**。 没有。四条臂、两种情形、时间范围和线程数都是第一次运行前写下的，没有改。没有采用的做法：在多线程下把定时器、服务和订阅放进一个可重入组（也就是第 4.5 课 DriveDistance 说明里的模式）。该替代在同一条时间线上打印了，**没有采用**；正式的双组臂已经足以展示文档中的契约。
+
+### 运行标准库玩具
+
+```bash
+cd ~/Hardware-learning/examples/month-4/ros2-graph
+python3 executor_callback_group_toy.py
+```
+
+<CodeSource path="examples/month-4/ros2-graph/executor_callback_group_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""ROS 2 executor and callback-group contract, as a discrete-time stand-in.
+
+Synthetic, stdlib only.  Not rclpy / rclcpp, and not a live executor.  Not a redo of
+composition, not a redo of QoS Deadline / Lifespan, and not a claim that Multi-Threaded
+is always faster.  Real rclpy / rclcpp / composition container: 本页未运行.
+Official Jazzy wording 以文档为准:
+  spin(node) is a Single-Threaded Executor.
+  Currently three executor types: Single-Threaded, Multi-Threaded, Static Single-Threaded.
+  Static Single-Threaded is a scan-once variant, not a concurrency variant; it is not an arm.
+  The node's default callback group is Mutually Exclusive.
+  If everything stays in that default group, the node "essentially acts as if it was
+  handled by a Single-Threaded Executor, even if a multi-threaded one is specified".
+  Mutually Exclusive: callbacks in the group must not run in parallel.
+  Reentrant: callbacks in the group, including two instances of the same callback,
+  may run concurrently.
+  Callbacks in different groups may always run in parallel.
+  A synchronous service call from a callback that shares a Mutually Exclusive group
+  with the service server "will always cause a deadlock".
+  Outlook names WaitSet and rclc; this stand-in does not invent a fourth executor type.
+
+Discrete integer ticks.  Three callbacks share one timeline:
+  a timer that may issue a synchronous service request and then block until it completes;
+  a service-handler that advances the pending request;
+  a subscription that must keep being serviced.
+
+While a callback is blocked in a synchronous call it still occupies its Mutually
+Exclusive group (and one thread).  The handler can run only if a thread is free and
+its group allows it.  If the handler cannot run, the request never completes.
+
+Arms:
+  A_single       Single-Threaded Executor; every callback in the default Mutually Exclusive group.
+  A_mt_default   Multi-Threaded (N_THREADS), everything in the default Mutually Exclusive group.
+  B_two_groups   Multi-Threaded; timer in group client (ME), service in group server (ME),
+                 subscription in group sub (ME).  Different groups may run in parallel.
+  C_shared_me    Multi-Threaded; timer and service (and the subscription) in one shared
+                 Mutually Exclusive group that is not the default.  The documented deadlock.
+
+Common random numbers: the event timeline is deterministic and shared across arms.
+Five seeds repeat that same schedule so the exact-tie cells can be printed as
+"identical on every seed".  Seeds do not add jitter.
+
+Metrics per seed: timer_done (completed timer callbacks), req_done (completed
+synchronous requests), sub_done (completed subscription callbacks),
+handler_progress (ticks the service handler actually ran), starved_ticks
+(subscription messages still queued at the end, plus ticks a due subscription
+could not start).
+
+Regimes and expectations, written before the first run:
+  no_sync_no_overlap   no synchronous call, no overlapping work: A_single, A_mt_default
+                       and B_two_groups exact-tie on timer_done and sub_done (keep)
+  overlap_sync         long handler that must overlap a subscription: B consistent
+                       better subscription service / lower starved ticks than A (keep);
+                       C loses (deadlock / zero progress on the inner handler) (keep)
+
+Named alternative, same timeline, not adopted: Multi-Threaded + one Reentrant group
+holding timer, service and subscription (also allows the subscription to run while
+the timer is blocked).
+
+No integration step: integer ticks, no plant, every comparison is exact.
+"""
+from __future__ import annotations
+
+import math
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+SMALL_FRAC = 0.2000  # 20 % of the smaller-arm mean; printed as 0.2000
+
+# Declared schedule (integer ticks), printed.
+N_THREADS = 3
+HORIZON = 40
+TIMER_PERIOD = 10
+TIMER_LOCAL = 1  # ticks of local work before a sync call (or the only work if no call)
+SVC_WORK_LONG = 8  # ticks the handler needs for a long synchronous request
+SUB_PERIOD = 2
+SUB_WORK = 1
+# First timer fires at t=TIMER_FIRST; first subscription at t=SUB_FIRST.
+TIMER_FIRST = 0
+SUB_FIRST = 1
+
+ARMS = ("A_single", "A_mt_default", "B_two_groups", "C_shared_me")
+METRICS = ("timer_done", "req_done", "sub_done", "handler_progress", "starved_ticks")
+
+REGIMES = {
+    "no_sync_no_overlap": (
+        "no_sync_no_overlap",
+        "no synchronous call, no overlapping work: A_single, A_mt_default and B_two_groups exact-tie on completed callbacks - keep",
+    ),
+    "overlap_sync": (
+        "overlap_sync",
+        "long handler must overlap a subscription: B consistent better sub service / lower starved ticks than A - keep; C loses (deadlock / zero inner-handler progress) - keep",
+    ),
+}
+
+ALT_REENTRANT = True
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < SMALL_FRAC * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def arm_config(arm: str) -> dict:
+    """threads, group type and group name for timer / service / subscription."""
+    default = ("ME", "default")
+    if arm == "A_single":
+        return {"threads": 1, "timer": default, "service": default, "sub": default}
+    if arm == "A_mt_default":
+        return {"threads": N_THREADS, "timer": default, "service": default, "sub": default}
+    if arm == "B_two_groups":
+        return {
+            "threads": N_THREADS,
+            "timer": ("ME", "client"),
+            "service": ("ME", "server"),
+            "sub": ("ME", "sub"),
+        }
+    if arm == "C_shared_me":
+        shared = ("ME", "shared")
+        return {"threads": N_THREADS, "timer": shared, "service": shared, "sub": shared}
+    if arm == "B_reentrant":
+        re = ("RE", "reentrant")
+        return {"threads": N_THREADS, "timer": re, "service": re, "sub": re}
+    raise KeyError(arm)
+
+
+def run_arm(arm: str, do_sync: bool, svc_work: int) -> dict:
+    cfg = arm_config(arm)
+    # Each live callback: name, group_kind, group_name, remaining work, blocked_on_req
+    # Occupancy: ME group -> callback name currently occupying it (running or blocked).
+    # Reentrant groups have no occupancy lock.
+    group_of = {
+        "timer": cfg["timer"],
+        "service": cfg["service"],
+        "sub": cfg["sub"],
+    }
+    n_threads = cfg["threads"]
+
+    next_timer = TIMER_FIRST
+    next_sub = SUB_FIRST
+    sub_queue = 0
+    pending_req_left = 0  # remaining handler work on the open request
+    caller_blocked = False
+    live = []  # list of dicts
+
+    timer_done = 0
+    req_done = 0
+    sub_done = 0
+    handler_progress = 0
+    starved_ticks = 0
+    deadlock = 0
+
+    def group_free(name: str) -> bool:
+        kind, gname = group_of[name]
+        if kind == "RE":
+            return True
+        return not any(cb["name"] != name and cb["group"] == (kind, gname) for cb in live)
+
+    def can_start(name: str, free_threads: int) -> bool:
+        return free_threads > 0 and group_free(name)
+
+    for t in range(HORIZON):
+        # Arrivals at the beginning of the tick.
+        if t == next_timer:
+            # One timer callback at a time: if the previous timer is still blocked, the
+            # due event is deferred until that callback returns (the period still advances).
+            timer_due = not any(cb["name"] == "timer" for cb in live)
+            next_timer += TIMER_PERIOD
+        else:
+            timer_due = False
+        if t == next_sub:
+            sub_queue += 1
+            next_sub += SUB_PERIOD
+
+        # How many threads are occupied (running or blocked in a sync call).
+        # A blocked caller still holds its thread, as a real call() would.
+        used = len(live)
+        free = n_threads - used
+
+        # Start order: service (so a just-issued request can begin on a second thread
+        # in the same tick after the timer is already live), then subscription, then timer.
+        # Starts that become legal mid-tick (handler finishing, group released) are
+        # handled by a small inner loop.
+        progressed = True
+        started_this_tick = set()
+        while progressed:
+            progressed = False
+            used = len(live)
+            free = n_threads - used
+            # Service handler: needs a pending request with work left, and not already live.
+            if (
+                pending_req_left > 0
+                and not any(cb["name"] == "service" for cb in live)
+                and can_start("service", free)
+            ):
+                live.append({
+                    "name": "service",
+                    "group": group_of["service"],
+                    "left": pending_req_left,
+                    "blocked": False,
+                })
+                started_this_tick.add("service")
+                progressed = True
+                used = len(live)
+                free = n_threads - used
+            # Subscription.
+            if (
+                sub_queue > 0
+                and not any(cb["name"] == "sub" for cb in live)
+                and can_start("sub", free)
+            ):
+                live.append({
+                    "name": "sub",
+                    "group": group_of["sub"],
+                    "left": SUB_WORK,
+                    "blocked": False,
+                })
+                sub_queue -= 1
+                started_this_tick.add("sub")
+                progressed = True
+                used = len(live)
+                free = n_threads - used
+            # Timer.
+            if (
+                timer_due
+                and not any(cb["name"] == "timer" for cb in live)
+                and can_start("timer", free)
+            ):
+                live.append({
+                    "name": "timer",
+                    "group": group_of["timer"],
+                    "left": TIMER_LOCAL,
+                    "blocked": False,
+                    "will_call": do_sync,
+                })
+                timer_due = False
+                started_this_tick.add("timer")
+                progressed = True
+
+        # If a subscription is queued but could not start this tick, count a starved tick.
+        if sub_queue > 0 and not any(cb["name"] == "sub" for cb in live):
+            starved_ticks += 1
+
+        # Run one tick of work on every non-blocked live callback.
+        finished = []
+        for cb in live:
+            if cb["blocked"]:
+                continue
+            cb["left"] -= 1
+            if cb["name"] == "service":
+                handler_progress += 1
+                pending_req_left -= 1
+            if cb["left"] <= 0:
+                if cb["name"] == "timer" and cb.get("will_call"):
+                    # Issue the synchronous request and block until it completes.
+                    cb["will_call"] = False
+                    cb["blocked"] = True
+                    caller_blocked = True
+                    pending_req_left = svc_work
+                else:
+                    finished.append(cb)
+
+        for cb in finished:
+            live.remove(cb)
+            if cb["name"] == "timer":
+                timer_done += 1
+            elif cb["name"] == "sub":
+                sub_done += 1
+            elif cb["name"] == "service":
+                # Request work is finished; unblock the caller if it is waiting.
+                if caller_blocked:
+                    for other in live:
+                        if other["name"] == "timer" and other["blocked"]:
+                            other["blocked"] = False
+                            other["left"] = 0  # return from call(); completes this tick
+                            caller_blocked = False
+                            req_done += 1
+                            # Timer completes at the tick the handler finishes.
+                            # Leave it in live with left=0 so the next pass... we already
+                            # finished the service; mark timer done now.
+                            live.remove(other)
+                            timer_done += 1
+                            break
+
+        # Deadlock detector: a blocked caller, a pending request, no way to start the handler
+        # for the rest of the horizon if groups/threads never change.  Flag if this state
+        # holds at the end, not mid-horizon (the handler may start next tick on another thread).
+        if caller_blocked and pending_req_left > 0 and not any(cb["name"] == "service" for cb in live):
+            # If the handler is in a group occupied by the blocked caller, it can never start.
+            kind, gname = group_of["service"]
+            if kind == "ME" and any(cb["blocked"] and cb["group"] == (kind, gname) for cb in live):
+                deadlock = 1
+
+    # If we ended still blocked with no handler progress possible, request never completed.
+    if caller_blocked and req_done == 0:
+        deadlock = 1
+
+    return {
+        "timer_done": float(timer_done),
+        "req_done": float(req_done),
+        "sub_done": float(sub_done),
+        "handler_progress": float(handler_progress),
+        "starved_ticks": float(starved_ticks),
+        "deadlock": float(deadlock),
+    }
+
+
+def col(rows, metric):
+    return [row[metric] for row in rows]
+
+
+def main():
+    print("Synthetic executor / callback-group stand-in; not rclpy")
+    print(
+        f"declared N_THREADS={N_THREADS} HORIZON={HORIZON} TIMER_PERIOD={TIMER_PERIOD} "
+        f"TIMER_LOCAL={TIMER_LOCAL} SVC_WORK_LONG={SVC_WORK_LONG} SUB_PERIOD={SUB_PERIOD} "
+        f"SUB_WORK={SUB_WORK} TIMER_FIRST={TIMER_FIRST} SUB_FIRST={SUB_FIRST} "
+        f"SMALL_FRAC={num(SMALL_FRAC)} seeds={','.join(str(s) for s in SEEDS)}"
+    )
+    print("hand_calc 20 percent small-vs-clear factor = " + num(SMALL_FRAC))
+    print(f"hand_calc ticks in horizon = {HORIZON}")
+    print(f"hand_calc subscription arrivals in horizon = {1 + (HORIZON - 1 - SUB_FIRST) // SUB_PERIOD}")
+    print(f"hand_calc timer firings in horizon = {1 + (HORIZON - 1 - TIMER_FIRST) // TIMER_PERIOD}")
+    print("declared arms: A_single Single-Threaded + default ME; A_mt_default Multi-Threaded + default ME; "
+          "B_two_groups Multi-Threaded + three ME groups; C_shared_me Multi-Threaded + one shared ME group")
+    print("Regimes and parameters were written before the first run")
+    print("Common random numbers: deterministic shared timeline; seeds repeat the same schedule")
+    print("Assumptions: discrete integer ticks; a blocked synchronous caller occupies its ME group and one thread")
+    print("Official executor types, default group, and deadlock wording 以文档为准")
+    print("Real rclpy / rclcpp / composition container: 本页未运行")
+    for name, (_kind, expl) in REGIMES.items():
+        print(f"declared {name}: {expl}")
+
+    setups = {
+        "no_sync_no_overlap": {"do_sync": False, "svc_work": 0},
+        "overlap_sync": {"do_sync": True, "svc_work": SVC_WORK_LONG},
+    }
+    for name, setup in setups.items():
+        expl = REGIMES[name][1]
+        print(f"declared expectation {name}: {expl}")
+        print(f"regime {name}  (mean+-sd over seeds; deterministic schedule)")
+        rows = {arm: [] for arm in ARMS}
+        for seed in SEEDS:
+            # Seed is recorded but does not change the deterministic timeline.
+            _ = seed
+            for arm in ARMS:
+                rec = run_arm(arm, setup["do_sync"], setup["svc_work"])
+                rows[arm].append(rec)
+        # Print one representative seed (they are identical) then means.
+        print(f"  seed 0 (all {len(SEEDS)} seeds identical):")
+        for arm in ARMS:
+            rec = rows[arm][0]
+            print(
+                f"    {arm}: timer_done={num(rec['timer_done'])} req_done={num(rec['req_done'])} "
+                f"sub_done={num(rec['sub_done'])} handler_progress={num(rec['handler_progress'])} "
+                f"starved_ticks={num(rec['starved_ticks'])} deadlock={num(rec['deadlock'])}"
+            )
+        for arm in ARMS:
+            for metric in METRICS + ("deadlock",):
+                xs = col(rows[arm], metric)
+                print(f"  {arm} {metric} {fmt_pair(*mean_sd(xs))}")
+        for metric in METRICS + ("deadlock",):
+            print(f"  paired A_mt_default-A_single {metric}: {verdict(col(rows['A_mt_default'], metric), col(rows['A_single'], metric))}")
+            print(f"  paired B-A_single {metric}: {verdict(col(rows['B_two_groups'], metric), col(rows['A_single'], metric))}")
+            print(f"  paired B-A_mt_default {metric}: {verdict(col(rows['B_two_groups'], metric), col(rows['A_mt_default'], metric))}")
+            print(f"  paired C-B {metric}: {verdict(col(rows['C_shared_me'], metric), col(rows['B_two_groups'], metric))}")
+            print(f"  paired C-A_mt_default {metric}: {verdict(col(rows['C_shared_me'], metric), col(rows['A_mt_default'], metric))}")
+
+    print("named alternative B_reentrant (Multi-Threaded + one Reentrant group) - not adopted")
+    for name, setup in setups.items():
+        alt = []
+        base = []
+        for seed in SEEDS:
+            _ = seed
+            alt.append(run_arm("B_reentrant", setup["do_sync"], setup["svc_work"]))
+            base.append(run_arm("B_two_groups", setup["do_sync"], setup["svc_work"]))
+        print(f"  alt {name}:")
+        rec = alt[0]
+        print(
+            f"    timer_done={num(rec['timer_done'])} req_done={num(rec['req_done'])} "
+            f"sub_done={num(rec['sub_done'])} handler_progress={num(rec['handler_progress'])} "
+            f"starved_ticks={num(rec['starved_ticks'])} deadlock={num(rec['deadlock'])}"
+        )
+        for metric in METRICS:
+            print(f"    paired alt-B_two_groups {metric}: {verdict(col(alt, metric), col(base, metric))}")
+    print("no integration step: integer ticks, no plant, no step-size criterion")
+    print("No winner declared")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic executor / callback-group stand-in; not rclpy
+declared N_THREADS=3 HORIZON=40 TIMER_PERIOD=10 TIMER_LOCAL=1 SVC_WORK_LONG=8 SUB_PERIOD=2 SUB_WORK=1 TIMER_FIRST=0 SUB_FIRST=1 SMALL_FRAC=0.2000 seeds=0,1,2,3,4
+hand_calc 20 percent small-vs-clear factor = 0.2000
+hand_calc ticks in horizon = 40
+hand_calc subscription arrivals in horizon = 20
+hand_calc timer firings in horizon = 4
+declared arms: A_single Single-Threaded + default ME; A_mt_default Multi-Threaded + default ME; B_two_groups Multi-Threaded + three ME groups; C_shared_me Multi-Threaded + one shared ME group
+Regimes and parameters were written before the first run
+Common random numbers: deterministic shared timeline; seeds repeat the same schedule
+Assumptions: discrete integer ticks; a blocked synchronous caller occupies its ME group and one thread
+Official executor types, default group, and deadlock wording 以文档为准
+Real rclpy / rclcpp / composition container: 本页未运行
+declared no_sync_no_overlap: no synchronous call, no overlapping work: A_single, A_mt_default and B_two_groups exact-tie on completed callbacks - keep
+declared overlap_sync: long handler must overlap a subscription: B consistent better sub service / lower starved ticks than A - keep; C loses (deadlock / zero inner-handler progress) - keep
+declared expectation no_sync_no_overlap: no synchronous call, no overlapping work: A_single, A_mt_default and B_two_groups exact-tie on completed callbacks - keep
+regime no_sync_no_overlap  (mean+-sd over seeds; deterministic schedule)
+  seed 0 (all 5 seeds identical):
+    A_single: timer_done=4.0000 req_done=0.0000 sub_done=20.0000 handler_progress=0.0000 starved_ticks=0.0000 deadlock=0.0000
+    A_mt_default: timer_done=4.0000 req_done=0.0000 sub_done=20.0000 handler_progress=0.0000 starved_ticks=0.0000 deadlock=0.0000
+    B_two_groups: timer_done=4.0000 req_done=0.0000 sub_done=20.0000 handler_progress=0.0000 starved_ticks=0.0000 deadlock=0.0000
+    C_shared_me: timer_done=4.0000 req_done=0.0000 sub_done=20.0000 handler_progress=0.0000 starved_ticks=0.0000 deadlock=0.0000
+  A_single timer_done 4.0000+-0.0000
+  A_single req_done 0.0000+-0.0000
+  A_single sub_done 20.0000+-0.0000
+  A_single handler_progress 0.0000+-0.0000
+  A_single starved_ticks 0.0000+-0.0000
+  A_single deadlock 0.0000+-0.0000
+  A_mt_default timer_done 4.0000+-0.0000
+  A_mt_default req_done 0.0000+-0.0000
+  A_mt_default sub_done 20.0000+-0.0000
+  A_mt_default handler_progress 0.0000+-0.0000
+  A_mt_default starved_ticks 0.0000+-0.0000
+  A_mt_default deadlock 0.0000+-0.0000
+  B_two_groups timer_done 4.0000+-0.0000
+  B_two_groups req_done 0.0000+-0.0000
+  B_two_groups sub_done 20.0000+-0.0000
+  B_two_groups handler_progress 0.0000+-0.0000
+  B_two_groups starved_ticks 0.0000+-0.0000
+  B_two_groups deadlock 0.0000+-0.0000
+  C_shared_me timer_done 4.0000+-0.0000
+  C_shared_me req_done 0.0000+-0.0000
+  C_shared_me sub_done 20.0000+-0.0000
+  C_shared_me handler_progress 0.0000+-0.0000
+  C_shared_me starved_ticks 0.0000+-0.0000
+  C_shared_me deadlock 0.0000+-0.0000
+  paired A_mt_default-A_single timer_done: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_single timer_done: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_mt_default timer_done: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B timer_done: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A_mt_default timer_done: 0.0000+-0.0000: tie: identical on every seed
+  paired A_mt_default-A_single req_done: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_single req_done: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_mt_default req_done: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B req_done: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A_mt_default req_done: 0.0000+-0.0000: tie: identical on every seed
+  paired A_mt_default-A_single sub_done: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_single sub_done: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_mt_default sub_done: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B sub_done: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A_mt_default sub_done: 0.0000+-0.0000: tie: identical on every seed
+  paired A_mt_default-A_single handler_progress: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_single handler_progress: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_mt_default handler_progress: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B handler_progress: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A_mt_default handler_progress: 0.0000+-0.0000: tie: identical on every seed
+  paired A_mt_default-A_single starved_ticks: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_single starved_ticks: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_mt_default starved_ticks: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B starved_ticks: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A_mt_default starved_ticks: 0.0000+-0.0000: tie: identical on every seed
+  paired A_mt_default-A_single deadlock: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_single deadlock: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_mt_default deadlock: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B deadlock: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A_mt_default deadlock: 0.0000+-0.0000: tie: identical on every seed
+declared expectation overlap_sync: long handler must overlap a subscription: B consistent better sub service / lower starved ticks than A - keep; C loses (deadlock / zero inner-handler progress) - keep
+regime overlap_sync  (mean+-sd over seeds; deterministic schedule)
+  seed 0 (all 5 seeds identical):
+    A_single: timer_done=0.0000 req_done=0.0000 sub_done=0.0000 handler_progress=0.0000 starved_ticks=39.0000 deadlock=1.0000
+    A_mt_default: timer_done=0.0000 req_done=0.0000 sub_done=0.0000 handler_progress=0.0000 starved_ticks=39.0000 deadlock=1.0000
+    B_two_groups: timer_done=4.0000 req_done=4.0000 sub_done=20.0000 handler_progress=32.0000 starved_ticks=0.0000 deadlock=0.0000
+    C_shared_me: timer_done=0.0000 req_done=0.0000 sub_done=0.0000 handler_progress=0.0000 starved_ticks=39.0000 deadlock=1.0000
+  A_single timer_done 0.0000+-0.0000
+  A_single req_done 0.0000+-0.0000
+  A_single sub_done 0.0000+-0.0000
+  A_single handler_progress 0.0000+-0.0000
+  A_single starved_ticks 39.0000+-0.0000
+  A_single deadlock 1.0000+-0.0000
+  A_mt_default timer_done 0.0000+-0.0000
+  A_mt_default req_done 0.0000+-0.0000
+  A_mt_default sub_done 0.0000+-0.0000
+  A_mt_default handler_progress 0.0000+-0.0000
+  A_mt_default starved_ticks 39.0000+-0.0000
+  A_mt_default deadlock 1.0000+-0.0000
+  B_two_groups timer_done 4.0000+-0.0000
+  B_two_groups req_done 4.0000+-0.0000
+  B_two_groups sub_done 20.0000+-0.0000
+  B_two_groups handler_progress 32.0000+-0.0000
+  B_two_groups starved_ticks 0.0000+-0.0000
+  B_two_groups deadlock 0.0000+-0.0000
+  C_shared_me timer_done 0.0000+-0.0000
+  C_shared_me req_done 0.0000+-0.0000
+  C_shared_me sub_done 0.0000+-0.0000
+  C_shared_me handler_progress 0.0000+-0.0000
+  C_shared_me starved_ticks 39.0000+-0.0000
+  C_shared_me deadlock 1.0000+-0.0000
+  paired A_mt_default-A_single timer_done: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_single timer_done: 4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A_mt_default timer_done: 4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B timer_done: -4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A_mt_default timer_done: 0.0000+-0.0000: tie: identical on every seed
+  paired A_mt_default-A_single req_done: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_single req_done: 4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A_mt_default req_done: 4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B req_done: -4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A_mt_default req_done: 0.0000+-0.0000: tie: identical on every seed
+  paired A_mt_default-A_single sub_done: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_single sub_done: 20.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A_mt_default sub_done: 20.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B sub_done: -20.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A_mt_default sub_done: 0.0000+-0.0000: tie: identical on every seed
+  paired A_mt_default-A_single handler_progress: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_single handler_progress: 32.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A_mt_default handler_progress: 32.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B handler_progress: -32.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A_mt_default handler_progress: 0.0000+-0.0000: tie: identical on every seed
+  paired A_mt_default-A_single starved_ticks: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_single starved_ticks: -39.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A_mt_default starved_ticks: -39.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B starved_ticks: 39.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A_mt_default starved_ticks: 0.0000+-0.0000: tie: identical on every seed
+  paired A_mt_default-A_single deadlock: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_single deadlock: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A_mt_default deadlock: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B deadlock: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A_mt_default deadlock: 0.0000+-0.0000: tie: identical on every seed
+named alternative B_reentrant (Multi-Threaded + one Reentrant group) - not adopted
+  alt no_sync_no_overlap:
+    timer_done=4.0000 req_done=0.0000 sub_done=20.0000 handler_progress=0.0000 starved_ticks=0.0000 deadlock=0.0000
+    paired alt-B_two_groups timer_done: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B_two_groups req_done: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B_two_groups sub_done: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B_two_groups handler_progress: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B_two_groups starved_ticks: 0.0000+-0.0000: tie: identical on every seed
+  alt overlap_sync:
+    timer_done=4.0000 req_done=4.0000 sub_done=20.0000 handler_progress=32.0000 starved_ticks=0.0000 deadlock=0.0000
+    paired alt-B_two_groups timer_done: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B_two_groups req_done: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B_two_groups sub_done: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B_two_groups handler_progress: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B_two_groups starved_ticks: 0.0000+-0.0000: tie: identical on every seed
+no integration step: integer ticks, no plant, no step-size criterion
+No winner declared
+```
+
+</SimOutput>
+
+### 结果
+
+`hand_calc ticks in horizon = 40`，`hand_calc subscription arrivals in horizon = 20`，`hand_calc timer firings in horizon = 4`。正式第一次运行：2026-11-20 11:46:03 Asia/Shanghai。那次运行之后，**没有**改正式玩具或 `expected/`。数字冻结之后，中文课文里紧贴全角冒号或把句号包进加粗的标记做了调整，课文是按冻结的正式输出写的。官方 `expected/` 没有重调。
+
+- **no_sync_no_overlap**。 每一臂，包括 C，都完成 `timer_done` `4.0000+-0.0000` 和 `sub_done` `20.0000+-0.0000`，`starved_ticks` 为 `0.0000+-0.0000`，`deadlock` 为 `0.0000+-0.0000`。配对 A_mt_default-A_single 以及配对 B-A_single 在 `timer_done` 和 `sub_done` 上都是 `0.0000+-0.0000: tie: identical on every seed`。事先声明的无重叠精确打平**成立**。多线程并不“更快”；这里没有需要靠重叠才能完成的工作。
+- **overlap_sync**。 A_single 与 A_mt_default 精确打平：`timer_done` `0.0000+-0.0000`，`req_done` `0.0000+-0.0000`，`sub_done` `0.0000+-0.0000`，`handler_progress` `0.0000+-0.0000`，`starved_ticks` `39.0000+-0.0000`，`deadlock` `1.0000+-0.0000`。多线程执行器若把一切放进默认互斥组，仍然会死锁，正如官方 how-to 所说，它 “acts as if it was handled by a Single-Threaded Executor”。B_two_groups 完成 `timer_done` `4.0000+-0.0000`、`req_done` `4.0000+-0.0000`、`sub_done` `20.0000+-0.0000`、`handler_progress` `32.0000+-0.0000`，`starved_ticks` 为 `0.0000+-0.0000`，`deadlock` 为 `0.0000+-0.0000`。配对 B-A_single 的 `sub_done` 是 `20.0000+-0.0000`，`starved_ticks` 是 `-39.0000+-0.0000`，都是**明显差距，不是打平**，5 个种子符号相同。事先声明的、订阅服务上的稳定优势**成立**。C_shared_me 在每一项指标上都与 A_mt_default 精确打平，包括 `handler_progress` `0.0000+-0.0000` 和 `deadlock` `1.0000+-0.0000`。事先声明的共享组死锁**成立**。
+
+同一条时间线上的具名替代 `B_reentrant` **没有采用**。在两种情形下，它都与 B_two_groups 精确打平（每一项都是 `0.0000+-0.0000`）。没有为了改用可重入组、而不是两个互斥组，去改正式的臂。
+
+### 练习
+
+1. 根据打印出的 `hand_calc` 行，40 个节拍里有多少次订阅到达、多少次定时器触发？若要让定时器返回，为什么一次 8 个节拍的长请求需要第二个组或可重入组？
+2. 从 `arm_config` 和 `run_arm` 说明：A_single 与 A_mt_default 共用默认互斥组，并且对同一个种子看到的是同一条时间线。
+3. 用官方规则说明：多线程执行器里，若定时器和服务在同一个互斥组，同步调用能否完成；如果只把订阅挪到第二个组，handler 还能否运行。
+4. 固定时间线，设想把 B_two_groups 的 `N_THREADS` 改成 `1`。在运行那种变体之前预测 `deadlock` 和 `handler_progress`（不要改正式玩具）。
+5. 在任何真实 `rclpy` 运行之前（本页未运行），写出你如何在正在运行的节点上检查：定时器发出的同步服务调用，是否与服务端共享一个互斥组。
+
+**180 分钟工作计划:** 30+25+50+40+35=180。30 分钟阅读 Jazzy 的 About-Executors 与 Using-callback-groups（提交 `bb5ba426fe4de413362f605c27074385c83ff9e3`），写下三种执行器、默认互斥组和“必定死锁”规则；25 分钟在运行前写好离散时间替身、四条臂和两种情形；50 分钟运行玩具并阅读正式情形；40 分钟在同一条时间线上重跑具名的 Reentrant 替代；35 分钟写明为什么多线程再加上默认组或任何共享互斥组仍然不是并发，对照（但不修改）第 4.5 课里 MultiThreaded 加 Reentrant 的用法说明，以及真实 `rclpy` 检查还需要看到什么（本页未运行）。
+
 <Summary>
 
 - 用话题、自定义消息与服务、action、参数和 EMA 处理节点构建 ROS 图。
@@ -1362,5 +2039,6 @@ Real ros2 topic / rclpy QoS events: 本页未运行; ROS 2 Jazzy QoS definitions
 - 发布却无订阅接收时，先排查 QoS 兼容性，再查域和名称；保持消息 frame ID 有意义，为下一课 TF 做准备。
 - Composition 把组件加载进共享进程；相等工作量的合成轮询计数和注入崩溃展示进程数与崩溃波及范围的取舍，不是实测提速或零拷贝结果。
 - QoS 的 Deadline 和 Lifespan 约束的是样本何时到达，而不是能否连接：在共享时间线上，deadline 20 ms + lifespan 10 ms 在传感器停顿时明显减少陈旧动作（配对陈旧使用 −6.6633±1.6806 个百分点，5/5），代价是同样多的保持；在准时的数据流上与只设可靠性的订阅打平；当 lifespan 丢掉晚到的重传时在保持上落败；比周期还短的 deadline 只会报告注定的未满足——`qos_deadline_lifespan_toy.py`，不是 rmw。
+- Executor 与 callback group 契约：`spin(node)` 是单线程；默认组是互斥组，因此把一切放进该组的多线程在无需同步调用时仍与单线程精确打平，出现长同步调用时仍会死锁且内部 handler 进度为零；分到不同组后订阅服务稳定更好（配对 B-A_single 的 sub_done `20.0000+-0.0000`、starved_ticks `-39.0000+-0.0000`，5/5）；共享互斥组在多线程下仍会死锁——`executor_callback_group_toy.py`，不是 rclpy。
 
 </Summary>
