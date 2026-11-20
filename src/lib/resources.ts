@@ -7262,6 +7262,40 @@ export const resources: Record<string, Resource> = {
     license: { zh: "预印本（arXiv 非独占分发许可），© 原作者；仅提供外链", en: "Preprint (arXiv non-exclusive distribution license), © the authors; external link only" },
     extra: true,
   },
+  "sera-html": {
+    id: "sera-html",
+    url: "https://arxiv.org/html/2611.24273",
+    title: {
+      zh: "SeRA：交互式模仿学习中对自主机器人回放的集合值重标注（HTML）",
+      en: "SeRA: Relabeling Autonomous Robot Rollouts in Interactive Imitation Learning (HTML)",
+    },
+    author: "Zhaoting Li, Cosimo Della Santina, Jens Kober",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "arXiv 2611.24273 v1（提交于 2026-11-18）。摘要作者顺序三人如上；PDF 扉页一致，并在 Kober 前加了 and。扉页脚注为单位（Delft University of Technology、University of Stuttgart），打开的扉页上没有通讯作者标记，本条目不发明该标记。现场摘要与 Atom 条目都没有 Comments / arxiv:comment，也没有 journal-ref / arxiv:journal_ref；摘要页上的 arXiv-issued DOI via DataCite（pending registration）不是 journal-ref。Atom published 为 2026-11-18T11:51:08Z。SeRA 用更晚的检查点给未标注自主帧重标注，用一致性过滤，并对被接受的重标注做集合值监督，而不是模仿历史机器人动作。论文表格和摘番茄 80 % 对 40 % 都以论文为准，不是玩具输出。已读摘要、HTML 正文与 PDF。真实机器人 / 扩散策略 / SDP / LIBERO / PushT：本页未运行。",
+      en: "arXiv 2611.24273 v1 (submitted 2026-11-18). Three authors in abstract order as above; the PDF title page matches, with and before Kober. Title-page footnotes are affiliations (Delft University of Technology, University of Stuttgart); no corresponding-author mark was seen on the opened title page, and this entry invents none. The live abs and Atom entry have no Comments / arxiv:comment and no journal-ref / arxiv:journal_ref; the abs line arXiv-issued DOI via DataCite (pending registration) is not a journal-ref. Atom published 2026-11-18T11:51:08Z. SeRA uses later checkpoints to relabel unlabeled autonomous frames, filters by agreement, and applies set-valued supervision to accepted relabels rather than imitating historical robot actions. Paper tables and the tomato-picking 80 % vs 40 % are 以论文为准 and are not toy outputs. Abs, HTML body and PDF were read. Real robot / diffusion policy / SDP / LIBERO / PushT: 本页未运行.",
+    },
+    license: { zh: "预印本（arXiv 非独占分发许可），© 原作者；仅提供外链", en: "Preprint (arXiv non-exclusive distribution license), © the authors; external link only" },
+    extra: true,
+  },
+  "sera-pdf": {
+    id: "sera-pdf",
+    url: "https://arxiv.org/pdf/2611.24273",
+    title: {
+      zh: "SeRA：交互式模仿学习中对自主机器人回放的集合值重标注（PDF）",
+      en: "SeRA: Relabeling Autonomous Robot Rollouts in Interactive Imitation Learning (PDF)",
+    },
+    author: "Zhaoting Li, Cosimo Della Santina, Jens Kober",
+    kind: "textbook",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "同一篇论文的 PDF 正文（9 页；sha256 d7109a869d27a87f7d3cae8384de2d9861d60c897820973c7b366ce00e77d083）。已读扉页、第 IV 节方法（跨轮次重标注、一致性掩码、集合值目标、步掩码损失）以及精确目标伪标签可能更差的讨论。论文表格以论文为准。真实机器人 / 扩散训练：本页未运行。",
+      en: "PDF body of the same paper (9 pages; sha256 d7109a869d27a87f7d3cae8384de2d9861d60c897820973c7b366ce00e77d083). The title page, Section IV (cross-round relabeling, agreement mask, set-valued targets, step-masked loss) and the discussion that exact-target pseudo-labelling can underperform were read. Paper tables 以论文为准. Real robot / diffusion training: 本页未运行.",
+    },
+    license: { zh: "预印本（arXiv 非独占分发许可），© 原作者；仅提供外链", en: "Preprint (arXiv non-exclusive distribution license), © the authors; external link only" },
+    extra: true,
+  },
 
 }
 

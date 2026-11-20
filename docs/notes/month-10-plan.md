@@ -1,5 +1,17 @@
 # Month 10 plan / 第 10 个月计划
 
+Current / 当前：**M10 4470 min**, Batch-27 PR3. Earlier entries below retain their historical totals.
+
+## Batch-27 PR3 — SeRA set-valued relabeling of autonomous rollouts on intervention-logging (+180)
+
+Base `d398b3533e5b3f3fc44534085b5946c576fa9f4e` (batch-27 PR2 #208 squash-merged; site **45180**). PR3 on M10 host: **M10 4290→4470 (+180)**. Site **45180→45360** (45360=45180+180), still 71 lessons. **M10 = 4470 stands equal with M9 = 4470, 90 min above current heaviest M6 = 4380**; disclosed.
+
+- **H5 / 10.5 intervention-logging: 390→570 (+180).** SeRA, Li, Della Santina, Kober, arXiv 2611.24273 v1 (`sera_autonomous_relabel_toy.py`; stdlib CPU stand-in, not a diffusion trainer; common random numbers, 5 seeds that repeat the same deterministic stream). Official title “Old Experience, New Lessons: Relabeling Autonomous Robot Rollouts in Interactive Imitation Learning.” Abs-order authors Zhaoting Li, Cosimo Della Santina, Jens Kober; PDF title page matches, with “and” before Kober. No corresponding-author marks on the opened title page. Live abs 2026-11-20 14:04:57 Asia/Shanghai: no Comments header, no journal-ref; the DataCite pending DOI is not a journal-ref. Live Atom 2026-11-20 14:13:24 Asia/Shanghai (HTTP 200): no `arxiv:comment`, no `arxiv:journal_ref`; `published` 2026-11-18T11:51:08Z. PDF sha256 `d7109a869d27a87f7d3cae8384de2d9861d60c897820973c7b366ce00e77d083`; HTML sha256 `fe1a52cc667cafe29407b2b948c412675dfb9f66a60686a8fdd73a02473f9771`. already_good: C-B `task_mse 0.0000+-0.0000`, **tie: identical on every seed** (declared may near-tie, held as an exact tie, kept). wrong_auton_agree: C-B `task_mse -6.0000+-0.0000`, **clear**, 5/5, and larger `robot_mse` (lower imitation of the bad historical action); kept. checkpoints_disagree: C exact-ties A; D-C `task_mse 0.4583+-0.0000`, **clear**, 5/5 (exact-imitate-relabel loses); prefix rejection `rejected_prefix=16`; kept. exact_target_lose: D-C `task_mse 1.4400+-0.0000`, **clear**, 5/5; kept. Named `ALT_RADIUS_RATIO=0.0000` alternative printed and not adopted. Official first run 2026-11-20 14:13:07 Asia/Shanghai; expected sha256 `f86f5694016e75deec905c877a87b5c80e253939da9df3f74c06cb8607ab8fc8`. No official toy or expected/ change after that run. Paper tomato-picking 80 % vs 40 % 以论文为准. Real robot / diffusion policy / SDP / LIBERO / PushT 本页未运行. Not a redo of HG-DAgger, Reward-DAgger, MAP-VLA, BlenDAgger, or HER; existing toys not retuned.
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
+
+**Site accounting / 全站核算:** **45360=45180+180**; **M10=4470**, **71 lessons**.
+
 Current / 当前：**M10 4290 min**, Batch-26 PR3. Earlier entries below retain their historical totals.
 
 ## Batch-26 PR3 — CoRe-VLA training-view restore on multi-view-extrinsics (+180)

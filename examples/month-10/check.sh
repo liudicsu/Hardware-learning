@@ -32,6 +32,7 @@ check spatialvla_ego3d_grid_toy.txt "$PY" "$M10/multi-view-extrinsics/spatialvla
 check corevla_training_view_restore_toy.txt "$PY" "$M10/multi-view-extrinsics/corevla_training_view_restore_toy.py"
 check intervention_log_toy.txt "$PY" "$M10/intervention-logging/intervention_log_toy.py"
 check map_vla_memory_prompt_toy.txt "$PY" "$M10/intervention-logging/map_vla_memory_prompt_toy.py"
+check sera_autonomous_relabel_toy.txt "$PY" "$M10/intervention-logging/sera_autonomous_relabel_toy.py"
 check rlpd_chain_toy.txt "$PY" "$M10/real-world-rl/rlpd_chain_toy.py"
 check advantage_filter_toy.txt "$PY" "$M10/vla-rl-finetune/advantage_filter_toy.py"
 
