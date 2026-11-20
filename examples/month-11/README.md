@@ -13,6 +13,8 @@ UPDATE=1 bash examples/month-11/check.sh   # regenerate expected/
 
 Set `M11_PYTHON` to override the interpreter (default `python3`).
 
+`foc-actuator-lab/foc_dq_decoupling_toy.py`: standard-library coupled dq plant comparing PI-only current mode, the documented current-mode d/q feedforward, wrong-sign compensation, and a named voltage-mode lag alternative (printed, not adopted); common random numbers, five seeds; official SimpleFOC flash 本页未运行; expected output in `expected/foc_dq_decoupling_toy.txt`, included in `check.sh`. The earlier `foc_current_loop_toy.py` is unchanged.
+
 11.3 also includes `tactile_debias_recal_toy.py` (shared-noise calibration, dimensionless load); 11.5 includes `oxe_auge_score_toy.py` (synthetic partial scores vs binary completion). Both are included in check.sh.
 
 - `power-battery-emc/soc_coulomb_thermal_toy.py` — coulomb SoC drift + thermal derate (batch-4).

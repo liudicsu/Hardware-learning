@@ -1,5 +1,15 @@
 # Month 11 plan: Actuator hardware, tactile contact & cross-embodiment collection
 
+Current / 当前：**M11 4530 min**, Batch-28 PR2. Earlier entries below retain their historical totals.
+
+## Batch-28 PR2 / 本月 H2 (+180)
+
+Base `fd382df872d123ee4ba78332f91cb8773e46a058` (batch-28 PR1 #210 squash-merged; site **45540**). PR2 on M11 host: **M11 4350→4530 (+180)**. Site **45540→45720** (README typography `45 720`). After this PR, M11 ties M8 at **4530** as joint-heaviest: **60 min** above M9 / M10 = 4470, **150 min** above M6 = 4380. Still 71 lessons. This joint-heaviest trade is disclosed here only, not as a student-facing process lecture. The month-8 plan's already-disclosed M8 sole-heaviest wording from PR1 is left as historical text.
+
+- **H2 / 11.2 foc-actuator-lab: 480→660 (+180).** SimpleFOC current-mode d/q cross-coupling / lag feedforward (`foc_dq_decoupling_toy.py`; common random numbers, 5 seeds; PI-only vs official current-mode feedforward vs wrong-sign; named voltage-mode lag alternative printed, not adopted). Primary formula body `foc_current_torque_mode` added as a new Resource / reading-map line; already-linked `voltage_torque_control` is the plant / voltage-mode contrast, not a substitute. Official first run 2026-11-20 17:01:41 Asia/Shanghai; expected sha256 `27221a07f3f0f4f08fc3cad3468ffea41046811293ebac453033c4d5d7e52d44`. Official expected/ was not retuned. low_speed_settled: B-A id_rmse `-1.355e-7+-3.902e-7`, **near-tie** (held, kept). high_speed_iq_step: B-A id_rmse `-0.2667+-0.0008`, iq_rmse `-0.0621+-1.596e-4`, **clear**, same sign on all 5 seeds (held, kept); wrong-sign C-B id_rmse `0.5639+-0.0009`, **clear**, same sign on all 5 seeds (lose kept). Alternative `ALT_VOLTAGE_MODE_LAG` printed, not adopted. Existing `foc_current_loop_toy.py` / `clarke_park_toy.py` not retuned. Official SimpleFOC flash 本页未运行. Field weakening / MTPA / SVPWM stay out of scope. / 电流模式 d/q 前馈；低速已稳态接近打平成立，高速阶跃时 B 一贯更好，反号 C 会输。
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
+
 Current / 当前：**M11 4350 min**, Batch-24 PR3. Earlier entries below retain their historical totals.
 
 ## Batch-24 PR3 — NaVILA mid-level language locomotion and FD-VLA force distillation (+360)
