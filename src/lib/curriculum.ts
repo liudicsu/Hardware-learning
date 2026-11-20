@@ -1263,12 +1263,13 @@ const month8Lessons: Lesson[] = [
     slug: "ros2-hardware-interface",
     title: { zh: "给 SO-101 写一个 ros2_control 硬件组件", en: "Writing a ros2_control hardware component for the SO-101" },
     summary: {
-      zh: "自己写硬件组件：生命周期、状态/命令接口、read/write；关节限位器；实时循环注意点。CPU：servo_bus_sim.py 统计总线抖动超时；lifecycle_sm_toy.py 演练托管节点状态机（≠ HardwareComponent SM）。so101_hw/ 骨架供本机 Jazzy 加载（本页未运行）。 另用事件级 CAN TEC/REC 玩具练习故障限制与恢复资格，不把总线恢复当急停解除。",
-      en: "Write a hardware component: lifecycle, state/command interfaces, read/write; joint limiters; real-time loop cautions. CPU: servo_bus_sim.py counts bus-jitter timeouts; lifecycle_sm_toy.py drills the managed-node SM (≠ HardwareComponent SM). so101_hw/ is a skeleton for your Jazzy workspace (本页未运行). A separate CAN TEC/REC event toy covers confinement and recovery eligibility, not e-stop release.",
+      zh: "自己写硬件组件：生命周期、状态/命令接口、read/write；关节限位器；实时循环注意点。CPU：servo_bus_sim.py 统计总线抖动超时；lifecycle_sm_toy.py 演练托管节点状态机（≠ HardwareComponent SM）。so101_hw/ 骨架供本机 Jazzy 加载（本页未运行）。 另用事件级 CAN TEC/REC 玩具练习故障限制与恢复资格，不把总线恢复当急停解除。 另用 CPU 玩具对照未执行 enforce_command_limits 时的命令直通、朴素独立箱夹，以及带标签的 JointSaturationLimiter 契约替身（官方插件本页未运行）。",
+      en: "Write a hardware component: lifecycle, state/command interfaces, read/write; joint limiters; real-time loop cautions. CPU: servo_bus_sim.py counts bus-jitter timeouts; lifecycle_sm_toy.py drills the managed-node SM (≠ HardwareComponent SM). so101_hw/ is a skeleton for your Jazzy workspace (本页未运行). A separate CAN TEC/REC event toy covers confinement and recovery eligibility, not e-stop release. A later CPU toy compares command passthrough when enforce_command_limits is off, a naive independent box clamp, and a labeled JointSaturationLimiter contract stand-in (official plugin 本页未运行).",
     },
-    minutes: 600,
+    minutes: 780,
     objectives: [
       {"zh": "按打开的 CAN 规则计算 TEC/REC、>127 被动、TEC>255 bus-off 与 128×11 恢复资格，区别 CiA402 和急停。", "en": "Apply opened CAN TEC/REC rules, >127 passive, TEC>255 bus-off and 128×11 recovery eligibility, distinct from CiA402 and e-stops."},
+      {"zh": "能说明 enforce_command_limits 在已打开的 userdoc 中是只读 bool、默认 false，并对照耦合饱和替身与朴素独立箱夹：近限位时朴素夹紧仍可能在一个 dt 内越出位置箱。", "en": "State that enforce_command_limits is a read-only bool, default false, on the opened userdoc, and contrast a coupled-saturation stand-in with a naive independent box clamp: near a position limit the naive clamp can still step outside the box in one dt."},
       { zh: "能按顺序列出硬件组件关键生命周期回调与 read/write。", en: "List the key lifecycle callbacks plus read/write for a hardware component." },
       { zh: "能说明 export_state_interfaces 与 export_command_interfaces 的分工。", en: "State what export_state_interfaces and export_command_interfaces each export." },
       { zh: "能说出控制回路里应避免阻塞与动态分配（原则级）。", en: "State that the control loop should avoid blocking and dynamic allocation (principle-level)." },
@@ -1277,9 +1278,10 @@ const month8Lessons: Lesson[] = [
       { zh: "能指出真机验证与 LTTng 追踪标「本页未运行」。", en: "Note that hardware verification and LTTng tracing are marked not run on this page." },
     ],
     prereqs: ["ros2-control", "moveit-pick-place", "so101-arm", "timing-interrupts"],
-    resources: ["ros2-control-hw-component", "ros2-control-joint-limiting", "ros2-realtime", "ros2-control-docs", "ros2-node-lifecycle", "ros2-tracing", "bosch-can20-confinement", "nxp-can20-protocol"],
+    resources: ["ros2-control-hw-component", "ros2-control-joint-limiting", "ros2-control-cm-userdoc", "ros2-control-joint-saturation-limiter", "ros2-realtime", "ros2-control-docs", "ros2-node-lifecycle", "ros2-tracing", "bosch-can20-confinement", "nxp-can20-protocol"],
     tasks: [
       {"id": "can-confinement", "text": {"zh": "运行 can_fault_confinement_toy.py；核对 255/256、REC +8 例外和 1407/1408 隐性位恢复边界", "en": "Run can_fault_confinement_toy.py; verify 255/256, REC +8 cases and the 1407/1408 recessive-bit recovery boundary"}},
+      { id: "saturation-contract", text: { zh: "运行 joint_saturation_limiter_toy.py；核对远处 B/C 精确打平、近限位 C 更好而 B 与 A 输掉、连续关节不编造位置箱，以及越界时 C 抛出", en: "Run joint_saturation_limiter_toy.py; check the far B/C exact tie, the near-limit cell where C is better and B and A lose, that a continuous joint invents no position box, and that C raises when already out of bounds" } },
       { id: "read", text: { zh: "阅读 control.ros.org（Jazzy）Writing a Hardware Component 目录", en: "Read the Jazzy Writing a Hardware Component outline on control.ros.org" } },
       { id: "skel", text: { zh: "运行 servo_bus_sim.py，确认超时从 122 降到 0，并浏览 so101_hw/ 骨架", en: "Run servo_bus_sim.py (timeouts 122→0) and skim the so101_hw/ skeleton" } },
       { id: "lifecycle", text: { zh: "运行 lifecycle_sm_toy.py；核对 script A/B 的 illegal_rejects 与最终 Active，以及 script C 经 shutdown 到 Finalized；写一句托管节点≠HardwareComponent", en: "Run lifecycle_sm_toy.py; check script A/B illegal_rejects and final Active, and script C shutdown→Finalized; one sentence: managed node ≠ HardwareComponent" } },
