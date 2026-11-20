@@ -5,7 +5,7 @@ CPU-reproducible scripts for Month 9 (site supplement). Run `./check.sh` from th
 | lesson | script | this batch | needs |
 |--------|--------|------------|-------|
 | mtc-long-horizon | `mtc-long-horizon/stage_graph_toy.py` | **full** | stdlib |
-| moveit-servo | `moveit-servo/servo_loop_sim.py` | **full** | stdlib |
+| moveit-servo | `moveit-servo/servo_loop_sim.py`, `moveit-servo/servo_collision_proximity_toy.py` | **full** | stdlib |
 | effort-admittance | `effort-admittance/load_contact_sim.py`, `admittance_1d.py` | **full** | stdlib |
 | llm-skill-planning | `llm-skill-planning/saycan_score_toy.py`, `llm-skill-planning/chatvla2_reasoning_following_toy.py` | **full** (fake LLM only) | stdlib |
 | failure-recovery | `failure-recovery/recovery_bt_toy.py` + `failure_table.md` | **full** | stdlib |
@@ -36,3 +36,12 @@ python3 examples/month-9/llm-skill-planning/chatvla2_reasoning_following_toy.py
 
 Stdlib only. A ChatVLA-2-style stand-in on shared board-and-card scenes: a naive overwrite of the reasoner vs a two-stage freeze-reasoner follow vs stage-2-only against an un-co-trained reasoner; pick accuracy and reason-then-pick over five seeds with common random numbers. Paper math-matching scores 以论文为准; GPU / whiteboard 本页未运行.
 只用标准库。共享棋盘与数字卡片上的 ChatVLA-2 风格替身：比较覆盖推理器的稠密微调、两阶段冻结推理器再跟随、以及只做第二阶段对着未经共训练的推理器；5 个种子、共用随机数，报告选牌准确率和推理再跟随。论文数学配对分数以论文为准；GPU / 白板本页未运行。
+
+## Collision-proximity scaling (`servo_collision_proximity_toy.py`)
+
+```bash
+python3 examples/month-9/moveit-servo/servo_collision_proximity_toy.py
+```
+
+Stdlib only. A planar stand-in for MoveIt Servo collision-proximity scaling: `check_collisions` off vs the opened 0.01 m / 0.02 m demo-config thresholds (1 at threshold to 0 at contact) vs an over-conservative huge threshold; progress and collision counts over five seeds with common random numbers. The 0.01 m / 0.02 m figures are opened demo-config constants, 以文档为准, not vendor-universal defaults. MoveIt / FCL 本页未运行.
+只用标准库。MoveIt Servo 碰撞接近缩放的平面替身：关闭 `check_collisions`、使用打开的 0.01 m / 0.02 m 演示配置阈值（阈值处为 1、接触处为 0）、以及过于保守的大阈值；5 个种子、共用随机数，报告行程和碰撞计数。0.01 m / 0.02 m 是打开的演示配置常量，以文档为准，不是厂商通用默认值。MoveIt / FCL 本页未运行。

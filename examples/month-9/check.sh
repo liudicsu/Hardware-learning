@@ -20,6 +20,7 @@ check() {
 
 check stage_graph_toy.txt "$PY" "$M9/mtc-long-horizon/stage_graph_toy.py"
 check servo_loop_sim.txt "$PY" "$M9/moveit-servo/servo_loop_sim.py"
+check servo_collision_proximity_toy.txt "$PY" "$M9/moveit-servo/servo_collision_proximity_toy.py"
 check load_contact_sim.txt "$PY" "$M9/effort-admittance/load_contact_sim.py"
 check admittance_1d.txt "$PY" "$M9/effort-admittance/admittance_1d.py"
 check saycan_score_toy.txt "$PY" "$M9/llm-skill-planning/saycan_score_toy.py"
