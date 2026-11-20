@@ -1,5 +1,17 @@
 # Month 5 current plan / 第5个月当前计划
 
+Current / 当前：**M5 4110 min**, Batch-26 PR2. Older batch entries retain historical totals.
+
+## Batch-26 PR2 — Pilz LIN vs PTP path shape on moveit-pick-place (+180)
+
+Base `4f9d0bb73f9804f264bfa6eaf3e88e6d47a460f3` (batch-26 PR1 #204 squash-merged; site **43740**). PR2 on M5 host: **M5 3930→4110 (+180)**; M6 moves in the same PR on its own plan. Site **43740→44100** (44100=43740+180+180), still 71 lessons.
+
+- **H3 / 5.x moveit-pick-place: 480→660 (+180).** Pilz LIN vs PTP path shape (`pilz_lin_vs_ptp_path_toy.py`; common random numbers, 5 seeds; shared 2R-plus-wrist stand-in, shared start and goal poses, shared obstacle, shared measurement noise). Body read: `moveit2_tutorials` main how-to, commit `cdee39bbc5746a98630a4d631ab7d0184de2f1e1` (2024-12-31 20:05:15 UTC = 2025-01-01 04:05:15 Asia/Shanghai), blob `54f4ee6cc3379f2198ac5d4a9a26349a1428ade0`, RST sha256 `dff95cb2091f121defb32a7ad90c4a9b34786aa3ce73b283699c19436e71a591` (以文档为准). PTP: synchronized joint interpolation (lead axis sets the time law). LIN: position lerp plus quaternion slerp. CIRC named in prose, no toy arm. Jazzy tutorials path 404; docs.ros.org challenge page is not a body. Declared: L1 0.3000 m, L2 0.2500 m, N_PATH 41, SIG_MEAS 4.000e-4 m (hand_calc 0.0004 m), SMALL_FRAC 0.2000. short_straight: B-A bow `-1.230e-5+-4.839e-5`, **near-tie**, 2 of 5 opposite — held. long_reconfig: B-A bow `-0.1659+-2.886e-4`, **clear**, 5/5 — held. lin_blocked: C `n_collide` `9.0000+-0.0000`, `line_hit` `1.0000` — lose held; A's zero collisions on this box are a joint-space bow, not a planner. Alternative SIG_MEAS=0.0000 m on the same seeds, not adopted (would make short_straight a clear LIN win `-6.181e-5+-0.0000`). No official toy or expected/ change after the first run 2026-11-20 08:25:24 Asia/Shanghai. ≠ S-curve time toy / RRTConnect / Servo / IK nullspace. Real MoveIt / Panda 本页未运行. / 短而接近直线的关节移动弓高接近打平，大幅度构型重组时 LIN 弓高更小，穿过墙的直线不能当作合法接近。
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
+
+**Site accounting / 全站核算:** **44100=43740+180+180**; **M5=4110**, **71 lessons**.
+
 Current / 当前：**M5 3930 min**, Batch-25 PR1. Older batch entries retain historical totals.
 
 ## Batch-25 PR1 — redundant IK nullspace secondary task on kinematics-ik (+180)

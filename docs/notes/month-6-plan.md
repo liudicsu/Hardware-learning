@@ -1,5 +1,17 @@
 # Month 6 plan: Robot learning, specialisation & getting hired
 
+Current / 当前：**M6 4200 min**, Batch-26 PR2. Earlier entries below retain their historical totals.
+
+## Batch-26 PR2 — Reward-DAgger robot-gated progress interventions on behaviour-cloning (+180)
+
+Base `4f9d0bb73f9804f264bfa6eaf3e88e6d47a460f3` (batch-26 PR1 #204 squash-merged; site **43740**). PR2 on M6 host: **M6 4020→4200 (+180)**; M5 moves in the same PR on its own plan. Site **43740→44100** (44100=43740+180+180), still 71 lessons.
+
+- **H4 / 6.1 behaviour-cloning: 660→840 (+180).** Reward-DAgger robot-gated progress interventions (`reward_dagger_progress_gate_toy.py`; common random numbers, 5 seeds; shared synthetic progress traces). Paper: Ryan Li, Yigit Korkmaz, Erdem Bıyık, arXiv 2610.04054 v1, submitted 2026-10-02; PDF sha256 `ace2df056a4b2afc0a233c955aa5eb9e92295528784552b212088b7403284778`. Abs has no Comments / journal-ref fields. PDF title page: Li* and Korkmaz*, footnote ⋆ Equal Contribution; no corresponding-author typography. Spearman two-timescale gate (Eqs. 1-4; 以论文为准), not Pearson. Corridor DAgger kept; ≠ HG-DAgger / HAMSTER / MAP-VLA / HIL-SERL / BlenDAgger. Declared: T 80, N_EPS 8, L_S 8, L_L 24, TAU_S -0.5000, TAU_L 0.2000, DELTA_MIN 0.0800, SIG_PHI 0.0150, SMALL_FRAC 0.2000. uneventful: B-A success `0.0000+-0.0000`, **tie: identical on every seed** (declared may-near-tie held); B-A calls `-80.0000+-0.0000`, **clear**, 5/5 effort advantage. drop_stall: B-C effort_return `0.6380+-0.0005` and success `1.0000+-0.0000`, **clear**, 5/5; B-A calls `-34.6000+-0.1046`, **clear**, 5/5 more selective; C success `0.0000+-0.0000` lose held. Alternative TAU_L=1.0000 on the same seeds, not adopted (uneventful B calls rise to `57.0000+-0.0000`). No official toy or expected/ change after the first run 2026-11-20 08:25:24 Asia/Shanghai. Paper gate (75, -0.9, 0.05, 225, 0.0) and ROHE 以论文为准. Real VLA / GPU reward model 本页未运行. / 平淡轨迹成功率打平且门控少调用专家，下降加停滞时选择门控获胜，永不触发失败。
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
+
+**Site accounting / 全站核算:** **44100=43740+180+180**; **M6=4200**, **71 lessons**.
+
 Current / 当前：**M6 4020 min**, Batch-23 PR3. Earlier entries below retain their historical totals.
 
 ## Batch-23 PR3 — Hi Robot hierarchical VLA + situated feedback on policy-evaluation (+180)

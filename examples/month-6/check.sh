@@ -56,6 +56,7 @@ check flare_future_latent_alignment_toy.txt python3 "$M6/act-diffusion/flare_fut
 check cot_vla_subgoal_toy.txt python3 "$M6/vla-models/cot_vla_subgoal_toy.py"
 check molmoact_reasoning_trace_toy.txt python3 "$M6/vla-models/molmoact_reasoning_trace_toy.py"
 check hamster_hierarchical_path_toy.txt python3 "$M6/behaviour-cloning/hamster_hierarchical_path_toy.py"
+check reward_dagger_progress_gate_toy.txt python3 "$M6/behaviour-cloning/reward_dagger_progress_gate_toy.py"
 
 check internvla_m1_spatial_prompt_toy.txt python3 "$M6/vla-models/internvla_m1_spatial_prompt_toy.py"
 

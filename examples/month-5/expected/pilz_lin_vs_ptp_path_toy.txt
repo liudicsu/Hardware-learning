@@ -1,0 +1,109 @@
+Synthetic Pilz LIN vs PTP path-shape stand-in; not a real MoveIt plan
+declared L1=0.3000 m L2=0.2500 m N_PATH=41 SIG_MEAS=4.000e-4 m SMALL_FRAC=0.2000 seeds=0,1,2,3,4
+hand_calc reach L1+L2 = 0.5500 m
+hand_calc fold abs(L1-L2) = 0.0500 m
+hand_calc 20 percent small-vs-clear factor = 0.2000
+hand_calc SIG_MEAS = 0.0004 m
+hand_calc N_PATH inclusive samples = 41
+hand_calc short_straight q_s=0.5000,0.7000,0.1000 q_g=0.5200,0.7200,0.1400 rad
+hand_calc long_reconfig pos_s=0.3500,0.1500,0.0000 pos_g=0.3200,0.1800,0.0000 m
+hand_calc lin_blocked pos_s=0.2000,0.0500,0.0000 pos_g=0.4500,0.0500,0.0000 m
+hand_calc obstacle box x=0.3000 to 0.3500 m, y=0.0300 to 0.0700 m
+declared arms: A_ptp synchronized joint interpolation; B_lin Cartesian line plus quaternion slerp; C_lin_blocked the same LIN through a blocking obstacle
+docs_commit=cdee39bbc5746a98630a4d631ab7d0184de2f1e1 (2024-12-31 20:05:15 UTC = 2025-01-01 04:05:15 Asia/Shanghai)
+docs_blob=54f4ee6cc3379f2198ac5d4a9a26349a1428ade0
+docs_rst_sha256=dff95cb2091f121defb32a7ad90c4a9b34786aa3ce73b283699c19436e71a591
+docs_body=moveit2_tutorials main how-to pilz_industrial_motion_planner.rst (Jazzy branch of that path returned 404 and is not a body; docs.ros.org served a challenge page and is not a body)
+Regimes and parameters were written before the first run
+Common random numbers: start and goal poses, the arm, the obstacle and the measurement-noise sequence are shared across arms at each regime and seed
+Assumptions: 2R-plus-wrist planar stand-in; PTP path is synchronized linear joint interpolation; LIN is position lerp plus quaternion slerp then IK; CIRC is named in the lesson and has no toy arm; no RRTConnect
+PTP / LIN / CIRC definitions 以文档为准
+Real MoveIt / Panda / computeCartesianPath: 本页未运行
+declared short_straight: A and B may near-tie on mid-path Cartesian bow - keep
+declared long_reconfig: B consistent smaller Cartesian bow than A - keep
+declared lin_blocked: C loses as a valid approach path because the line intersects the obstacle - lose kept
+declared expectation short_straight: A and B may near-tie on mid-path Cartesian bow - keep
+regime short_straight  (mean+-sd over seeds)
+  cart_disp_m 0.0151+-0.0000
+  joint_travel_rad 0.0490+-0.0000
+  line_hit 0.0000+-0.0000
+  A_ptp bow_m 0.0011+-2.127e-4 n_collide 0.0000+-0.0000
+  B_lin bow_m 0.0010+-2.011e-4 n_collide 0.0000+-0.0000
+  C_lin_blocked bow_m 0.0010+-2.011e-4 n_collide 0.0000+-0.0000
+  paired B-A bow_m: -1.230e-5+-4.839e-5: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired B-A n_collide: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A bow_m: -1.230e-5+-4.839e-5: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired C-A n_collide: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B bow_m: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B n_collide: 0.0000+-0.0000: tie: identical on every seed
+declared expectation long_reconfig: B consistent smaller Cartesian bow than A - keep
+regime long_reconfig  (mean+-sd over seeds)
+  cart_disp_m 0.0424+-0.0000
+  joint_travel_rad 3.6736+-0.0000
+  line_hit 0.0000+-0.0000
+  A_ptp bow_m 0.1670+-3.355e-4 n_collide 0.0000+-0.0000
+  B_lin bow_m 0.0011+-2.147e-4 n_collide 0.0000+-0.0000
+  C_lin_blocked bow_m 0.0011+-2.147e-4 n_collide 0.0000+-0.0000
+  paired B-A bow_m: -0.1659+-2.886e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A n_collide: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A bow_m: -0.1659+-2.886e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A n_collide: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B bow_m: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B n_collide: 0.0000+-0.0000: tie: identical on every seed
+declared expectation lin_blocked: C loses as a valid approach path because the line intersects the obstacle - lose kept
+regime lin_blocked  (mean+-sd over seeds)
+  cart_disp_m 0.2500+-0.0000
+  joint_travel_rad 1.2325+-0.0000
+  line_hit 1.0000+-0.0000
+  A_ptp bow_m 0.0217+-2.204e-4 n_collide 0.0000+-0.0000
+  B_lin bow_m 0.0011+-1.480e-4 n_collide 9.0000+-0.0000
+  C_lin_blocked bow_m 0.0011+-1.480e-4 n_collide 9.0000+-0.0000
+  paired B-A bow_m: -0.0206+-2.637e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A n_collide: 9.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A bow_m: -0.0206+-2.637e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A n_collide: 9.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B bow_m: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B n_collide: 0.0000+-0.0000: tie: identical on every seed
+alternative same seeds SIG_MEAS=0.0000 m (not adopted)
+hand_calc official SIG_MEAS=4.000e-4 m vs alternative 0.0000 m
+regime short_straight alt_sig=0.0000  (mean+-sd over seeds)
+  cart_disp_m 0.0151+-0.0000
+  joint_travel_rad 0.0490+-0.0000
+  line_hit 0.0000+-0.0000
+  A_ptp bow_m 6.181e-5+-0.0000 n_collide 0.0000+-0.0000
+  B_lin bow_m 7.376e-17+-0.0000 n_collide 0.0000+-0.0000
+  C_lin_blocked bow_m 7.376e-17+-0.0000 n_collide 0.0000+-0.0000
+  paired B-A bow_m: -6.181e-5+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A n_collide: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A bow_m: -6.181e-5+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A n_collide: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B bow_m: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B n_collide: 0.0000+-0.0000: tie: identical on every seed
+regime long_reconfig alt_sig=0.0000  (mean+-sd over seeds)
+  cart_disp_m 0.0424+-0.0000
+  joint_travel_rad 3.6736+-0.0000
+  line_hit 0.0000+-0.0000
+  A_ptp bow_m 0.1670+-0.0000 n_collide 0.0000+-0.0000
+  B_lin bow_m 5.878e-17+-0.0000 n_collide 0.0000+-0.0000
+  C_lin_blocked bow_m 5.878e-17+-0.0000 n_collide 0.0000+-0.0000
+  paired B-A bow_m: -0.1670+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A n_collide: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A bow_m: -0.1670+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A n_collide: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B bow_m: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B n_collide: 0.0000+-0.0000: tie: identical on every seed
+regime lin_blocked alt_sig=0.0000  (mean+-sd over seeds)
+  cart_disp_m 0.2500+-0.0000
+  joint_travel_rad 1.2325+-0.0000
+  line_hit 1.0000+-0.0000
+  A_ptp bow_m 0.0211+-0.0000 n_collide 0.0000+-0.0000
+  B_lin bow_m 6.384e-17+-0.0000 n_collide 9.0000+-0.0000
+  C_lin_blocked bow_m 6.384e-17+-0.0000 n_collide 9.0000+-0.0000
+  paired B-A bow_m: -0.0211+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A n_collide: 9.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A bow_m: -0.0211+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A n_collide: 9.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B bow_m: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B n_collide: 0.0000+-0.0000: tie: identical on every seed
+No real MoveIt process was started
+No winner is universal: a short, already nearly straight joint move may near-tie on bow; a long reconfiguration bows under PTP; a LIN through a wall is not a valid approach, and neither PTP nor LIN is a collision-avoiding planner
