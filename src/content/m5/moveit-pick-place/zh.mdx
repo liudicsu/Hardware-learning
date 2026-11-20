@@ -822,6 +822,673 @@ Real arm / controller: 本页未运行; Wikipedia Jerk (physics) 以原文为准
 4. 固定种子，把 `JMAX` 设为 20。运行前预测 `flexible` 里 B−A 残余振动是否仍然明显，以及 `rigid_short` 里 B−A 曲线时间会怎样变化。
 5. 在真实机械臂之前（本页未运行），写出你如何在工具端测残余振动，并根据找到的最低模态选择加加速度上限。
 
+## PTP 与 LIN：比的是路径形状
+
+MoveIt 2 教程在 `moveit2_tutorials` **main** 上的 how-to（commit `cdee39bbc5746a98630a4d631ab7d0184de2f1e1`，2024-12-31 20:05:15 UTC = 2025-01-01 04:05:15 Asia/Shanghai，blob `54f4ee6cc3379f2198ac5d4a9a26349a1428ade0`；RST sha256 `dff95cb2091f121defb32a7ad90c4a9b34786aa3ce73b283699c19436e71a591`）定义了两种工业运动指令（以文档为准）。 **PTP** 生成完全同步的点到点轨迹，关节速度是梯形轮廓；到达目标耗时最长的轴是领先轴，其他轴与它共享加速、匀速和减速阶段（以文档为准）。 **LIN** 在起点与终点之间生成笛卡尔直线：平移是位置向量的线性插值，转动是四元数 slerp，二者在时间上同步，结果仍是一条关节轨迹，起点速度必须为零，若碰到关节限位，使用者必须缩放笛卡尔速度或加速度（以文档为准）。 **CIRC** 是圆弧加 slerp，笛卡尔限位和零起点速度与 LIN 相同（以文档为准）；这里只点名，不为它单独做一条玩具臂。
+
+本页已经用 OMPL **RRTConnect** 做自由移动，用 Pilz **LIN** 做接近、提起和后退，并且已经有一个一维 S 曲线对梯形的*时间*玩具。本节比的是**路径形状**，不是重做那个时间玩具，不是 RRTConnect 对上碰撞目标，不是 MoveIt Servo，也不是冗余 IK 零空间玩具。该 how-to 在 Jazzy 分支上的同一路径返回 **404**，不能当正文；docs.ros.org 给出的是挑战页面，也不能当正文。本课已经在课程的 Jazzy 栈上使用 Pilz 管道——这是兼容性事实，不是一篇未读文档里的发行版差异。
+
+### 公平设置
+
+`pilz_lin_vs_ptp_path_toy.py` 是只用标准库的**路径形状替身**。模型假设: 平面 2R 加腕关节，`L1 = 0.3000` m、`L2 = 0.2500` m（手算可达 `L1+L2 = 0.5500` m，折叠 `abs(L1-L2) = 0.0500` m），`N_PATH = 41` 个含端点的样本，以及共享测量噪声 `SIG_MEAS = 4.000e-4` m（手算 `SIG_MEAS = 0.0004` m）。组 A 在关节空间里做同步直线插值（这就是完全同步 PTP 的路径；领先轴只决定时间规律，本替身不回放时间规律）。组 B 对位置向量做线性插值、对姿态四元数做 slerp，再用薄层解析 IK 映射回关节。组 C 发出同一条穿过阻挡障碍的 LIN 指令。没有启动 MoveIt 进程。PTP 和 LIN 都不被当成像 RRTConnect 那样会避障的*规划器*。
+
+**共用随机数:** 五个种子 `0,1,2,3,4`。每个情形和种子只抽一次起点和终点位姿、手臂、障碍和测量噪声序列，三条臂共用。
+
+**事先写好的情形:** `short_straight` — 已经接近直线的短关节移动，从 `q_s=0.5000,0.7000,0.1000` rad 到 `q_g=0.5200,0.7200,0.1400` rad（手算）：A 与 B 在路径中点笛卡尔弓高上可以**接近打平**（保留）；`long_reconfig` — 关节行程很大（`joint_travel_rad` `3.6736+-0.0000`），笛卡尔位移却不大，从 `0.3500,0.1500,0.0000` m 到 `0.3200,0.1800,0.0000` m（手算；`cart_disp_m` `0.0424+-0.0000`）：B 的弓高**稳定地更小**（保留）；`lin_blocked` — 从 `0.2000,0.0500,0.0000` m 到 `0.4500,0.0500,0.0000` m 的 LIN，线段穿过盒子 `x=0.3000` 到 `0.3500` m、`y=0.0300` 到 `0.0700` m（手算）：C 不能作为合法接近路径，**失败保留**。标签仍按完全打平 / 数值上为零 / 接近打平 / 用较小臂均值的 20 % 区分 small 与 clear，并报告同号计数（手算；玩具打印 `0.2000`）。
+
+### 运行标准库 toy
+
+脚本在 `examples/month-5/moveit-pick-place`。
+
+```bash
+cd ~/Hardware-learning/examples/month-5/moveit-pick-place
+python3 pilz_lin_vs_ptp_path_toy.py
+```
+
+<CodeSource path="examples/month-5/moveit-pick-place/pilz_lin_vs_ptp_path_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic Pilz LIN vs PTP path-shape stand-in.
+
+Stdlib only. No MoveIt process is started. This compares mid-path Cartesian
+bow of a PTP-like joint-space path with a LIN-like Cartesian line plus
+quaternion slerp, using a thin analytic IK stand-in. It is not a redo of
+the 1-D S-curve vs trapezoid time toy, not OMPL RRTConnect, and not Servo.
+
+A shared start and goal pose, a shared 2R-plus-wrist arm, a shared obstacle
+and a shared measurement-noise sequence are generated once per (regime,
+seed) and then read by every arm (common random numbers).
+
+Arms:
+  A_ptp -- synchronized linear interpolation in joint space (the path of a
+    fully synchronized PTP move: the lead axis only sets the time law).
+  B_lin -- linear interpolation of the position vector plus quaternion
+    slerp of orientation, mapped back to joints by the IK stand-in.
+  C_lin_blocked -- the same LIN command through a blocking obstacle; the
+    straight line is not collision-free. PTP and LIN are not claimed to be
+    collision-avoiding planners like RRTConnect.
+
+Regimes and parameters were written before the first run.
+
+Labels: tie = identical on every seed; numerically zero = |paired mean| and sd
+both < 1e-9; |m| <= sd = near-tie; |m| > sd = consistent gap (small if |m| < 20 %
+of the smaller arm mean, else clear), with a sign count. ROUND_HALF_UP output.
+
+PTP / LIN / CIRC definitions stay 以文档为准.
+Real MoveIt / Panda / computeCartesianPath: 本页未运行.
+"""
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+SMALL_FRAC = 0.2000  # 20 % of the smaller-arm mean; printed as 0.2000
+
+# Declared 2R-plus-wrist stand-in (path shape, not a time law).
+L1 = 0.3000  # m
+L2 = 0.2500  # m
+N_PATH = 41  # samples, inclusive of start and goal
+SIG_MEAS = 0.0004  # m, shared Cartesian measurement noise
+# Named alternative, same seeds, not adopted: drop the measurement noise.
+SIG_MEAS_ALT = 0.0000
+
+# Wrist yaw at the short and reconfiguration starts/goals (rad).
+Q3_SHORT_S = 0.1000
+Q3_SHORT_G = 0.1400
+Q3_RECONFIG_S = 0.2000
+Q3_RECONFIG_G = -0.1000
+Q3_BLOCKED_S = 0.0000
+Q3_BLOCKED_G = 0.2000
+
+# Short, already nearly straight joint move (rad).
+SHORT_Q_S = (0.5000, 0.7000, Q3_SHORT_S)
+SHORT_Q_G = (0.5200, 0.7200, Q3_SHORT_G)
+
+# Long reconfiguration: modest Cartesian displacement, large joint travel.
+# Elbow-up at (0.3500, 0.1500) m to elbow-down at (0.3200, 0.1800) m.
+RECONFIG_POS_S = (0.3500, 0.1500, 0.0000)
+RECONFIG_POS_G = (0.3200, 0.1800, 0.0000)
+RECONFIG_BRANCH_S = 1
+RECONFIG_BRANCH_G = -1
+
+# LIN through a blocking obstacle: horizontal approach along y = 0.0500 m.
+BLOCKED_POS_S = (0.2000, 0.0500, 0.0000)
+BLOCKED_POS_G = (0.4500, 0.0500, 0.0000)
+BLOCKED_BRANCH = 1
+# Axis-aligned obstacle in the xy plane (m); the start-goal segment
+# crosses it. Written before the first run.
+OBS_X_LO = 0.3000
+OBS_X_HI = 0.3500
+OBS_Y_LO = 0.0300
+OBS_Y_HI = 0.0700
+
+ARMS = ("A_ptp", "B_lin", "C_lin_blocked")
+METRICS = ("bow_m", "n_collide")
+PAIRS = (("B", "A"), ("C", "A"), ("C", "B"))
+
+# name: (kind, declared expectation); written before the first run
+REGIMES = {
+    "short_straight": (
+        "short_straight",
+        "A and B may near-tie on mid-path Cartesian bow - keep",
+    ),
+    "long_reconfig": (
+        "long_reconfig",
+        "B consistent smaller Cartesian bow than A - keep",
+    ),
+    "lin_blocked": (
+        "lin_blocked",
+        "C loses as a valid approach path because the line intersects the obstacle - lose kept",
+    ),
+}
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < SMALL_FRAC * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def rng_for(*parts):
+    h = 10094444
+    for part in parts:
+        if isinstance(part, str):
+            for ch in part:
+                h = (h * 131 + ord(ch)) & 0xFFFFFFFFFFFFFFFF
+        else:
+            h = (h * 131 + int(part)) & 0xFFFFFFFFFFFFFFFF
+    return random.Random(h)
+
+
+def quat_from_yaw(yaw):
+    half = 0.5 * yaw
+    return (math.cos(half), 0.0, 0.0, math.sin(half))
+
+
+def yaw_from_quat(q):
+    w, x, y, z = q
+    return 2.0 * math.atan2(z, w)
+
+
+def quat_norm(q):
+    n = math.sqrt(sum(c * c for c in q))
+    if n == 0.0:
+        return (1.0, 0.0, 0.0, 0.0)
+    return tuple(c / n for c in q)
+
+
+def slerp(q0, q1, t):
+    """Unit-quaternion slerp, short-arc. t in [0, 1]."""
+    a = quat_norm(q0)
+    b = quat_norm(q1)
+    dot = sum(u * v for u, v in zip(a, b))
+    if dot < 0.0:
+        b = tuple(-c for c in b)
+        dot = -dot
+    if dot > 0.9995:
+        return quat_norm(tuple(u + t * (v - u) for u, v in zip(a, b)))
+    dot = max(-1.0, min(1.0, dot))
+    theta = math.acos(dot)
+    s0 = math.sin((1.0 - t) * theta) / math.sin(theta)
+    s1 = math.sin(t * theta) / math.sin(theta)
+    return quat_norm(tuple(s0 * u + s1 * v for u, v in zip(a, b)))
+
+
+def fk(q):
+    q1, q2, q3 = q
+    x = L1 * math.cos(q1) + L2 * math.cos(q1 + q2)
+    y = L1 * math.sin(q1) + L2 * math.sin(q1 + q2)
+    yaw = q1 + q2 + q3
+    return (x, y, 0.0), quat_from_yaw(yaw)
+
+
+def ik(pos, quat, branch, q_hint=None):
+    """Thin analytic 2R IK plus wrist yaw; optional nearest-branch hint."""
+    x, y, _z = pos
+    r2 = x * x + y * y
+    den = 2.0 * L1 * L2
+    c2 = (r2 - L1 * L1 - L2 * L2) / den
+    if abs(c2) > 1.0 + 1e-12:
+        raise ValueError("unreachable")
+    c2 = max(-1.0, min(1.0, c2))
+    a2 = math.acos(c2)
+
+    def solve(sign):
+        q2 = sign * a2
+        q1 = math.atan2(y, x) - math.atan2(L2 * math.sin(q2), L1 + L2 * math.cos(q2))
+        q3 = yaw_from_quat(quat) - q1 - q2
+        return (q1, q2, q3)
+
+    if q_hint is None:
+        return solve(branch)
+    cand = (solve(1), solve(-1))
+    return min(cand, key=lambda q: sum((a - b) ** 2 for a, b in zip(q, q_hint)))
+
+
+def lerp_tuple(a, b, t):
+    return tuple(u + t * (v - u) for u, v in zip(a, b))
+
+
+def point_line_dist(p, a, b):
+    ax, ay, az = a
+    bx, by, bz = b
+    px, py, pz = p
+    vx, vy, vz = bx - ax, by - ay, bz - az
+    length = math.sqrt(vx * vx + vy * vy + vz * vz)
+    wx, wy, wz = px - ax, py - ay, pz - az
+    if length < 1e-15:
+        return math.sqrt(wx * wx + wy * wy + wz * wz)
+    return math.sqrt((wy * vz - wz * vy) ** 2 + (wz * vx - wx * vz) ** 2 + (wx * vy - wy * vx) ** 2) / length
+
+
+def in_obstacle(p):
+    x, y, _z = p
+    return (OBS_X_LO <= x <= OBS_X_HI) and (OBS_Y_LO <= y <= OBS_Y_HI)
+
+
+def segment_hits_obstacle(a, b):
+    """Liang-Barsky clip of the start-goal segment against the obstacle box."""
+    ax, ay, _az = a
+    bx, by, _bz = b
+    dx, dy = bx - ax, by - ay
+    t0, t1 = 0.0, 1.0
+    for p, q in (
+        (-dx, ax - OBS_X_LO),
+        (dx, OBS_X_HI - ax),
+        (-dy, ay - OBS_Y_LO),
+        (dy, OBS_Y_HI - ay),
+    ):
+        if abs(p) < 1e-18:
+            if q < 0.0:
+                return False
+            continue
+        u = q / p
+        if p < 0.0:
+            if u > t1:
+                return False
+            if u > t0:
+                t0 = u
+        else:
+            if u < t0:
+                return False
+            if u < t1:
+                t1 = u
+    return t0 <= t1
+
+
+def ptp_path(q_s, q_g):
+    path = []
+    for i in range(N_PATH):
+        t = i / (N_PATH - 1)
+        q = lerp_tuple(q_s, q_g, t)
+        pos, quat = fk(q)
+        path.append((q, pos, quat))
+    return path
+
+
+def lin_path(q_s, pos_s, quat_s, pos_g, quat_g):
+    path = []
+    q_prev = q_s
+    for i in range(N_PATH):
+        t = i / (N_PATH - 1)
+        pos = lerp_tuple(pos_s, pos_g, t)
+        quat = slerp(quat_s, quat_g, t)
+        q = ik(pos, quat, branch=1, q_hint=q_prev)
+        # Reconstruct from the IK joints so the reported pose is the
+        # stand-in's joint trajectory, not the commanded Cartesian sample.
+        pos_fk, quat_fk = fk(q)
+        path.append((q, pos_fk, quat_fk))
+        q_prev = q
+    return path
+
+
+def shared_noise(seed, kind, sig):
+    rng = rng_for("meas", kind, seed)
+    return [(rng.gauss(0.0, sig), rng.gauss(0.0, sig), 0.0) for _ in range(N_PATH)]
+
+
+def apply_noise(path, noise):
+    out = []
+    for (q, pos, quat), n in zip(path, noise):
+        out.append((q, (pos[0] + n[0], pos[1] + n[1], pos[2] + n[2]), quat))
+    return out
+
+
+def path_metrics(path, pos_s, pos_g, noisy):
+    bow = 0.0
+    n_collide = 0
+    for (_q, pos, _quat), (_qn, pos_n, _quatn) in zip(path, noisy):
+        bow = max(bow, point_line_dist(pos_n, pos_s, pos_g))
+        if in_obstacle(pos):
+            n_collide += 1
+    line_hit = 1.0 if segment_hits_obstacle(pos_s, pos_g) else 0.0
+    return {"bow_m": bow, "n_collide": float(n_collide), "line_hit": line_hit}
+
+
+def joints_for_pose(pos, q3, branch):
+    quat = quat_from_yaw(0.0)  # placeholder, overwritten via q3
+    # First solve position with yaw 0, then set q3 as declared wrist.
+    q = ik((pos[0], pos[1], 0.0), quat, branch=branch)
+    q = (q[0], q[1], q3)
+    pos_fk, quat_fk = fk(q)
+    return q, pos_fk, quat_fk
+
+
+def shared_problem(seed, kind, sig=SIG_MEAS):
+    if kind == "short_straight":
+        q_s = SHORT_Q_S
+        q_g = SHORT_Q_G
+        pos_s, quat_s = fk(q_s)
+        pos_g, quat_g = fk(q_g)
+    elif kind == "long_reconfig":
+        q_s, pos_s, quat_s = joints_for_pose(RECONFIG_POS_S, Q3_RECONFIG_S, RECONFIG_BRANCH_S)
+        q_g, pos_g, quat_g = joints_for_pose(RECONFIG_POS_G, Q3_RECONFIG_G, RECONFIG_BRANCH_G)
+    elif kind == "lin_blocked":
+        q_s, pos_s, quat_s = joints_for_pose(BLOCKED_POS_S, Q3_BLOCKED_S, BLOCKED_BRANCH)
+        q_g, pos_g, quat_g = joints_for_pose(BLOCKED_POS_G, Q3_BLOCKED_G, BLOCKED_BRANCH)
+    else:
+        raise ValueError(kind)
+    noise = shared_noise(seed, kind, sig)
+    return {
+        "q_s": q_s,
+        "q_g": q_g,
+        "pos_s": pos_s,
+        "pos_g": pos_g,
+        "quat_s": quat_s,
+        "quat_g": quat_g,
+        "noise": noise,
+    }
+
+
+def evaluate(arm, problem):
+    q_s, q_g = problem["q_s"], problem["q_g"]
+    pos_s, pos_g = problem["pos_s"], problem["pos_g"]
+    quat_s, quat_g = problem["quat_s"], problem["quat_g"]
+    if arm == "A_ptp":
+        path = ptp_path(q_s, q_g)
+    elif arm in ("B_lin", "C_lin_blocked"):
+        path = lin_path(q_s, pos_s, quat_s, pos_g, quat_g)
+    else:
+        raise ValueError(arm)
+    noisy = apply_noise(path, problem["noise"])
+    return path_metrics(path, pos_s, pos_g, noisy)
+
+
+def run_regime(name, seed, sig=SIG_MEAS):
+    kind, _decl = REGIMES[name]
+    problem = shared_problem(seed, kind, sig=sig)
+    row = {
+        "pos_s": problem["pos_s"],
+        "pos_g": problem["pos_g"],
+        "cart_disp": math.sqrt(sum((a - b) ** 2 for a, b in zip(problem["pos_s"], problem["pos_g"]))),
+        "joint_travel": math.sqrt(sum((a - b) ** 2 for a, b in zip(problem["q_s"], problem["q_g"]))),
+        "line_hit": 1.0 if segment_hits_obstacle(problem["pos_s"], problem["pos_g"]) else 0.0,
+    }
+    for arm in ARMS:
+        # C is the blocked-line LIN arm; A and B still report bow / collisions
+        # on the same shared start, goal and obstacle.
+        row[arm] = evaluate(arm, problem)
+    return row
+
+
+def official_rows(name, sig=SIG_MEAS):
+    return [run_regime(name, seed, sig=sig) for seed in SEEDS]
+
+
+def print_regime(title, rows):
+    print(f"regime {title}  (mean+-sd over seeds)")
+    for key, label in (
+        ("cart_disp", "cart_disp_m"),
+        ("joint_travel", "joint_travel_rad"),
+        ("line_hit", "line_hit"),
+    ):
+        xs = [r[key] for r in rows]
+        print(f"  {label} {num(mean_sd(xs)[0])}+-{num(mean_sd(xs)[1])}")
+    for arm in ARMS:
+        bow = [r[arm]["bow_m"] for r in rows]
+        col = [r[arm]["n_collide"] for r in rows]
+        print(
+            f"  {arm} bow_m {num(mean_sd(bow)[0])}+-{num(mean_sd(bow)[1])} "
+            f"n_collide {num(mean_sd(col)[0])}+-{num(mean_sd(col)[1])}"
+        )
+    for left, right in PAIRS:
+        la = [a for a in ARMS if a.startswith(left)][0]
+        ra = [a for a in ARMS if a.startswith(right)][0]
+        for key in METRICS:
+            xa = [r[la][key] for r in rows]
+            xb = [r[ra][key] for r in rows]
+            print(f"  paired {left}-{right} {key}: {verdict(xa, xb)}")
+
+
+def main():
+    reach = L1 + L2
+    fold = abs(L1 - L2)
+    print("Synthetic Pilz LIN vs PTP path-shape stand-in; not a real MoveIt plan")
+    print(
+        f"declared L1={num(L1)} m L2={num(L2)} m N_PATH={N_PATH} "
+        f"SIG_MEAS={num(SIG_MEAS)} m SMALL_FRAC={num(SMALL_FRAC)} "
+        f"seeds={','.join(str(s) for s in SEEDS)}"
+    )
+    print(f"hand_calc reach L1+L2 = {num(reach)} m")
+    print(f"hand_calc fold abs(L1-L2) = {num(fold)} m")
+    print(f"hand_calc 20 percent small-vs-clear factor = {num(SMALL_FRAC)}")
+    print("hand_calc SIG_MEAS = 0.0004 m")
+    print(f"hand_calc N_PATH inclusive samples = {N_PATH}")
+    print(
+        f"hand_calc short_straight q_s={num(SHORT_Q_S[0])},{num(SHORT_Q_S[1])},{num(SHORT_Q_S[2])} "
+        f"q_g={num(SHORT_Q_G[0])},{num(SHORT_Q_G[1])},{num(SHORT_Q_G[2])} rad"
+    )
+    print(
+        f"hand_calc long_reconfig pos_s={num(RECONFIG_POS_S[0])},{num(RECONFIG_POS_S[1])},{num(RECONFIG_POS_S[2])} "
+        f"pos_g={num(RECONFIG_POS_G[0])},{num(RECONFIG_POS_G[1])},{num(RECONFIG_POS_G[2])} m"
+    )
+    print(
+        f"hand_calc lin_blocked pos_s={num(BLOCKED_POS_S[0])},{num(BLOCKED_POS_S[1])},{num(BLOCKED_POS_S[2])} "
+        f"pos_g={num(BLOCKED_POS_G[0])},{num(BLOCKED_POS_G[1])},{num(BLOCKED_POS_G[2])} m"
+    )
+    print(
+        f"hand_calc obstacle box x={num(OBS_X_LO)} to {num(OBS_X_HI)} m, "
+        f"y={num(OBS_Y_LO)} to {num(OBS_Y_HI)} m"
+    )
+    print(
+        "declared arms: A_ptp synchronized joint interpolation; "
+        "B_lin Cartesian line plus quaternion slerp; "
+        "C_lin_blocked the same LIN through a blocking obstacle"
+    )
+    print(
+        "docs_commit=cdee39bbc5746a98630a4d631ab7d0184de2f1e1 "
+        "(2024-12-31 20:05:15 UTC = 2025-01-01 04:05:15 Asia/Shanghai)"
+    )
+    print("docs_blob=54f4ee6cc3379f2198ac5d4a9a26349a1428ade0")
+    print("docs_rst_sha256=dff95cb2091f121defb32a7ad90c4a9b34786aa3ce73b283699c19436e71a591")
+    print(
+        "docs_body=moveit2_tutorials main how-to pilz_industrial_motion_planner.rst "
+        "(Jazzy branch of that path returned 404 and is not a body; "
+        "docs.ros.org served a challenge page and is not a body)"
+    )
+    print("Regimes and parameters were written before the first run")
+    print(
+        "Common random numbers: start and goal poses, the arm, the obstacle "
+        "and the measurement-noise sequence are shared across arms at each "
+        "regime and seed"
+    )
+    print(
+        "Assumptions: 2R-plus-wrist planar stand-in; PTP path is synchronized "
+        "linear joint interpolation; LIN is position lerp plus quaternion slerp "
+        "then IK; CIRC is named in the lesson and has no toy arm; no RRTConnect"
+    )
+    print("PTP / LIN / CIRC definitions 以文档为准")
+    print("Real MoveIt / Panda / computeCartesianPath: 本页未运行")
+    print("declared short_straight: A and B may near-tie on mid-path Cartesian bow - keep")
+    print("declared long_reconfig: B consistent smaller Cartesian bow than A - keep")
+    print(
+        "declared lin_blocked: C loses as a valid approach path because the "
+        "line intersects the obstacle - lose kept"
+    )
+
+    official = {name: official_rows(name) for name in REGIMES}
+    for name, (_kind, decl) in REGIMES.items():
+        print(f"declared expectation {name}: {decl}")
+        print_regime(name, official[name])
+
+    print(f"alternative same seeds SIG_MEAS={num(SIG_MEAS_ALT)} m (not adopted)")
+    print(f"hand_calc official SIG_MEAS={num(SIG_MEAS)} m vs alternative {num(SIG_MEAS_ALT)} m")
+    for name in REGIMES:
+        print_regime(f"{name} alt_sig={num(SIG_MEAS_ALT)}", official_rows(name, sig=SIG_MEAS_ALT))
+
+    print("No real MoveIt process was started")
+    print(
+        "No winner is universal: a short, already nearly straight joint move "
+        "may near-tie on bow; a long reconfiguration bows under PTP; a LIN "
+        "through a wall is not a valid approach, and neither PTP nor LIN is "
+        "a collision-avoiding planner"
+    )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic Pilz LIN vs PTP path-shape stand-in; not a real MoveIt plan
+declared L1=0.3000 m L2=0.2500 m N_PATH=41 SIG_MEAS=4.000e-4 m SMALL_FRAC=0.2000 seeds=0,1,2,3,4
+hand_calc reach L1+L2 = 0.5500 m
+hand_calc fold abs(L1-L2) = 0.0500 m
+hand_calc 20 percent small-vs-clear factor = 0.2000
+hand_calc SIG_MEAS = 0.0004 m
+hand_calc N_PATH inclusive samples = 41
+hand_calc short_straight q_s=0.5000,0.7000,0.1000 q_g=0.5200,0.7200,0.1400 rad
+hand_calc long_reconfig pos_s=0.3500,0.1500,0.0000 pos_g=0.3200,0.1800,0.0000 m
+hand_calc lin_blocked pos_s=0.2000,0.0500,0.0000 pos_g=0.4500,0.0500,0.0000 m
+hand_calc obstacle box x=0.3000 to 0.3500 m, y=0.0300 to 0.0700 m
+declared arms: A_ptp synchronized joint interpolation; B_lin Cartesian line plus quaternion slerp; C_lin_blocked the same LIN through a blocking obstacle
+docs_commit=cdee39bbc5746a98630a4d631ab7d0184de2f1e1 (2024-12-31 20:05:15 UTC = 2025-01-01 04:05:15 Asia/Shanghai)
+docs_blob=54f4ee6cc3379f2198ac5d4a9a26349a1428ade0
+docs_rst_sha256=dff95cb2091f121defb32a7ad90c4a9b34786aa3ce73b283699c19436e71a591
+docs_body=moveit2_tutorials main how-to pilz_industrial_motion_planner.rst (Jazzy branch of that path returned 404 and is not a body; docs.ros.org served a challenge page and is not a body)
+Regimes and parameters were written before the first run
+Common random numbers: start and goal poses, the arm, the obstacle and the measurement-noise sequence are shared across arms at each regime and seed
+Assumptions: 2R-plus-wrist planar stand-in; PTP path is synchronized linear joint interpolation; LIN is position lerp plus quaternion slerp then IK; CIRC is named in the lesson and has no toy arm; no RRTConnect
+PTP / LIN / CIRC definitions 以文档为准
+Real MoveIt / Panda / computeCartesianPath: 本页未运行
+declared short_straight: A and B may near-tie on mid-path Cartesian bow - keep
+declared long_reconfig: B consistent smaller Cartesian bow than A - keep
+declared lin_blocked: C loses as a valid approach path because the line intersects the obstacle - lose kept
+declared expectation short_straight: A and B may near-tie on mid-path Cartesian bow - keep
+regime short_straight  (mean+-sd over seeds)
+  cart_disp_m 0.0151+-0.0000
+  joint_travel_rad 0.0490+-0.0000
+  line_hit 0.0000+-0.0000
+  A_ptp bow_m 0.0011+-2.127e-4 n_collide 0.0000+-0.0000
+  B_lin bow_m 0.0010+-2.011e-4 n_collide 0.0000+-0.0000
+  C_lin_blocked bow_m 0.0010+-2.011e-4 n_collide 0.0000+-0.0000
+  paired B-A bow_m: -1.230e-5+-4.839e-5: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired B-A n_collide: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A bow_m: -1.230e-5+-4.839e-5: near-tie / small gap, within seed noise (|m| <= sd); 2 of 5 seeds have the opposite sign
+  paired C-A n_collide: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B bow_m: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B n_collide: 0.0000+-0.0000: tie: identical on every seed
+declared expectation long_reconfig: B consistent smaller Cartesian bow than A - keep
+regime long_reconfig  (mean+-sd over seeds)
+  cart_disp_m 0.0424+-0.0000
+  joint_travel_rad 3.6736+-0.0000
+  line_hit 0.0000+-0.0000
+  A_ptp bow_m 0.1670+-3.355e-4 n_collide 0.0000+-0.0000
+  B_lin bow_m 0.0011+-2.147e-4 n_collide 0.0000+-0.0000
+  C_lin_blocked bow_m 0.0011+-2.147e-4 n_collide 0.0000+-0.0000
+  paired B-A bow_m: -0.1659+-2.886e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A n_collide: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A bow_m: -0.1659+-2.886e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A n_collide: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B bow_m: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B n_collide: 0.0000+-0.0000: tie: identical on every seed
+declared expectation lin_blocked: C loses as a valid approach path because the line intersects the obstacle - lose kept
+regime lin_blocked  (mean+-sd over seeds)
+  cart_disp_m 0.2500+-0.0000
+  joint_travel_rad 1.2325+-0.0000
+  line_hit 1.0000+-0.0000
+  A_ptp bow_m 0.0217+-2.204e-4 n_collide 0.0000+-0.0000
+  B_lin bow_m 0.0011+-1.480e-4 n_collide 9.0000+-0.0000
+  C_lin_blocked bow_m 0.0011+-1.480e-4 n_collide 9.0000+-0.0000
+  paired B-A bow_m: -0.0206+-2.637e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A n_collide: 9.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A bow_m: -0.0206+-2.637e-4: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A n_collide: 9.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B bow_m: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B n_collide: 0.0000+-0.0000: tie: identical on every seed
+alternative same seeds SIG_MEAS=0.0000 m (not adopted)
+hand_calc official SIG_MEAS=4.000e-4 m vs alternative 0.0000 m
+regime short_straight alt_sig=0.0000  (mean+-sd over seeds)
+  cart_disp_m 0.0151+-0.0000
+  joint_travel_rad 0.0490+-0.0000
+  line_hit 0.0000+-0.0000
+  A_ptp bow_m 6.181e-5+-0.0000 n_collide 0.0000+-0.0000
+  B_lin bow_m 7.376e-17+-0.0000 n_collide 0.0000+-0.0000
+  C_lin_blocked bow_m 7.376e-17+-0.0000 n_collide 0.0000+-0.0000
+  paired B-A bow_m: -6.181e-5+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A n_collide: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A bow_m: -6.181e-5+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A n_collide: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B bow_m: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B n_collide: 0.0000+-0.0000: tie: identical on every seed
+regime long_reconfig alt_sig=0.0000  (mean+-sd over seeds)
+  cart_disp_m 0.0424+-0.0000
+  joint_travel_rad 3.6736+-0.0000
+  line_hit 0.0000+-0.0000
+  A_ptp bow_m 0.1670+-0.0000 n_collide 0.0000+-0.0000
+  B_lin bow_m 5.878e-17+-0.0000 n_collide 0.0000+-0.0000
+  C_lin_blocked bow_m 5.878e-17+-0.0000 n_collide 0.0000+-0.0000
+  paired B-A bow_m: -0.1670+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A n_collide: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A bow_m: -0.1670+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A n_collide: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B bow_m: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B n_collide: 0.0000+-0.0000: tie: identical on every seed
+regime lin_blocked alt_sig=0.0000  (mean+-sd over seeds)
+  cart_disp_m 0.2500+-0.0000
+  joint_travel_rad 1.2325+-0.0000
+  line_hit 1.0000+-0.0000
+  A_ptp bow_m 0.0211+-0.0000 n_collide 0.0000+-0.0000
+  B_lin bow_m 6.384e-17+-0.0000 n_collide 9.0000+-0.0000
+  C_lin_blocked bow_m 6.384e-17+-0.0000 n_collide 9.0000+-0.0000
+  paired B-A bow_m: -0.0211+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A n_collide: 9.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A bow_m: -0.0211+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A n_collide: 9.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B bow_m: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B n_collide: 0.0000+-0.0000: tie: identical on every seed
+No real MoveIt process was started
+No winner is universal: a short, already nearly straight joint move may near-tie on bow; a long reconfiguration bows under PTP; a LIN through a wall is not a valid approach, and neither PTP nor LIN is a collision-avoiding planner
+```
+
+</SimOutput>
+
+### 解读各情形
+
+官方首次运行：2026-11-20 08:25:24 Asia/Shanghai。那次之后**没有**改过官方玩具或 `expected/`。冻结之后，只把紧挨全角冒号的中文加粗记号松开，以便页面能构建；官方数字没有改写。运行玩具代码块开头的 `cd` 和 `SimOutput` 围栏在第一份正式草稿里就已经有了。后来去掉了新 `SimOutput` 围栏末尾的空行，使引用块与 `expected/` 整行一致；官方数字没有改写。
+
+- **short_straight**。笛卡尔位移是 `0.0151+-0.0000` m，关节行程是 `0.0490+-0.0000` rad。A 的弓高是 `0.0011+-2.127e-4` m，B 是 `0.0010+-2.011e-4` m。配对 B-A 弓高是 `-1.230e-5+-4.839e-5`： **接近打平 / 小差距，落在种子噪声内**（`|m| <= sd`；5 个种子里有 2 个符号相反）。事先声明的“可以接近打平”**成立**。
+- **long_reconfig**。笛卡尔位移是 `0.0424+-0.0000` m，关节行程却是 `3.6736+-0.0000` rad。A 的弓高是 `0.1670+-3.355e-4` m，B 是 `0.0011+-2.147e-4` m。配对 B-A 弓高是 `-0.1659+-2.886e-4`： **明显差距，不是打平**，5 个种子同号，所以 B 的弓高稳定地更小，与声明一致（**成立**）。
+- **lin_blocked**。起点到终点的线段穿过盒子（`line_hit` `1.0000+-0.0000`）。C 记录到盒子内样本 `n_collide` `9.0000+-0.0000`。事先声明的失败**成立**。B 是同一条 LIN 指令，所以 C-B 的 `n_collide` 是 `0.0000+-0.0000`： **完全打平，每个种子都相同**。A 的 `n_collide` 是 `0.0000+-0.0000`，弓高是 `0.0217+-2.204e-4` m：它的关节空间路径碰巧偏出了这个盒子。这**不是**避障规划；PTP 不是 RRTConnect，这次没撞上也不能当成“PTP 会绕开障碍”的理由。
+
+同一组种子上的具名备选 `SIG_MEAS = 0.0000` m **未采用**（手算官方 `4.000e-4` m，备选 `0.0000` m）。在 `short_straight` 上，它会把 B-A 弓高变成**明显**差距 `-6.181e-5+-0.0000`（A `6.181e-5+-0.0000` m，B `7.376e-17+-0.0000` m），等于在安静格子上制造出 LIN 获胜。官方 `SIG_MEAS = 4.000e-4` m 在首次运行后没有改过。
+
+本页**不宣布普遍赢家**。已经接近直线的短关节移动，弓高可以接近打平；大幅度构型重组时 PTP 会弓起来；穿过墙壁的 LIN 不是合法接近，而且 PTP 和 LIN 都不是会避障的规划器。文档数字以文档为准。真实 MoveIt / Panda / `computeCartesianPath`：本页未运行。
+
+### 练习
+
+1. 在已读 how-to 里，PTP 的领先轴怎么选，其他轴与它共享什么？请引用定义，以文档为准。
+2. 对 LIN 来说，平移插值的是什么，转动 slerp 的是什么，起点速度必须怎样？若碰到关节限位，应该缩放什么？
+3. 在 `short_straight` 里，B-A 弓高是 `-1.230e-5+-4.839e-5`，属于**接近打平**。如果采用备选 `SIG_MEAS = 0.0000` m，结果会怎样？
+4. 为什么 C 在 `lin_blocked` 里失败？为什么同一障碍上 A 的 `n_collide` 是 `0.0000+-0.0000`，却**不能**说成 PTP 规划出了绕墙路径？
+5. 本节在 S 曲线时间玩具之后。举出一个本替身**没有**在加加速度时间规律上做的断言，再举出一个它没有在 RRTConnect 上做的断言。
+
+**180 分钟工作计划:** 30+25+50+40+35=180。30 分钟阅读 commit `cdee39bbc5746a98630a4d631ab7d0184de2f1e1` 的 Pilz how-to，写下 PTP 领先轴、LIN 的 lerp 加 slerp，以及 CIRC 的定义；25 分钟写 2R 加腕的替身、三条臂和三种情形，先写再跑；50 分钟运行玩具并阅读官方情形；40 分钟在同一组种子上重跑具名备选 `SIG_MEAS = 0.0000` m；35 分钟写明这不是 S 曲线时间玩具，也不是 RRTConnect，以及真实 MoveIt / Panda 检查还要看到什么（本页未运行）。
+
 ## 常见错误
 
 - <strong>四元数的 w 留在 1。</strong>姿态是 (0.9238795, -0.3826834, 0, 0)，w 要显式写出来。用默认的 w = 1，手爪根本不朝下，0.1034 m 的指尖偏移也不再按你预期的方向作用。
@@ -847,6 +1514,8 @@ Real arm / controller: 本页未运行; Wikipedia Jerk (physics) 以原文为准
 | 在 MoveIt 2 中规划并执行无碰撞抓放 | 本课 |
 
 本课还在同一个一维移动上比较了七段加加速度受限 S 曲线和梯形曲线：在柔性对象上 S 曲线明显减少残余振动（配对 −1.5305±0.1620 mm，5/5）和节拍时间，在刚性短移动上明显多花时间，加加速度上限过小则超出时间窗（`scurve_jerk_limit_toy.py`，是替身，不是 MoveIt 的缩放系数）。
+
+本课还在同一条 2R 加腕替身上比较了 Pilz LIN 与 PTP 的路径形状：已经接近直线的短关节移动，路径中点笛卡尔弓高接近打平（配对 B-A `-1.230e-5+-4.839e-5`，5 个种子里有 2 个异号）；大幅度构型重组时 LIN 的弓高稳定地更小（配对 B-A `-0.1659+-2.886e-4`，5/5）；穿过墙壁的 LIN 不是合法接近（`n_collide` `9.0000+-0.0000`，`line_hit` `1.0000`）——`pilz_lin_vs_ptp_path_toy.py`，是替身，不是 MoveIt 规划；定义以文档为准。
 
 现在，在你自己的机器上完成练习任务：
 

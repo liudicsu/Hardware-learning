@@ -29,3 +29,12 @@ python3 examples/month-5/moveit-pick-place/scurve_jerk_limit_toy.py
 
 Stdlib only, no ROS needed. One 1-D move: trapezoid vs seven-segment S-curve vs an S-curve with too small a jerk limit, driving a spring-damper plant integrated with semi-implicit Euler (stable step H* = 2(√(1+ζ²) − ζ)/ω, checked at 0.98× / 1.02× and at half step); five seeds, common random numbers. Real arm 本页未运行.
 只用标准库，不需要 ROS。一个一维移动：比较梯形曲线、七段 S 曲线和加加速度上限过小的 S 曲线，驱动用半隐式 Euler 积分的弹簧阻尼对象（稳定步长 H* = 2(√(1+ζ²) − ζ)/ω，在 0.98× / 1.02× 和半步长下检查）；5 个种子，共用随机数。真实机械臂本页未运行。
+
+## pilz_lin_vs_ptp_path_toy.py — LIN vs PTP path shape / LIN 与 PTP 的路径形状
+
+```bash
+python3 examples/month-5/moveit-pick-place/pilz_lin_vs_ptp_path_toy.py
+```
+
+Stdlib only, no ROS or MoveIt process needed. Shared 2R-plus-wrist stand-in: synchronized joint interpolation versus Cartesian line plus quaternion slerp versus a LIN through a blocking obstacle; five seeds, common random numbers. Real MoveIt 本页未运行.
+只用标准库，不需要 ROS 或 MoveIt 进程。共用的 2R 加腕替身：比较同步关节插值、笛卡尔直线加四元数 slerp，以及穿过阻挡障碍的 LIN；5 个种子，共用随机数。真实 MoveIt 本页未运行。

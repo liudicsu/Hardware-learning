@@ -990,8 +990,524 @@ HAMSTER VLM / RVT-2 / 3D-DA / real robot / GPU: 本页未运行; paper numbers �
 4. 固定种子，把 `visual_shift` 的背景偏移改成 0.2。运行前先预测 B−A 成功率是否仍是明显差距。
 5. 在任何真机运行之前（本页未运行），写下你会如何判断一次失败来自路径（附录 E 的轨迹失败），还是来自沿路径执行的下层。
 
+## Reward-DAgger：由机器人决定何时请人介入
+
+本页已经讲过协变量偏移，以及 DAgger 的做法：跑当前策略，让专家给策略到过的每一个状态打标签，汇合后再训练。走廊那只玩具保留。这里多问的是：如果不能一直盯着看，**机器人该在何时请人接手**。
+
+Reward-DAgger（Ryan Li、Yigit Korkmaz、Erdem Bıyık，arXiv **2610.04054** v1，2026-10-02 提交；作者按 abs 顺序）是一种**由机器人门控**的交互式模仿框架（以论文为准）。PDF 扉页在 Li* 与 Korkmaz* 上标了脚注 “⋆ Equal Contribution”；看不见通讯作者排印（以论文为准）。通用进度模型给出 `phi_t = f_psi(o_<=t, ell)`（式 1）。长度为 `L_s` 的短窗和长度为 `L_l` 的长窗，各自计算进度样本与时间下标的 **Spearman** 相关 `rho`（式 2）——不是 Pearson。短窗还要求下降幅度 `Delta_t = max_j phi_j - phi_t`（式 3）。门控为 `g_t^s = 1[(rho_t^s < tau_s) and (Delta_t >= delta_min)]` 与 `g_t^l = 1[rho_t^l < tau_l]`，总门为 `g_t = g_t^s or g_t^l`（式 4；以论文为准）。短窗针对突然丢失进度（物体掉落），长窗针对平台期或停滞（反复抓取失败）。同一套门控配置跨任务使用，不再重调（abs；以论文为准）。论文里的成功率和 ROHE 数字以论文为准，不是玩具输出。论文选定的门控只作为论文数字写出：`(L_s, tau_s, delta_min, L_l, tau_l) = (75, -0.9, 0.05, 225, 0.0)`（arXiv 2610.04054 v1；以论文为准）。
+
+本节**不是**第二只走廊 DAgger 玩具，**不是** HAMSTER，**不是**重讲 `intervention-logging` 上的 HG-DAgger（那里是*人*决定何时接手，这里是*机器人*决定何时询问），**不是** MAP-VLA，**不是** HIL-SERL，也**不是** BlenDAgger。
+
+### 公平设置
+
+`reward_dagger_progress_gate_toy.py` 是只用标准库的**进度轨迹替身**，不是 VLM 奖励模型，也不是 LIBERO 实验。模型假设: `T = 80` 步，每个种子 `N_EPS = 8` 条轨迹，短窗 `L_S = 8`，长窗 `L_L = 24`，官方阈值为 `TAU_S = -0.5000`、`TAU_L = 0.2000`、`DELTA_MIN = 0.0800`，共享进度噪声 `SIG_PHI = 0.0150`（均已打印）。组 A 是人工门控 / 始终打标签的替身：专家在每个策略状态都在，并看完整条轨迹（`calls` = `T`）。组 B 是双时间尺度 Spearman 门；门一触发，专家就接手该回合剩下的步，并把这些状态汇合进去。组 C 是停用、永不触发的门。玩具比值 `effort_return = success / (1 + mean_calls / T)` 只是替身，**不是**论文 ROHE（式 7，以论文为准）。没有启动真实 VLA、GPU 奖励模型或人在回路机械臂。
+
+**共用随机数:** 五个种子 `0,1,2,3,4`。每个情形和种子只生成一次进度轨迹，三条臂共用。
+
+**事先写好的情形:** `uneventful` — 已在分布内、平淡成功的轨迹：A 与 B 在成功率上可以**接近打平**，同时 B 的专家调用更少（保留）；`drop_stall` — 先升到 `RISE_TO = 0.7000`，在 `DROP_T = 32` 处降到 `DROP_TO = 0.2500`（手算），然后停滞：B 的 `effort_return` **稳定地好于**永不触发的 C，并且比 A 更有选择（保留）；C 在 `drop_stall` 上因为不加纠正而**失败保留**。标签仍按完全打平 / 数值上为零 / 接近打平 / 用较小臂均值的 20 % 区分 small 与 clear，并报告同号计数（手算；玩具打印 `0.2000`）。
+
+### 运行标准库 toy
+
+脚本在 `examples/month-6/behaviour-cloning`。
+
+```bash
+cd ~/Hardware-learning/examples/month-6/behaviour-cloning
+python3 reward_dagger_progress_gate_toy.py
+```
+
+<CodeSource path="examples/month-6/behaviour-cloning/reward_dagger_progress_gate_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic Reward-DAgger two-timescale progress-gate stand-in.
+
+Stdlib only. Shared synthetic progress traces, not a VLM reward model and
+not a LIBERO run. No real VLA, GPU reward model, or human-in-the-loop arm
+is started. The existing corridor DAgger toy on this page is not redone,
+and this is not HG-DAgger, HAMSTER, MAP-VLA, HIL-SERL, or BlenDAgger.
+
+A shared task stream of progress traces is generated once per (regime,
+seed) and then read by every arm (common random numbers). The expert
+correction budget is the remaining steps after a takeover.
+
+Arms:
+  A_always -- human-gated / always-label stand-in: the expert is available
+    on every policy state and watches the whole rollout.
+  B_reward_gate -- two-timescale progress gate (Spearman, not Pearson);
+    the expert is called only when the gate fires, then takes over the
+    rest of that episode, and those states are aggregated.
+  C_never -- a disabled / never-fire gate: no interventions.
+
+A named alternative on the same seeds, not adopted, is the same gate with
+tau_l = 1.0000, which fires the long window on uneventful traces.
+
+Regimes and parameters were written before the first run.
+
+Labels: tie = identical on every seed; numerically zero = |paired mean| and sd
+both < 1e-9; |m| <= sd = near-tie; |m| > sd = consistent gap (small if |m| < 20 %
+of the smaller arm mean, else clear), with a sign count. ROUND_HALF_UP output.
+
+Gating equations, paper success / ROHE figures, and authorship stay 以论文为准.
+Real VLA / GPU reward model / human-in-the-loop arm: 本页未运行.
+"""
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+SMALL_FRAC = 0.2000  # 20 % of the smaller-arm mean; printed as 0.2000
+
+# Declared trace and official gate stand-in (not the paper's LIBERO grid).
+T = 80  # steps per episode
+N_EPS = 8  # episodes per seed
+L_S = 8  # short window
+L_L = 24  # long window
+TAU_S = -0.5000
+TAU_L = 0.2000
+DELTA_MIN = 0.0800
+SIG_PHI = 0.0150  # shared progress-trace noise
+# Named alternative, same seeds, not adopted: a long-window threshold of 1.0000
+# fires as soon as the long window is full on noisy uneventful traces.
+TAU_L_ALT = 1.0000
+
+# Drop + stall shape, written before the first run.
+DROP_T = 32  # first index of the dropped-object step
+RISE_TO = 0.7000
+DROP_TO = 0.2500
+
+ARMS = ("A_always", "B_reward_gate", "C_never")
+METRICS = ("success", "calls", "effort_return")
+PAIRS = (("B", "A"), ("B", "C"), ("C", "A"))
+
+# name: (kind, declared expectation); written before the first run
+REGIMES = {
+    "uneventful": (
+        "uneventful",
+        "A and B may near-tie on autonomous success, with B using fewer expert calls - keep",
+    ),
+    "drop_stall": (
+        "drop_stall",
+        "B consistent better effort return than never-fire C, and more selective than A - keep",
+    ),
+}
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < SMALL_FRAC * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def rng_for(*parts):
+    h = 261004054
+    for part in parts:
+        if isinstance(part, str):
+            for ch in part:
+                h = (h * 131 + ord(ch)) & 0xFFFFFFFFFFFFFFFF
+        else:
+            h = (h * 131 + int(part)) & 0xFFFFFFFFFFFFFFFF
+    return random.Random(h)
+
+
+def average_ranks(values):
+    n = len(values)
+    order = sorted(range(n), key=lambda i: values[i])
+    ranks = [0.0] * n
+    i = 0
+    while i < n:
+        j = i
+        while j + 1 < n and values[order[j + 1]] == values[order[i]]:
+            j += 1
+        # ranks are 1-based; ties take the average rank
+        avg = 0.5 * ((i + 1) + (j + 1))
+        for k in range(i, j + 1):
+            ranks[order[k]] = avg
+        i = j + 1
+    return ranks
+
+
+def pearson(xs, ys):
+    n = len(xs)
+    mx = sum(xs) / n
+    my = sum(ys) / n
+    nume = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+    vx = sum((x - mx) ** 2 for x in xs)
+    vy = sum((y - my) ** 2 for y in ys)
+    den = math.sqrt(vx * vy)
+    if den < 1e-18:
+        return 0.0
+    return nume / den
+
+
+def spearman(values):
+    """Spearman rho: Pearson correlation of value ranks with time indices."""
+    n = len(values)
+    if n < 2:
+        return 0.0
+    ranks = average_ranks(values)
+    times = list(range(1, n + 1))
+    return pearson(ranks, times)
+
+
+def clip01(x):
+    return 0.0 if x < 0.0 else 1.0 if x > 1.0 else x
+
+
+def clean_progress(kind, t):
+    if kind == "uneventful":
+        return t / (T - 1)
+    if kind == "drop_stall":
+        if t < DROP_T:
+            return RISE_TO * (t / DROP_T)
+        return DROP_TO
+    raise ValueError(kind)
+
+
+def shared_traces(seed, kind):
+    """Common random numbers: one noise field per regime and seed, all arms."""
+    rng = rng_for("phi", kind, seed)
+    traces = []
+    needs = []
+    for _ep in range(N_EPS):
+        phi = []
+        for t in range(T):
+            phi.append(clip01(clean_progress(kind, t) + rng.gauss(0.0, SIG_PHI)))
+        traces.append(phi)
+        needs.append(kind == "drop_stall")
+    return traces, needs
+
+
+def gate_fires(phi, t, tau_s=TAU_S, tau_l=TAU_L, delta_min=DELTA_MIN, short_only=False):
+    """Eq. 4 stand-in: g = g^s OR g^l, Spearman windows, short-window drop."""
+    g_s = False
+    if t + 1 >= L_S:
+        window = phi[t + 1 - L_S : t + 1]
+        rho_s = spearman(window)
+        delta = max(window) - window[-1]
+        g_s = (rho_s < tau_s) and (delta >= delta_min)
+    g_l = False
+    if not short_only and t + 1 >= L_L:
+        rho_l = spearman(phi[t + 1 - L_L : t + 1])
+        g_l = rho_l < tau_l
+    return g_s or g_l
+
+
+def first_fire(phi, **gate_kw):
+    for t in range(T):
+        if gate_fires(phi, t, **gate_kw):
+            return t
+    return None
+
+
+def evaluate(arm, traces, needs, gate_kw=None):
+    successes = []
+    calls = []
+    for phi, need in zip(traces, needs):
+        if arm == "A_always":
+            t_fire = 0
+        elif arm == "C_never":
+            t_fire = None
+        elif arm == "B_reward_gate":
+            t_fire = first_fire(phi, **(gate_kw or {}))
+        else:
+            raise ValueError(arm)
+        if t_fire is None:
+            calls.append(0.0)
+            successes.append(0.0 if need else 1.0)
+        else:
+            calls.append(float(T - t_fire))
+            successes.append(1.0)
+    n = float(len(traces))
+    success = sum(successes) / n
+    mean_calls = sum(calls) / n
+    effort_return = success / (1.0 + mean_calls / float(T))
+    return {
+        "success": success,
+        "calls": mean_calls,
+        "effort_return": effort_return,
+    }
+
+
+def run_regime(name, seed, gate_kw=None):
+    kind, _decl = REGIMES[name]
+    traces, needs = shared_traces(seed, kind)
+    row = {}
+    for arm in ARMS:
+        if arm == "B_reward_gate":
+            row[arm] = evaluate(arm, traces, needs, gate_kw=gate_kw)
+        else:
+            row[arm] = evaluate(arm, traces, needs)
+    return row
+
+
+def official_rows(name, gate_kw=None):
+    return [run_regime(name, seed, gate_kw=gate_kw) for seed in SEEDS]
+
+
+def print_regime(title, rows):
+    print(f"regime {title}  (mean+-sd over seeds)")
+    for arm in ARMS:
+        suc = [r[arm]["success"] for r in rows]
+        cal = [r[arm]["calls"] for r in rows]
+        eff = [r[arm]["effort_return"] for r in rows]
+        print(
+            f"  {arm} success {num(mean_sd(suc)[0])}+-{num(mean_sd(suc)[1])} "
+            f"calls {num(mean_sd(cal)[0])}+-{num(mean_sd(cal)[1])} "
+            f"effort_return {num(mean_sd(eff)[0])}+-{num(mean_sd(eff)[1])}"
+        )
+    for left, right in PAIRS:
+        la = [a for a in ARMS if a.startswith(left + "_") or a.startswith(left)][0]
+        ra = [a for a in ARMS if a.startswith(right + "_") or a.startswith(right)][0]
+        for key in METRICS:
+            xa = [r[la][key] for r in rows]
+            xb = [r[ra][key] for r in rows]
+            print(f"  paired {left}-{right} {key}: {verdict(xa, xb)}")
+
+
+def alt_rows(name):
+    # Same gate with tau_l = 1.0000, same traces / seeds; not adopted.
+    kw = {"tau_s": TAU_S, "tau_l": TAU_L_ALT, "delta_min": DELTA_MIN, "short_only": False}
+    return official_rows(name, gate_kw=kw)
+
+
+def main():
+    print("Synthetic Reward-DAgger progress-gate stand-in; not a VLM or LIBERO run")
+    print(
+        f"declared T={T} N_EPS={N_EPS} L_S={L_S} L_L={L_L} "
+        f"TAU_S={num(TAU_S)} TAU_L={num(TAU_L)} DELTA_MIN={num(DELTA_MIN)} "
+        f"SIG_PHI={num(SIG_PHI)} SMALL_FRAC={num(SMALL_FRAC)} "
+        f"seeds={','.join(str(s) for s in SEEDS)}"
+    )
+    print(f"hand_calc 20 percent small-vs-clear factor = {num(SMALL_FRAC)}")
+    print(f"hand_calc episode length T = {T}")
+    print(f"hand_calc short window L_S = {L_S}")
+    print(f"hand_calc long window L_L = {L_L}")
+    print(f"hand_calc DROP_T = {DROP_T}, RISE_TO = {num(RISE_TO)}, DROP_TO = {num(DROP_TO)}")
+    print(
+        "declared arms: A_always labels every state; B_reward_gate two-timescale "
+        "Spearman gate then takeover; C_never never fires"
+    )
+    print(
+        "paper_authors=Ryan Li, Yigit Korkmaz, Erdem Bıyık "
+        "(abs / title-page order; 以论文为准)"
+    )
+    print(
+        "paper_title_page=Ryan Li* and Yigit Korkmaz* equal contribution "
+        "(PDF footnote star Equal Contribution; no corresponding-author typography; 以论文为准)"
+    )
+    print("paper_version=arXiv 2610.04054 v1, submitted 2026-10-02")
+    print(
+        "paper_gate=(L_s, tau_s, delta_min, L_l, tau_l)=(75, -0.9, 0.05, 225, 0.0) "
+        "(arXiv 2610.04054 v1; 以论文为准, not a toy output)"
+    )
+    print(
+        "paper_rohe=P(S_tau=1)/(1+H/T) Eq. 7, and paper success / ROHE figures "
+        "(arXiv 2610.04054 v1; 以论文为准, not toy outputs)"
+    )
+    print("Regimes and parameters were written before the first run")
+    print(
+        "Common random numbers: the progress traces are shared across arms "
+        "at each regime and seed"
+    )
+    print(
+        "Assumptions: synthetic progress stand-in, not a VLM; Spearman windows "
+        "as in Eqs. 2-4; takeover uses the remaining steps in that episode; "
+        "effort_return is a toy ratio and is not paper ROHE"
+    )
+    print("Gating equations and paper figures 以论文为准")
+    print("Real VLA / GPU reward model / human-in-the-loop arm: 本页未运行")
+    print(
+        "declared uneventful: A and B may near-tie on autonomous success, "
+        "with B using fewer expert calls - keep"
+    )
+    print(
+        "declared drop_stall: B consistent better effort return than never-fire C, "
+        "and more selective than A - keep"
+    )
+    print(
+        "declared C_never on drop_stall: C loses because it makes no corrections - lose kept"
+    )
+
+    official = {name: official_rows(name) for name in REGIMES}
+    for name, (_kind, decl) in REGIMES.items():
+        print(f"declared expectation {name}: {decl}")
+        print_regime(name, official[name])
+
+    print(
+        f"alternative same seeds TAU_L={num(TAU_L_ALT)} (not adopted)"
+    )
+    print(
+        f"hand_calc official TAU_L={num(TAU_L)} vs alternative {num(TAU_L_ALT)}"
+    )
+    for name in REGIMES:
+        print_regime(
+            f"{name} alt_tau_l={num(TAU_L_ALT)}",
+            alt_rows(name),
+        )
+
+    print("No real VLA, GPU reward model, or human-in-the-loop arm was started")
+    print(
+        "No winner is universal: uneventful traces may near-tie on success while "
+        "the gate still uses fewer calls; the two-timescale gate matters on a "
+        "drop plus stall, and a never-fire gate leaves those failures uncorrected"
+    )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic Reward-DAgger progress-gate stand-in; not a VLM or LIBERO run
+declared T=80 N_EPS=8 L_S=8 L_L=24 TAU_S=-0.5000 TAU_L=0.2000 DELTA_MIN=0.0800 SIG_PHI=0.0150 SMALL_FRAC=0.2000 seeds=0,1,2,3,4
+hand_calc 20 percent small-vs-clear factor = 0.2000
+hand_calc episode length T = 80
+hand_calc short window L_S = 8
+hand_calc long window L_L = 24
+hand_calc DROP_T = 32, RISE_TO = 0.7000, DROP_TO = 0.2500
+declared arms: A_always labels every state; B_reward_gate two-timescale Spearman gate then takeover; C_never never fires
+paper_authors=Ryan Li, Yigit Korkmaz, Erdem Bıyık (abs / title-page order; 以论文为准)
+paper_title_page=Ryan Li* and Yigit Korkmaz* equal contribution (PDF footnote star Equal Contribution; no corresponding-author typography; 以论文为准)
+paper_version=arXiv 2610.04054 v1, submitted 2026-10-02
+paper_gate=(L_s, tau_s, delta_min, L_l, tau_l)=(75, -0.9, 0.05, 225, 0.0) (arXiv 2610.04054 v1; 以论文为准, not a toy output)
+paper_rohe=P(S_tau=1)/(1+H/T) Eq. 7, and paper success / ROHE figures (arXiv 2610.04054 v1; 以论文为准, not toy outputs)
+Regimes and parameters were written before the first run
+Common random numbers: the progress traces are shared across arms at each regime and seed
+Assumptions: synthetic progress stand-in, not a VLM; Spearman windows as in Eqs. 2-4; takeover uses the remaining steps in that episode; effort_return is a toy ratio and is not paper ROHE
+Gating equations and paper figures 以论文为准
+Real VLA / GPU reward model / human-in-the-loop arm: 本页未运行
+declared uneventful: A and B may near-tie on autonomous success, with B using fewer expert calls - keep
+declared drop_stall: B consistent better effort return than never-fire C, and more selective than A - keep
+declared C_never on drop_stall: C loses because it makes no corrections - lose kept
+declared expectation uneventful: A and B may near-tie on autonomous success, with B using fewer expert calls - keep
+regime uneventful  (mean+-sd over seeds)
+  A_always success 1.0000+-0.0000 calls 80.0000+-0.0000 effort_return 0.5000+-0.0000
+  B_reward_gate success 1.0000+-0.0000 calls 0.0000+-0.0000 effort_return 1.0000+-0.0000
+  C_never success 1.0000+-0.0000 calls 0.0000+-0.0000 effort_return 1.0000+-0.0000
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A calls: -80.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A effort_return: 0.5000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C success: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C calls: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C effort_return: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A calls: -80.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A effort_return: 0.5000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+declared expectation drop_stall: B consistent better effort return than never-fire C, and more selective than A - keep
+regime drop_stall  (mean+-sd over seeds)
+  A_always success 1.0000+-0.0000 calls 80.0000+-0.0000 effort_return 0.5000+-0.0000
+  B_reward_gate success 1.0000+-0.0000 calls 45.4000+-0.1046 effort_return 0.6380+-0.0005
+  C_never success 0.0000+-0.0000 calls 0.0000+-0.0000 effort_return 0.0000+-0.0000
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A calls: -34.6000+-0.1046: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A effort_return: 0.1380+-0.0005: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C success: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C calls: 45.4000+-0.1046: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C effort_return: 0.6380+-0.0005: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A success: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A calls: -80.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A effort_return: -0.5000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative same seeds TAU_L=1.0000 (not adopted)
+hand_calc official TAU_L=0.2000 vs alternative 1.0000
+regime uneventful alt_tau_l=1.0000  (mean+-sd over seeds)
+  A_always success 1.0000+-0.0000 calls 80.0000+-0.0000 effort_return 0.5000+-0.0000
+  B_reward_gate success 1.0000+-0.0000 calls 57.0000+-0.0000 effort_return 0.5839+-0.0000
+  C_never success 1.0000+-0.0000 calls 0.0000+-0.0000 effort_return 1.0000+-0.0000
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A calls: -23.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A effort_return: 0.0839+-0.0000: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C success: 0.0000+-0.0000: tie: identical on every seed
+  paired B-C calls: 57.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C effort_return: -0.4161+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A calls: -80.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A effort_return: 0.5000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+regime drop_stall alt_tau_l=1.0000  (mean+-sd over seeds)
+  A_always success 1.0000+-0.0000 calls 80.0000+-0.0000 effort_return 0.5000+-0.0000
+  B_reward_gate success 1.0000+-0.0000 calls 57.0000+-0.0000 effort_return 0.5839+-0.0000
+  C_never success 0.0000+-0.0000 calls 0.0000+-0.0000 effort_return 0.0000+-0.0000
+  paired B-A success: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A calls: -23.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A effort_return: 0.0839+-0.0000: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C success: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C calls: 57.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-C effort_return: 0.5839+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A success: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A calls: -80.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A effort_return: -0.5000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No real VLA, GPU reward model, or human-in-the-loop arm was started
+No winner is universal: uneventful traces may near-tie on success while the gate still uses fewer calls; the two-timescale gate matters on a drop plus stall, and a never-fire gate leaves those failures uncorrected
+```
+
+</SimOutput>
+
+### 解读各情形
+
+官方首次运行：2026-11-20 08:25:24 Asia/Shanghai。那次之后**没有**改过官方玩具或 `expected/`。冻结之后，只把紧挨全角冒号的中文加粗记号松开，以便页面能构建；官方数字没有改写。运行玩具代码块开头的 `cd` 和 `SimOutput` 围栏在第一份正式草稿里就已经有了。后来去掉了新 `SimOutput` 围栏末尾的空行，使引用块与 `expected/` 整行一致；官方数字没有改写。
+
+- **uneventful**。A、B、C 的成功率都是 `1.0000+-0.0000`。配对 B-A 成功率是 `0.0000+-0.0000`： **完全打平，每个种子都相同**。事先声明的“可以接近打平”**成立**（官方格子是完全打平，比接近打平更严）。B 的调用是 `0.0000+-0.0000`，A 是 `80.0000+-0.0000`。配对 B-A 调用是 `-80.0000+-0.0000`： **明显差距，不是打平**，5 个种子同号，所以门控一侧的精力优势可见，与声明一致。
+- **drop_stall**。A 的成功率是 `1.0000+-0.0000`，调用 `80.0000+-0.0000`。B 的成功率是 `1.0000+-0.0000`，调用 `45.4000+-0.1046`，`effort_return` 为 `0.6380+-0.0005`。C 的成功率是 `0.0000+-0.0000`，调用 `0.0000+-0.0000`，`effort_return` 为 `0.0000+-0.0000`。配对 B-C 的 `effort_return` 是 `0.6380+-0.0005`，B-C 成功率是 `1.0000+-0.0000`，都是**明显差距，不是打平**，5 个种子同号，所以 B 稳定地好于永不触发的那一组（**成立**）。配对 B-A 调用是 `-34.6000+-0.1046`： **明显**，5/5，所以 B 比始终打标签更有选择（**成立**）。C 的成功率 `0.0000+-0.0000` 就是事先声明的失败（**成立**）。
+- 事先声明的 C 失败就是上面的 `drop_stall` 格子；结果保留，没有重调。
+
+同一组种子上的具名备选 `TAU_L = 1.0000` **未采用**（手算官方 `0.2000`，备选 `1.0000`）。在 `uneventful` 上，B 与 A 的成功率仍是打平，但 B 的调用升到 `57.0000+-0.0000`（`effort_return` `0.5839+-0.0000`），因为长窗一满就触发，等于在已经成功的轨迹上消耗专家步数。官方 `TAU_L = 0.2000` 在首次运行后没有改过。
+
+本页**不宣布普遍赢家**。平淡轨迹在成功率上可以打平或接近打平，同时门控仍少调用专家；双时间尺度门在下降加停滞时才显出作用；永不触发的门会让这些失败得不到纠正。论文数字以论文为准。真实 VLA / GPU 奖励模型 / 人在回路机械臂：本页未运行。
+
+### 练习
+
+1. 写出式 4 里短窗和长窗的门。用的是 Spearman 还是 Pearson？请引用论文，以论文为准。
+2. 论文选定的门是 `(75, -0.9, 0.05, 225, 0.0)`。为什么这组数必须以论文为准，而不能从本替身读出？
+3. 在 `uneventful` 里，B-A 成功率是 `0.0000+-0.0000`，属于**完全打平**。如果采用备选 `TAU_L = 1.0000`，B 的调用会怎样？
+4. 为什么 C 在 `drop_stall` 里失败？请用 C 的成功率 `0.0000+-0.0000` 和 `effort_return` `0.0000+-0.0000` 说明。
+5. 本节不是走廊 DAgger 玩具，也不是 HG-DAgger。那两种做法里分别是谁决定何时介入，这里又是谁决定？
+
+**180 分钟工作计划:** 30+25+50+40+35=180。30 分钟阅读 arXiv 2610.04054 v1（abs、HTML 与 PDF），写下式 1-4、Spearman 窗口、作者以及扉页同等贡献标记；25 分钟写进度轨迹替身、三条臂和三条事先声明，先写再跑；50 分钟运行玩具并阅读官方情形；40 分钟在同一组种子上重跑具名备选 `TAU_L = 1.0000`；35 分钟写明这不是走廊 DAgger、HG-DAgger、HAMSTER、MAP-VLA 或 HIL-SERL，以及真实 VLA / GPU 奖励模型检查还要看到什么（本页未运行）。
+
 <Summary>
 
-行为克隆把 LeRobot 风格的示范表（episode、frame、观测、动作）当作监督学习：拟合使动作平方误差最小的策略。在 L 形走廊上，用无噪声示范训练的 1-最近邻 BC 无论 20 条还是 80 条示范都是 100 次成功 67 次，原因是协变量偏移：执行器噪声把夹爪推离中心线，那里没有任何一帧展示过恢复动作，失败集中在终点一端。把恢复放进数据就能修好——20 条带噪声的示范达到 99/100，一轮 DAgger 让 5 条示范的策略从 61 提升到 100/100——同样的规则也适用于用 `lerobot-record` 录制的 SO-101 数据集（本页未运行）：变化场景、示范恢复、记录指令动作、在固定条件下统计成功次数。`vqbet_residual_vq_toy.py` 补上平方损失的多模态失败：示范从障碍两侧绕过时，MSE 把两者平均后撞上障碍（五个种子中 66 % 碰撞），而 k-means 分箱与带偏移的残差 VQ 在同样的数据和码预算下保住两种模式，二者之间不分胜负，VQ-BeT 的 5 倍提速以论文为准。HAMSTER 把策略拆成上层二维路径和以路径为条件、使用三维输入的下层：当背景在示范与测试之间偏移时，分层明显胜过整体式 kNN 策略（配对成功率 +76.5000±7.4162 个百分点，5/5），偏离任务的路径会被执行到错误的物体，而完全没有外观输入时两者接近打平（−2.5000±4.3301，第一次运行后加入）——`hamster_hierarchical_path_toy.py`，不是 VLM 或真机；论文数字以论文为准。
+行为克隆把 LeRobot 风格的示范表（episode、frame、观测、动作）当作监督学习：拟合使动作平方误差最小的策略。在 L 形走廊上，用无噪声示范训练的 1-最近邻 BC 无论 20 条还是 80 条示范都是 100 次成功 67 次，原因是协变量偏移：执行器噪声把夹爪推离中心线，那里没有任何一帧展示过恢复动作，失败集中在终点一端。把恢复放进数据就能修好——20 条带噪声的示范达到 99/100，一轮 DAgger 让 5 条示范的策略从 61 提升到 100/100——同样的规则也适用于用 `lerobot-record` 录制的 SO-101 数据集（本页未运行）：变化场景、示范恢复、记录指令动作、在固定条件下统计成功次数。`vqbet_residual_vq_toy.py` 补上平方损失的多模态失败：示范从障碍两侧绕过时，MSE 把两者平均后撞上障碍（五个种子中 66 % 碰撞），而 k-means 分箱与带偏移的残差 VQ 在同样的数据和码预算下保住两种模式，二者之间不分胜负，VQ-BeT 的 5 倍提速以论文为准。HAMSTER 把策略拆成上层二维路径和以路径为条件、使用三维输入的下层：当背景在示范与测试之间偏移时，分层明显胜过整体式 kNN 策略（配对成功率 +76.5000±7.4162 个百分点，5/5），偏离任务的路径会被执行到错误的物体，而完全没有外观输入时两者接近打平（−2.5000±4.3301，第一次运行后加入）——`hamster_hierarchical_path_toy.py`，不是 VLM 或真机；论文数字以论文为准。 Reward-DAgger（Li、Korkmaz、Bıyık，arXiv 2610.04054 v1）补上由机器人门控的双时间尺度进度规则，而不是第二只走廊 DAgger，也不是由人门控的 HG-DAgger：在平淡轨迹上 A 与 B 的成功率完全打平（`1.0000+-0.0000`，每个种子都相同），同时 B 的调用更少（`-80.0000+-0.0000`，5/5）；在下降加停滞的轨迹上，该门相对永不触发的那一组有明显的 effort-return 优势（`0.6380+-0.0005`，5/5），并且比始终打标签更有选择（调用 `-34.6000+-0.1046`）；永不触发的门失败，成功率是 `0.0000+-0.0000`——`reward_dagger_progress_gate_toy.py`，是进度轨迹替身，不是 VLM；论文成功率和 ROHE 以论文为准。
 
 </Summary>

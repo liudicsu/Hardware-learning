@@ -29,3 +29,12 @@ HAMSTER 式分层（arXiv 2502.05485 第 4.1–4.2 节）：带夹爪状态的�
 ```bash
 python3 hamster_hierarchical_path_toy.py
 ```
+
+## reward_dagger_progress_gate_toy.py — robot-gated progress interventions / 由机器人门控的进度介入
+
+```bash
+python3 examples/month-6/behaviour-cloning/reward_dagger_progress_gate_toy.py
+```
+
+Stdlib only. Shared synthetic progress traces, not a VLM or LIBERO run: always-label versus a two-timescale Spearman progress gate versus a never-fire gate; five seeds, common random numbers. Real VLA 本页未运行.
+只用标准库。共用合成进度轨迹，不是 VLM 或 LIBERO 实验：比较始终打标签、双时间尺度 Spearman 进度门，以及永不触发的门；5 个种子，共用随机数。真实 VLA 本页未运行。
