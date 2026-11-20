@@ -1,5 +1,15 @@
 # Month 8 plan
 
+Current / 当前：**M8 4530 min**, Batch-28 PR1. Earlier entries below retain their historical totals.
+
+## Batch-28 PR1 / 本月 H1 (+180)
+
+Base `06f937610f42489334ac3652197205e190d0c456` (batch-27 PR3 #209 merged; site **45360**). PR1 on M8 host: **M8 4350→4530 (+180)**. Site **45360→45540** (README typography `45 540`). After this PR, M8 is the new sole heaviest month: **60 min** above M9 / M10 = 4470, **150 min** above M6 = 4380. M11 stays 4350 in this PR. Still 71 lessons.
+
+- **H1 / 8.4 ros2-hardware-interface: 600→780 (+180).** JointLimiter enable-scope and coupled saturation (`joint_saturation_limiter_toy.py`; common random numbers, 5 seeds; limits-disabled passthrough vs a naive independent box clamp vs a labeled JointSaturationLimiter contract stand-in of the opened doxygen / userdoc wording). Official plugin / `ros2_control_node` 本页未运行. Official concept-page *Configuration of Limits* and *Description of the Limiter Algorithms* remain `tba` and are not invented. After this PR M8 is the sole heaviest month as disclosed above, not a dump onto M9 / M10 or an avoided host.
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
+
 Current / 当前：**M8 4350 min**, Batch-25 PR2. Earlier entries below retain their historical totals.
 
 ## Batch-25 PR2 / 本月 H4 (+180)
