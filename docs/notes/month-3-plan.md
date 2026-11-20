@@ -1,6 +1,19 @@
 # Month 3 plan / 第 3 个月计划
 
+Current / 当前：**M3 4050 min**, Batch-27 PR1. Earlier entries below retain their historical totals.
+
 Current / 当前：**M3 3870 min**, Batch-26 PR1. Earlier entries below retain their historical totals.
+
+## Batch-27 PR1 / 本月 H1 (+180)
+
+Base `0fcb28a514ee381b0f3281e3eb42ab3539910ac4` (batch-26 PR3 #206 squash-merged; site **44460**). PR1 on M3 host: **M3 3870→4050 (+180)**; M4 moves in the same PR on its own plan. Site **44460→44820** (44820=44460+180+180), still 71 lessons.
+
+- **H1 / 3.1 cad-parametric: 450→630 (+180).** First- vs third-angle orthographic projection and the truncated-cone symbol (`first_third_angle_projection_toy.py`; common random numbers, 5 seeds; shared object and shared face drawings). English Wikipedia "Multiview orthographic projection" oldid 1385532381 (以原文为准). Same-convention placement is an exact tie (paired B-A slot_match / boss_ok / notch_ok `0.0000+-0.0000`, identical on every seed). A third-angle sheet read as first-angle swaps left/right and top/bottom (C loses, paired C-A `-1.0000+-0.0000`, 5/5). Ignoring the symbol on a correctly marked first-angle sheet swaps left/right (D loses on boss_ok; notch_ok stays a tie). Official first run 2026-11-20 11:46:03 Asia/Shanghai; expected sha256 `28cc915f82a3ea33ddf243c48e4a59e3ba35171c65ad7782386b4006422f590a`. Named invert-symbol alternative printed and not adopted. Real CAD 本页未运行. Not a redo of the GD&T stack or the interference-fit toy.
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
+
+**Site accounting / 全站核算:** **44820=44460+360** with M4 +180 on month-4-plan.md; **M3=4050**, **71 lessons**.
+
 
 Current / 当前：**M3 3690 min**, Batch-23 PR1. Earlier entries below retain their historical totals.
 

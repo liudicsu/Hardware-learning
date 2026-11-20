@@ -1,0 +1,76 @@
+Synthetic first- vs third-angle projection stand-in; not a real CAD sheet
+declared WIDTH=40.0000 mm DEPTH=20.0000 mm HEIGHT=10.0000 mm BOSS_H=4.0000 mm NOTCH_W=6.0000 mm SMALL_FRAC=0.2000 seeds=0,1,2,3,4
+hand_calc 20 percent small-vs-clear factor = 0.2000
+hand_calc symbol: two concentric circles (solid inner) + isosceles trapezoid, shortest side away from the circles => first-angle
+hand_calc symbol: two concentric circles (solid inner) + isosceles trapezoid, shortest side towards the circles => third-angle
+declared arms: A_first place+read first-angle; B_third place+read third-angle; C_cross third-angle sheet read as first-angle; D_ignore first-angle sheet, symbol ignored, L/R swapped
+Regimes and parameters were written before the first run
+Common random numbers: the object (boss side, notch face) is shared across arms at each seed
+Assumptions: same six face drawings; only the arrangement and the reader convention change
+Wikipedia figures and territorial lists 以原文为准
+Real Onshape / SolidWorks / printed title block: 本页未运行
+declared same_convention: A and B exact on slot identity and feature side - keep
+declared cross_convention: C loses: third-angle sheet read as first-angle swaps left/right or top/bottom - keep
+declared symbol_ignored: D loses: correctly marked first-angle sheet, symbol ignored, left/right swapped - keep
+shared layouts (deterministic placement rules; seeds only change the object)
+  seed 0 object: boss=right notch=bottom notch_y=front
+    A_first: slot_match=1.0000 boss_ok=1.0000 notch_ok=1.0000 rec_boss=right rec_notch=bottom
+    B_third: slot_match=1.0000 boss_ok=1.0000 notch_ok=1.0000 rec_boss=right rec_notch=bottom
+    C_cross: slot_match=0.0000 boss_ok=0.0000 notch_ok=0.0000 rec_boss=left rec_notch=top
+    D_ignore: slot_match=0.0000 boss_ok=0.0000 notch_ok=1.0000 rec_boss=left rec_notch=bottom
+  seed 1 object: boss=left notch=top notch_y=rear
+    A_first: slot_match=1.0000 boss_ok=1.0000 notch_ok=1.0000 rec_boss=left rec_notch=top
+    B_third: slot_match=1.0000 boss_ok=1.0000 notch_ok=1.0000 rec_boss=left rec_notch=top
+    C_cross: slot_match=0.0000 boss_ok=0.0000 notch_ok=0.0000 rec_boss=right rec_notch=bottom
+    D_ignore: slot_match=0.0000 boss_ok=0.0000 notch_ok=1.0000 rec_boss=right rec_notch=top
+  seed 2 object: boss=left notch=top notch_y=front
+    A_first: slot_match=1.0000 boss_ok=1.0000 notch_ok=1.0000 rec_boss=left rec_notch=top
+    B_third: slot_match=1.0000 boss_ok=1.0000 notch_ok=1.0000 rec_boss=left rec_notch=top
+    C_cross: slot_match=0.0000 boss_ok=0.0000 notch_ok=0.0000 rec_boss=right rec_notch=bottom
+    D_ignore: slot_match=0.0000 boss_ok=0.0000 notch_ok=1.0000 rec_boss=right rec_notch=top
+  seed 3 object: boss=left notch=top notch_y=rear
+    A_first: slot_match=1.0000 boss_ok=1.0000 notch_ok=1.0000 rec_boss=left rec_notch=top
+    B_third: slot_match=1.0000 boss_ok=1.0000 notch_ok=1.0000 rec_boss=left rec_notch=top
+    C_cross: slot_match=0.0000 boss_ok=0.0000 notch_ok=0.0000 rec_boss=right rec_notch=bottom
+    D_ignore: slot_match=0.0000 boss_ok=0.0000 notch_ok=1.0000 rec_boss=right rec_notch=top
+  seed 4 object: boss=left notch=bottom notch_y=front
+    A_first: slot_match=1.0000 boss_ok=1.0000 notch_ok=1.0000 rec_boss=left rec_notch=bottom
+    B_third: slot_match=1.0000 boss_ok=1.0000 notch_ok=1.0000 rec_boss=left rec_notch=bottom
+    C_cross: slot_match=0.0000 boss_ok=0.0000 notch_ok=0.0000 rec_boss=right rec_notch=top
+    D_ignore: slot_match=0.0000 boss_ok=0.0000 notch_ok=1.0000 rec_boss=right rec_notch=bottom
+  A_first slot_match 1.0000+-0.0000
+  A_first boss_ok 1.0000+-0.0000
+  A_first notch_ok 1.0000+-0.0000
+  B_third slot_match 1.0000+-0.0000
+  B_third boss_ok 1.0000+-0.0000
+  B_third notch_ok 1.0000+-0.0000
+  C_cross slot_match 0.0000+-0.0000
+  C_cross boss_ok 0.0000+-0.0000
+  C_cross notch_ok 0.0000+-0.0000
+  D_ignore slot_match 0.0000+-0.0000
+  D_ignore boss_ok 0.0000+-0.0000
+  D_ignore notch_ok 1.0000+-0.0000
+  paired B-A slot_match: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A slot_match: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B slot_match: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A slot_match: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A boss_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A boss_ok: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B boss_ok: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A boss_ok: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A notch_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A notch_ok: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B notch_ok: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A notch_ok: 0.0000+-0.0000: tie: identical on every seed
+declared expectation same_convention: A and B exact on slot identity and feature side - keep
+declared expectation cross_convention: C loses: third-angle sheet read as first-angle swaps left/right or top/bottom - keep
+declared expectation symbol_ignored: D loses: correctly marked first-angle sheet, symbol ignored, left/right swapped - keep
+named alternative invert_symbol (first-angle sheet read as third-angle) - not adopted
+  alt invert slot_match 0.0000+-0.0000
+  paired alt-A slot_match: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  alt invert boss_ok 0.0000+-0.0000
+  paired alt-A boss_ok: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  alt invert notch_ok 0.0000+-0.0000
+  paired alt-A notch_ok: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+no integration step: static view layouts, no plant, no time step
+No winner declared

@@ -970,6 +970,537 @@ The page **does not declare a universal winner**: an interference fit holds by f
 4. Raise the load to 150 ± 30 N m in `REGIMES` with seeds fixed. Predict which of B and C starts to slip first before you run.
 5. Before any real press or oven run (本页未运行), write how you would tell, on a returned part, a fit that was too loose from one that yielded the hub.
 
+## First-angle vs third-angle projection and the truncated-cone symbol
+
+Everything earlier in this lesson is about sketches, parameters, a bilateral GD&T stack, and an interference fit that is held by friction. None of those sections asked how the six orthographic views of one part should be *arranged* on a sheet. The views themselves are the same; first- and third-angle projection **arrange** them differently, and the international truncated-cone symbol tells the reader which convention the sheet uses. This section is **not** a redo of the GD&T stack, **not** a redo of the interference-fit toy, and MMC stays literacy-only. A real Onshape, SolidWorks or printed title block: **本页未运行**.
+
+**Source actually opened (wikitext body read).**
+
+- **Wikipedia — Multiview orthographic projection**, oldid 1385532381 (2026-11-13 20:08:47 UTC = 2026-11-14 04:08:47 Asia/Shanghai). The standalone titles "First-angle projection" and "Third-angle projection" are **redirects** to sections of this same article.
+  - The six orthographic views are the same; the difference is the arrangement of those views around the box.
+  - First-angle: the object sits in Monge quadrant I, the planes are opaque, each view is **pushed** onto the far wall, and the box is unfolded from the *interior*.
+  - Third-angle: the object sits in quadrant III, the planes are transparent, each view is **pulled** onto the near wall, and the box is unfolded from the *exterior*.
+  - With the front view in the centre, first-angle places the left view to the right of front, the right view to the left, the bottom view above, and the top view below. Third-angle places the left view to the left, the right view to the right, the top view above, and the bottom view below.
+  - Symbol: a solid truncated cone, small end toward the viewer. The front view is two concentric circles with a *solid* inner circle (front, not rear). The side view is an isosceles trapezoid. First-angle: shortest trapezoid side **away from** the circles. Third-angle: shortest side **towards** the circles.
+  - A reader who assumes the other convention will swap left/right or top/bottom and can machine a feature on the wrong side.
+  - ISO 5456-2, ASME Y14.3, BS 8888, JIS B 0001 and AS 1100 are named only as Wikipedia names, 以原文为准. This page does not open those paid standards or invent a standard formula.
+- Statements 以原文为准. Wikipedia figures 以原文为准.
+
+The territorial sentences in "Additional information" and in "Territorial use" are **not** the same, so they are paraphrased separately and are **not** toy outputs.
+
+**Additional information** (opened body, 以原文为准). First-angle "is standard throughout Europe and Asia (excluding Japan)". It was widely used in the UK; during World War II, British drawings sent to be manufactured in the USA, such as of the Rolls-Royce Merlin, had to be drawn in third-angle projection before they could be produced, for example as the Packard V-1650 Merlin, and some British companies completely adopted third-angle projection. BS 308 (Part 1) offered both, but generally illustrated first-angle; after its withdrawal in 1999, BS 8888 offered the same choice because it referred directly to ISO 5456-2. Third-angle "is standard in the USA" (ASME Y14.3-2003 specifies it as the default), "Japan" (JIS B 0001:2010 specifies it as the default), "Canada, and Australia" (AS1100.101 specifies it as the preferred system).
+
+**Territorial use** (opened body, 以原文为准, a different wording). "First-angle is used in most of the world." "Third-angle projection is most commonly used in the United States and Japan (in JIS B 0001：2010) and is preferred in Australia, as laid down in AS 1100.101—1992 6.3.3." "In the UK, BS8888 9.7.2.1 allows for three different conventions for arranging views: labelled views, third-angle projection, and first-angle projection."
+
+### Arrangement, the cone symbol and a wrong-side feature
+
+**Worked example (hand_calc).** Two concentric circles with a solid inner circle, plus an isosceles trapezoid whose shortest side is **away from** the circles, name first-angle *before* looking at the table; the same symbol with the shortest side **towards** the circles names third-angle. The toy prints both lines.
+
+**Correctness criterion for the read.** A same-convention read is exact when every slot holds the view that convention assigns to that slot, and when the boss side and notch face reconstructed from the named left/right and top/bottom views match the object. A cross-convention read, or a correctly marked sheet whose left and right slots are swapped because the symbol was ignored, fails that criterion. The front view sits in the same centre slot under both conventions, so the swap is in the views around it, not a mirror of the front view itself.
+
+**No integration step here.** Each sheet is a static layout of six shared face drawings; there is no time stepping and no step-size criterion. A test checks the layout tables and the reconstructed sides.
+
+### Fair setup
+
+`first_third_angle_projection_toy.py` is **synthetic** and stdlib only. **Model assumptions:**
+
+- One stepped block, declared envelope `WIDTH = 40.0000` mm, `DEPTH = 20.0000` mm, `HEIGHT = 10.0000` mm, with a boss of height `BOSS_H = 4.0000` mm on exactly one side and a notch of width `NOTCH_W = 6.0000` mm on exactly one of the top or bottom faces. The six face drawings are shared; only the arrangement and the reader's convention change.
+- Arm A places the views under first-angle rules, reads them as first-angle, and uses the first-angle cone symbol. Arm B does the same for third-angle. Arm C is the documented confusion mode: a third-angle sheet read as first-angle. Arm D takes a correctly marked first-angle sheet, ignores the symbol, and swaps left/right.
+
+| Arm | Sheet | Reader | Symbol |
+|---|---|---|---|
+| A_first | first-angle | first-angle | shortest side away from the circles |
+| B_third | third-angle | third-angle | shortest side towards the circles |
+| C_cross | third-angle | first-angle | present, but the reader uses the other convention |
+| D_ignore | first-angle | first-angle, left/right swapped | ignored |
+
+**Common random numbers:** five seeds `0,1,2,3,4`. The object (boss side, notch face, notch front/rear) is drawn once per seed and reused by every arm. The placement rules themselves are deterministic.
+
+| Comparison | What is compared | Expected (written before the first run) |
+|---|---|---|
+| same_convention | A and B on the same object | exact on slot identity and feature side (keep) |
+| cross_convention | C against A and B | C loses: left/right or top/bottom swap (keep) |
+| symbol_ignored | D against A | D loses on a correctly marked first-angle sheet (keep) |
+
+Labels: identical on every seed is a **tie**; numerically zero if the absolute paired mean and sd are both below `1e-9`; `|m| <= sd` is a **near-tie**; `|m| > sd` is a consistent gap, **small** if `|m|` is below 20 % of the smaller-arm mean (the toy prints `0.2000`), else **clear**, with a sign count.
+
+**Choices made after seeing results.** None. The four arms, the three comparisons, the envelope and the symbol hand-calc were written down before the first run and not changed. Alternatives not taken: inverting the cone symbol (treat "away" as "towards") on an otherwise correctly placed first-angle sheet; that alternative is printed on the same objects and was **not adopted**.
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-3/cad-parametric
+python3 first_third_angle_projection_toy.py
+```
+
+<CodeSource path="examples/month-3/cad-parametric/first_third_angle_projection_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""First-angle vs third-angle orthographic projection on one shared stepped block.
+
+Synthetic, stdlib only.  Not a redo of the GD&T tolerance-stack toy, and not the
+interference (press / shrink) fit toy.  MMC stays literacy-only and is not modelled.
+Real Onshape / SolidWorks / a printed title block: 本页未运行.
+Wikipedia "Multiview orthographic projection" statements, including the truncated-cone
+symbol and the first- vs third-angle arrangement, are 以原文为准.  Named standards
+(ISO 5456-2, ASME Y14.3, BS 8888, JIS B 0001, AS 1100) appear only as Wikipedia names,
+not as opened standard formulas.
+
+The six orthographic face drawings of one asymmetric object are shared.  First- and
+third-angle projection arrange those same views differently.  The international
+truncated-cone symbol tells the reader which convention a sheet uses:
+  solid truncated cone, small end toward the viewer;
+  front view: two concentric circles with a solid inner circle (front, not rear);
+  side view: an isosceles trapezoid;
+  first-angle: shortest trapezoid side away from the circles;
+  third-angle: shortest trapezoid side towards the circles.
+
+Placement (front at the centre; rear at the far right), 以原文为准:
+  first-angle (unfolded from the interior): left of front = right view, right of
+    front = left view, above = bottom view, below = top view.
+  third-angle (unfolded from the exterior): left of front = left view, right of
+    front = right view, above = top view, below = bottom view.
+
+Arms (same object, same face drawings):
+  A_first     place under first-angle rules, read as first-angle, first-angle symbol.
+  B_third     place under third-angle rules, read as third-angle, third-angle symbol.
+  C_cross     third-angle sheet read as first-angle (documented confusion mode).
+  D_ignore    correctly marked first-angle sheet, symbol ignored, left/right swapped.
+
+Common random numbers: for each seed the object (boss side and notch face) is drawn
+once and reused by every arm.  Five seeds.  The layout rules themselves are
+deterministic.
+
+Metrics per seed: slot_match (1 if every slot holds the view the reader's convention
+assigns to that slot on a correctly marked sheet of that convention, else 0);
+boss_ok (1 if the reconstructed boss side matches the object, else 0);
+notch_ok (1 if the reconstructed notch face matches the object, else 0).
+
+Regimes and expectations, written before the first run:
+  same_convention   A and B exact on slot_match, boss_ok and notch_ok (keep)
+  cross_convention  C loses: left/right or top/bottom swap (keep)
+  symbol_ignored    D loses on a correctly marked first-angle sheet (keep)
+
+A hand_calc names the convention from a cone-symbol description before the table.
+No integration step: each sheet is a static layout; there is no time stepping.
+"""
+from __future__ import annotations
+
+import math
+import random
+from decimal import ROUND_HALF_UP, Decimal, getcontext
+
+getcontext().rounding = ROUND_HALF_UP
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+SMALL_FRAC = 0.2000  # 20 % of the smaller-arm mean; printed as 0.2000
+
+# Declared object envelope (mm), printed.  The boss and notch break L/R and T/B symmetry.
+WIDTH = 40.0
+DEPTH = 20.0
+HEIGHT = 10.0
+BOSS_H = 4.0
+NOTCH_W = 6.0
+
+SLOTS = ("left", "above", "centre", "below", "right", "far_right")
+VIEWS = ("front", "top", "bottom", "left", "right", "rear")
+
+# slot -> view under each convention (front at centre, rear at far right)
+FIRST_ANGLE = {
+    "left": "right",
+    "above": "bottom",
+    "centre": "front",
+    "below": "top",
+    "right": "left",
+    "far_right": "rear",
+}
+THIRD_ANGLE = {
+    "left": "left",
+    "above": "top",
+    "centre": "front",
+    "below": "bottom",
+    "right": "right",
+    "far_right": "rear",
+}
+
+ARMS = ("A_first", "B_third", "C_cross", "D_ignore")
+METRICS = ("slot_match", "boss_ok", "notch_ok")
+
+# name: (kind, declared expectation); written before the first run
+REGIMES = {
+    "same_convention": (
+        "same_convention",
+        "A and B exact on slot identity and feature side - keep",
+    ),
+    "cross_convention": (
+        "cross_convention",
+        "C loses: third-angle sheet read as first-angle swaps left/right or top/bottom - keep",
+    ),
+    "symbol_ignored": (
+        "symbol_ignored",
+        "D loses: correctly marked first-angle sheet, symbol ignored, left/right swapped - keep",
+    ),
+}
+
+# Named alternative, same objects, not adopted: invert the cone symbol (treat
+# "away" as "towards") on an otherwise correctly placed first-angle sheet.
+ALT_INVERT_SYMBOL = True
+
+
+def mean_sd(xs):
+    if all(x == xs[0] for x in xs):
+        return xs[0], 0.0
+    mu = sum(xs) / len(xs)
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x):
+    if x != 0.0 and abs(x) < 5e-4:
+        return format(Decimal(repr(x)), ".3e")
+    s = format(Decimal(repr(x)), ".4f")
+    return "0.0000" if s == "-0.0000" else s
+
+
+def sign_note(diffs, m):
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m, s):
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa, xb):
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < SMALL_FRAC * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def shared_object(seed: int) -> dict:
+    """Draw one asymmetric stepped block; reused by every arm at this seed."""
+    rng = random.Random(seed)
+    boss_side = rng.choice(("left", "right"))
+    notch_face = rng.choice(("top", "bottom"))
+    notch_y = rng.choice(("front", "rear"))
+    return {
+        "boss_side": boss_side,
+        "notch_face": notch_face,
+        "notch_y": notch_y,
+        "width": WIDTH,
+        "depth": DEPTH,
+        "height": HEIGHT,
+        "boss_h": BOSS_H,
+        "notch_w": NOTCH_W,
+    }
+
+
+def face_drawings(obj: dict) -> dict:
+    """Shared orthographic face drawings of the object (convention-independent)."""
+    flip = {"left": "right", "right": "left", "top": "bottom", "bottom": "top",
+            "front": "rear", "rear": "front"}
+    return {view: {
+        "view": view,
+        "boss_side": obj["boss_side"] if view in ("front", "top", "bottom")
+        else (flip[obj["boss_side"]] if view == "rear" else "this_face" if view == obj["boss_side"] else "other_face"),
+        "notch_face": obj["notch_face"] if view == "front"
+        else (flip[obj["notch_face"]] if view == "rear" else "this_face" if view == obj["notch_face"] else "other_face"),
+        "notch_y": obj["notch_y"],
+    } for view in VIEWS}
+
+
+def place(drawings: dict, convention: str) -> dict:
+    layout = FIRST_ANGLE if convention == "first" else THIRD_ANGLE
+    return {slot: drawings[view] for slot, view in layout.items()}
+
+
+def read_sheet(sheet: dict, reader: str, swap_lr: bool = False) -> dict:
+    """Interpret occupied slots with a reader's convention (optionally swap L/R)."""
+    layout = FIRST_ANGLE if reader == "first" else THIRD_ANGLE
+    assigned = {}
+    for slot, drawing in sheet.items():
+        if swap_lr and slot in ("left", "right"):
+            slot = "right" if slot == "left" else "left"
+        assigned[layout[slot]] = drawing
+    return assigned
+
+
+def reconstruct(assigned: dict) -> dict:
+    """Rebuild boss side and notch face from the side and plan views the reader named.
+
+    The front view sits in the same centre slot under both conventions, so it does
+    not itself swap.  A cross-convention reader mis-names the left/right and
+    top/bottom views around that front, and can machine a feature on the wrong side.
+    """
+    if assigned["right"]["boss_side"] == "this_face":
+        boss = "right"
+    elif assigned["left"]["boss_side"] == "this_face":
+        boss = "left"
+    else:
+        raise RuntimeError("boss face not found in the named left/right views")
+    if assigned["top"]["notch_face"] == "this_face":
+        notch = "top"
+    elif assigned["bottom"]["notch_face"] == "this_face":
+        notch = "bottom"
+    else:
+        raise RuntimeError("notch face not found in the named top/bottom views")
+    return {
+        "boss_side": boss,
+        "notch_face": notch,
+        "notch_y": assigned["front"]["notch_y"],
+        "views": {view: assigned[view]["view"] for view in VIEWS},
+    }
+
+
+def slot_match(assigned: dict) -> float:
+    return 1.0 if all(assigned[view]["view"] == view for view in VIEWS) else 0.0
+
+
+def run_arm(obj: dict, arm: str) -> dict:
+    drawings = face_drawings(obj)
+    if arm == "A_first":
+        sheet, reader, swap = place(drawings, "first"), "first", False
+    elif arm == "B_third":
+        sheet, reader, swap = place(drawings, "third"), "third", False
+    elif arm == "C_cross":
+        sheet, reader, swap = place(drawings, "third"), "first", False
+    elif arm == "D_ignore":
+        sheet, reader, swap = place(drawings, "first"), "first", True
+    else:
+        raise KeyError(arm)
+    assigned = read_sheet(sheet, reader, swap_lr=swap)
+    rec = reconstruct(assigned)
+    return {
+        "slot_match": slot_match(assigned),
+        "boss_ok": 1.0 if rec["boss_side"] == obj["boss_side"] else 0.0,
+        "notch_ok": 1.0 if rec["notch_face"] == obj["notch_face"] else 0.0,
+        "rec_boss": rec["boss_side"],
+        "rec_notch": rec["notch_face"],
+        "true_boss": obj["boss_side"],
+        "true_notch": obj["notch_face"],
+        "views": rec["views"],
+    }
+
+
+def run_alt_invert_symbol(obj: dict) -> dict:
+    """Named alternative: invert the symbol, then read a first-angle sheet as third."""
+    drawings = face_drawings(obj)
+    sheet = place(drawings, "first")
+    assigned = read_sheet(sheet, "third", swap_lr=False)
+    rec = reconstruct(assigned)
+    return {
+        "slot_match": slot_match(assigned),
+        "boss_ok": 1.0 if rec["boss_side"] == obj["boss_side"] else 0.0,
+        "notch_ok": 1.0 if rec["notch_face"] == obj["notch_face"] else 0.0,
+    }
+
+
+def col(rows, metric):
+    return [row[metric] for row in rows]
+
+
+def symbol_hand_calc():
+    # Shortest trapezoid side away from the circles => first-angle; towards => third-angle.
+    first = "first-angle"
+    third = "third-angle"
+    return first, third
+
+
+def main():
+    print("Synthetic first- vs third-angle projection stand-in; not a real CAD sheet")
+    print(
+        f"declared WIDTH={num(WIDTH)} mm DEPTH={num(DEPTH)} mm HEIGHT={num(HEIGHT)} mm "
+        f"BOSS_H={num(BOSS_H)} mm NOTCH_W={num(NOTCH_W)} mm SMALL_FRAC={num(SMALL_FRAC)} "
+        f"seeds={','.join(str(s) for s in SEEDS)}"
+    )
+    print("hand_calc 20 percent small-vs-clear factor = " + num(SMALL_FRAC))
+    first_name, third_name = symbol_hand_calc()
+    print(
+        "hand_calc symbol: two concentric circles (solid inner) + isosceles trapezoid, "
+        f"shortest side away from the circles => {first_name}"
+    )
+    print(
+        "hand_calc symbol: two concentric circles (solid inner) + isosceles trapezoid, "
+        f"shortest side towards the circles => {third_name}"
+    )
+    print("declared arms: A_first place+read first-angle; B_third place+read third-angle; "
+          "C_cross third-angle sheet read as first-angle; D_ignore first-angle sheet, symbol ignored, L/R swapped")
+    print("Regimes and parameters were written before the first run")
+    print("Common random numbers: the object (boss side, notch face) is shared across arms at each seed")
+    print("Assumptions: same six face drawings; only the arrangement and the reader convention change")
+    print("Wikipedia figures and territorial lists 以原文为准")
+    print("Real Onshape / SolidWorks / printed title block: 本页未运行")
+    for name, (_kind, expl) in REGIMES.items():
+        print(f"declared {name}: {expl}")
+
+    objects = {seed: shared_object(seed) for seed in SEEDS}
+    rows = {arm: [] for arm in ARMS}
+    print("shared layouts (deterministic placement rules; seeds only change the object)")
+    for seed in SEEDS:
+        obj = objects[seed]
+        print(
+            f"  seed {seed} object: boss={obj['boss_side']} notch={obj['notch_face']} "
+            f"notch_y={obj['notch_y']}"
+        )
+        for arm in ARMS:
+            rec = run_arm(obj, arm)
+            rows[arm].append(rec)
+            print(
+                f"    {arm}: slot_match={num(rec['slot_match'])} "
+                f"boss_ok={num(rec['boss_ok'])} notch_ok={num(rec['notch_ok'])} "
+                f"rec_boss={rec['rec_boss']} rec_notch={rec['rec_notch']}"
+            )
+    for arm in ARMS:
+        for metric in METRICS:
+            xs = col(rows[arm], metric)
+            m, s = mean_sd(xs)
+            print(f"  {arm} {metric} {fmt_pair(m, s)}")
+    for metric in METRICS:
+        print(f"  paired B-A {metric}: {verdict(col(rows['B_third'], metric), col(rows['A_first'], metric))}")
+        print(f"  paired C-A {metric}: {verdict(col(rows['C_cross'], metric), col(rows['A_first'], metric))}")
+        print(f"  paired C-B {metric}: {verdict(col(rows['C_cross'], metric), col(rows['B_third'], metric))}")
+        print(f"  paired D-A {metric}: {verdict(col(rows['D_ignore'], metric), col(rows['A_first'], metric))}")
+    print("declared expectation same_convention: A and B exact on slot identity and feature side - keep")
+    print("declared expectation cross_convention: C loses: third-angle sheet read as first-angle swaps left/right or top/bottom - keep")
+    print("declared expectation symbol_ignored: D loses: correctly marked first-angle sheet, symbol ignored, left/right swapped - keep")
+
+    print("named alternative invert_symbol (first-angle sheet read as third-angle) - not adopted")
+    alt_rows = []
+    a_rows = []
+    for seed in SEEDS:
+        obj = objects[seed]
+        alt_rows.append(run_alt_invert_symbol(obj))
+        a_rows.append(run_arm(obj, "A_first"))
+    for metric in METRICS:
+        print(f"  alt invert {metric} {fmt_pair(*mean_sd(col(alt_rows, metric)))}")
+        print(f"  paired alt-A {metric}: {verdict(col(alt_rows, metric), col(a_rows, metric))}")
+    print("no integration step: static view layouts, no plant, no time step")
+    print("No winner declared")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic first- vs third-angle projection stand-in; not a real CAD sheet
+declared WIDTH=40.0000 mm DEPTH=20.0000 mm HEIGHT=10.0000 mm BOSS_H=4.0000 mm NOTCH_W=6.0000 mm SMALL_FRAC=0.2000 seeds=0,1,2,3,4
+hand_calc 20 percent small-vs-clear factor = 0.2000
+hand_calc symbol: two concentric circles (solid inner) + isosceles trapezoid, shortest side away from the circles => first-angle
+hand_calc symbol: two concentric circles (solid inner) + isosceles trapezoid, shortest side towards the circles => third-angle
+declared arms: A_first place+read first-angle; B_third place+read third-angle; C_cross third-angle sheet read as first-angle; D_ignore first-angle sheet, symbol ignored, L/R swapped
+Regimes and parameters were written before the first run
+Common random numbers: the object (boss side, notch face) is shared across arms at each seed
+Assumptions: same six face drawings; only the arrangement and the reader convention change
+Wikipedia figures and territorial lists 以原文为准
+Real Onshape / SolidWorks / printed title block: 本页未运行
+declared same_convention: A and B exact on slot identity and feature side - keep
+declared cross_convention: C loses: third-angle sheet read as first-angle swaps left/right or top/bottom - keep
+declared symbol_ignored: D loses: correctly marked first-angle sheet, symbol ignored, left/right swapped - keep
+shared layouts (deterministic placement rules; seeds only change the object)
+  seed 0 object: boss=right notch=bottom notch_y=front
+    A_first: slot_match=1.0000 boss_ok=1.0000 notch_ok=1.0000 rec_boss=right rec_notch=bottom
+    B_third: slot_match=1.0000 boss_ok=1.0000 notch_ok=1.0000 rec_boss=right rec_notch=bottom
+    C_cross: slot_match=0.0000 boss_ok=0.0000 notch_ok=0.0000 rec_boss=left rec_notch=top
+    D_ignore: slot_match=0.0000 boss_ok=0.0000 notch_ok=1.0000 rec_boss=left rec_notch=bottom
+  seed 1 object: boss=left notch=top notch_y=rear
+    A_first: slot_match=1.0000 boss_ok=1.0000 notch_ok=1.0000 rec_boss=left rec_notch=top
+    B_third: slot_match=1.0000 boss_ok=1.0000 notch_ok=1.0000 rec_boss=left rec_notch=top
+    C_cross: slot_match=0.0000 boss_ok=0.0000 notch_ok=0.0000 rec_boss=right rec_notch=bottom
+    D_ignore: slot_match=0.0000 boss_ok=0.0000 notch_ok=1.0000 rec_boss=right rec_notch=top
+  seed 2 object: boss=left notch=top notch_y=front
+    A_first: slot_match=1.0000 boss_ok=1.0000 notch_ok=1.0000 rec_boss=left rec_notch=top
+    B_third: slot_match=1.0000 boss_ok=1.0000 notch_ok=1.0000 rec_boss=left rec_notch=top
+    C_cross: slot_match=0.0000 boss_ok=0.0000 notch_ok=0.0000 rec_boss=right rec_notch=bottom
+    D_ignore: slot_match=0.0000 boss_ok=0.0000 notch_ok=1.0000 rec_boss=right rec_notch=top
+  seed 3 object: boss=left notch=top notch_y=rear
+    A_first: slot_match=1.0000 boss_ok=1.0000 notch_ok=1.0000 rec_boss=left rec_notch=top
+    B_third: slot_match=1.0000 boss_ok=1.0000 notch_ok=1.0000 rec_boss=left rec_notch=top
+    C_cross: slot_match=0.0000 boss_ok=0.0000 notch_ok=0.0000 rec_boss=right rec_notch=bottom
+    D_ignore: slot_match=0.0000 boss_ok=0.0000 notch_ok=1.0000 rec_boss=right rec_notch=top
+  seed 4 object: boss=left notch=bottom notch_y=front
+    A_first: slot_match=1.0000 boss_ok=1.0000 notch_ok=1.0000 rec_boss=left rec_notch=bottom
+    B_third: slot_match=1.0000 boss_ok=1.0000 notch_ok=1.0000 rec_boss=left rec_notch=bottom
+    C_cross: slot_match=0.0000 boss_ok=0.0000 notch_ok=0.0000 rec_boss=right rec_notch=top
+    D_ignore: slot_match=0.0000 boss_ok=0.0000 notch_ok=1.0000 rec_boss=right rec_notch=bottom
+  A_first slot_match 1.0000+-0.0000
+  A_first boss_ok 1.0000+-0.0000
+  A_first notch_ok 1.0000+-0.0000
+  B_third slot_match 1.0000+-0.0000
+  B_third boss_ok 1.0000+-0.0000
+  B_third notch_ok 1.0000+-0.0000
+  C_cross slot_match 0.0000+-0.0000
+  C_cross boss_ok 0.0000+-0.0000
+  C_cross notch_ok 0.0000+-0.0000
+  D_ignore slot_match 0.0000+-0.0000
+  D_ignore boss_ok 0.0000+-0.0000
+  D_ignore notch_ok 1.0000+-0.0000
+  paired B-A slot_match: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A slot_match: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B slot_match: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A slot_match: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A boss_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A boss_ok: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B boss_ok: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A boss_ok: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A notch_ok: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A notch_ok: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B notch_ok: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired D-A notch_ok: 0.0000+-0.0000: tie: identical on every seed
+declared expectation same_convention: A and B exact on slot identity and feature side - keep
+declared expectation cross_convention: C loses: third-angle sheet read as first-angle swaps left/right or top/bottom - keep
+declared expectation symbol_ignored: D loses: correctly marked first-angle sheet, symbol ignored, left/right swapped - keep
+named alternative invert_symbol (first-angle sheet read as third-angle) - not adopted
+  alt invert slot_match 0.0000+-0.0000
+  paired alt-A slot_match: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  alt invert boss_ok 0.0000+-0.0000
+  paired alt-A boss_ok: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  alt invert notch_ok 0.0000+-0.0000
+  paired alt-A notch_ok: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+no integration step: static view layouts, no plant, no time step
+No winner declared
+```
+
+</SimOutput>
+
+### Results
+
+`hand_calc` names first-angle when the shortest trapezoid side is away from the circles, and third-angle when it is towards them. Official first run: 2026-11-20 11:46:03 Asia/Shanghai. There was **no** official toy or `expected/` change after that run. After those figures were frozen, the Chinese lesson adjusted bold markers that sat next to a full-width colon or enclosed a full stop, and the pages were written to the frozen official output. Official `expected/` was not retuned.
+
+- **same_convention.** On every seed, A and B have `slot_match`, `boss_ok` and `notch_ok` all `1.0000+-0.0000`. Paired B-A on each of those metrics is `0.0000+-0.0000: tie: identical on every seed`. The declared same-convention exact read **held**.
+- **cross_convention.** C has `slot_match`, `boss_ok` and `notch_ok` all `0.0000+-0.0000`. On seed 0 the object has boss `right` and notch `bottom`; C reconstructs boss `left` and notch `top`. Paired C-A on each metric is `-1.0000+-0.0000`: **clear gap, not a tie** (`|m| > sd`; same sign on all 5 seeds). The declared cross-convention left/right and top/bottom swap **held**.
+- **symbol_ignored.** D has `slot_match` `0.0000+-0.0000` and `boss_ok` `0.0000+-0.0000`, but `notch_ok` `1.0000+-0.0000`, because only left/right was swapped. Paired D-A `boss_ok` is `-1.0000+-0.0000`, a **clear gap**, same sign on all 5 seeds; paired D-A `notch_ok` is `0.0000+-0.0000: tie: identical on every seed`. The declared loss on a correctly marked first-angle sheet **held**.
+
+The named alternative that inverts the symbol and reads a first-angle sheet as third-angle was **not adopted**. On the same objects it loses on `slot_match`, `boss_ok` and `notch_ok` (`0.0000+-0.0000` vs A's `1.0000+-0.0000`; paired alt-A `-1.0000+-0.0000`, **clear**, 5/5). Official placement rules were not changed to chase a different swap.
+
+### Exercises
+
+1. From the printed `hand_calc` symbol lines, name the convention for "shortest side away from the circles" and for "shortest side towards the circles" before you look at the table.
+2. Show from `shared_object` and `run_arm` that A, B, C and D see the same object at a given seed.
+3. On a third-angle sheet with the front view in the centre, which view sits above front, and which view sits to the right of front? What does a first-angle reader call those two slots?
+4. Keep the objects fixed and imagine D also swapped top/bottom. Predict `notch_ok` for D before you would run that variant (do not retune the official toy).
+5. Before any real CAD sheet (本页未运行), write how you would check, on a printed title block, whether the truncated-cone symbol matches the arrangement of the views around the front.
+
+**180-minute work plan:** 30+25+50+40+35=180. 30 min read Wikipedia "Multiview orthographic projection" oldid 1385532381 (Quadrants, First-angle, Third-angle, Additional information, Symbol, Territorial use) and note that the standalone first- and third-angle titles are redirects, then write the arrangement rules and the truncated-cone symbol; 25 min write the shared object, the four arms and the three declared comparisons before running; 50 min run the toy and read the official layouts; 40 min rerun the named invert-symbol alternative on the same objects; 35 min write why this is not the GD&T stack or the interference-fit toy, keep the two territorial paragraphs separate, and what a real title-block check would still have to show (本页未运行).
+
 <Summary>
 
 **Key points**
@@ -997,6 +1528,7 @@ The page **does not declare a universal winner**: an interference fit holds by f
 
 - GD&T stack literacy: shared bilateral chain compares worst-case, RSS and datum re-root; short-chain ties, skewed MC shows RSS can be unsafe — not an ASME Y14.5 certification.
 - Interference fit literacy: on one shared shaft and hub, a light shrink fit clearly beats a clearance fit with a set screw on slip under a vibrating load (paired slip −25.4300±4.5789 points, 5/5), ties it on slip and press force with no load and an oven, and clearly loses on press force when pressed cold; excessive interference yields the hub — `interference_press_fit_toy.py`, a stand-in, not the CAD clash check or a press test.
+- First- vs third-angle projection literacy: the six views are the same, the arrangement and the truncated-cone symbol differ; on one shared stepped block, same-convention placement is an exact tie (paired B-A `0.0000+-0.0000` on slot_match, boss_ok and notch_ok, 5/5), a third-angle sheet read as first-angle swaps left/right and top/bottom (C loses, `-1.0000+-0.0000`, 5/5), and ignoring the symbol on a correctly marked first-angle sheet swaps left/right — `first_third_angle_projection_toy.py`, a stand-in, not a real CAD sheet.
 
 **Used next**
 

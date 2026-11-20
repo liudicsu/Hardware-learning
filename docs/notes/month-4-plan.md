@@ -1,6 +1,19 @@
 # Month 4 plan / 第4个月计划
 
+Current / 当前：**M4 4110 min**, Batch-27 PR1. Earlier entries below retain their historical totals.
+
 Current / 当前：**M4 3930 min**, Batch-26 PR1. Earlier entries below retain their historical totals.
+
+## Batch-27 PR1 / 本月 H2 (+180)
+
+Base `0fcb28a514ee381b0f3281e3eb42ab3539910ac4` (batch-26 PR3 #206 squash-merged; site **44460**). PR1 on M4 host: **M4 3930→4110 (+180)**; M3 moves in the same PR on its own plan. Site **44460→44820** (44820=44460+180+180), still 71 lessons.
+
+- **H2 / 4.2 ros2-graph: 570→750 (+180).** Official Jazzy executor / callback-group contract (`executor_callback_group_toy.py`; deterministic shared timeline, 5 seeds). ros2_documentation commit `bb5ba426fe4de413362f605c27074385c83ff9e3` (以文档为准). Three executor types only; default group is Mutually Exclusive; Multi-Threaded + that default group exact-ties Single-Threaded when no synchronous call is needed (`0.0000+-0.0000` on timer_done and sub_done) and still deadlocks with zero inner-handler progress when a timer makes a long synchronous call. Multi-Threaded with separate groups consistently serves the subscription better (paired B-A_single sub_done `20.0000+-0.0000`, starved_ticks `-39.0000+-0.0000`, 5/5). A shared Mutually Exclusive group under Multi-Threaded still deadlocks (C ties A_mt_default on handler_progress `0.0000+-0.0000`). Official first run 2026-11-20 11:46:03 Asia/Shanghai; expected sha256 `57a1f7eaeb307c91ac83e9ef87375cb3920ea438c8524fd43dd1b475f0a2c016`. Named Reentrant alternative printed and not adopted. Real rclpy / rclcpp 本页未运行. Existing service/action deadlock snippets on this page were not rewritten; the ros2-control MultiThreaded + Reentrant usage note is contrasted, not edited.
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
+
+**Site accounting / 全站核算:** **44820=44460+360** with M3 +180 on month-3-plan.md; **M4=4110**, **71 lessons**.
+
 
 Current / 当前：**M4 3750 min**, Batch-25 PR1. Earlier entries below retain their historical totals.
 

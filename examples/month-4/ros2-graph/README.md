@@ -24,3 +24,6 @@ Needs ROS 2 Jazzy (see [`../README.md`](../README.md)). These are real runs on a
 
 **`qos_deadline_lifespan_toy.py`** (no ROS needed): a discrete-event stand-in for QoS Deadline and Lifespan vs a reliability-only subscription on one shared timeline (stdlib, 5 seeds, common random numbers). Not rmw / DDS. Expected output: `../expected/qos_deadline_lifespan_toy.txt`.
 **`qos_deadline_lifespan_toy.py`**（不需要 ROS）：在同一条时间线上，用离散事件替身比较 QoS Deadline + Lifespan 与只设可靠性的订阅（标准库，5 个种子，共用随机数）。不是 rmw / DDS。期望输出见 `../expected/qos_deadline_lifespan_toy.txt`。真实 ros2 运行本页未运行。
+
+**`executor_callback_group_toy.py`** (no ROS needed): a discrete-time stand-in for the official executor / callback-group contract (stdlib, 5 seeds, a deterministic shared schedule). Not rclpy / rclcpp. Expected output: `../expected/executor_callback_group_toy.txt`.
+**`executor_callback_group_toy.py`**（不需要 ROS）：用离散时间替身比较官方 Executor / callback group 契约（标准库，5 个种子，确定性共享时间线）。不是 rclpy / rclcpp。期望输出见 `../expected/executor_callback_group_toy.txt`。真实 rclpy 运行本页未运行。

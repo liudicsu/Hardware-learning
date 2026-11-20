@@ -1,0 +1,153 @@
+Synthetic executor / callback-group stand-in; not rclpy
+declared N_THREADS=3 HORIZON=40 TIMER_PERIOD=10 TIMER_LOCAL=1 SVC_WORK_LONG=8 SUB_PERIOD=2 SUB_WORK=1 TIMER_FIRST=0 SUB_FIRST=1 SMALL_FRAC=0.2000 seeds=0,1,2,3,4
+hand_calc 20 percent small-vs-clear factor = 0.2000
+hand_calc ticks in horizon = 40
+hand_calc subscription arrivals in horizon = 20
+hand_calc timer firings in horizon = 4
+declared arms: A_single Single-Threaded + default ME; A_mt_default Multi-Threaded + default ME; B_two_groups Multi-Threaded + three ME groups; C_shared_me Multi-Threaded + one shared ME group
+Regimes and parameters were written before the first run
+Common random numbers: deterministic shared timeline; seeds repeat the same schedule
+Assumptions: discrete integer ticks; a blocked synchronous caller occupies its ME group and one thread
+Official executor types, default group, and deadlock wording 以文档为准
+Real rclpy / rclcpp / composition container: 本页未运行
+declared no_sync_no_overlap: no synchronous call, no overlapping work: A_single, A_mt_default and B_two_groups exact-tie on completed callbacks - keep
+declared overlap_sync: long handler must overlap a subscription: B consistent better sub service / lower starved ticks than A - keep; C loses (deadlock / zero inner-handler progress) - keep
+declared expectation no_sync_no_overlap: no synchronous call, no overlapping work: A_single, A_mt_default and B_two_groups exact-tie on completed callbacks - keep
+regime no_sync_no_overlap  (mean+-sd over seeds; deterministic schedule)
+  seed 0 (all 5 seeds identical):
+    A_single: timer_done=4.0000 req_done=0.0000 sub_done=20.0000 handler_progress=0.0000 starved_ticks=0.0000 deadlock=0.0000
+    A_mt_default: timer_done=4.0000 req_done=0.0000 sub_done=20.0000 handler_progress=0.0000 starved_ticks=0.0000 deadlock=0.0000
+    B_two_groups: timer_done=4.0000 req_done=0.0000 sub_done=20.0000 handler_progress=0.0000 starved_ticks=0.0000 deadlock=0.0000
+    C_shared_me: timer_done=4.0000 req_done=0.0000 sub_done=20.0000 handler_progress=0.0000 starved_ticks=0.0000 deadlock=0.0000
+  A_single timer_done 4.0000+-0.0000
+  A_single req_done 0.0000+-0.0000
+  A_single sub_done 20.0000+-0.0000
+  A_single handler_progress 0.0000+-0.0000
+  A_single starved_ticks 0.0000+-0.0000
+  A_single deadlock 0.0000+-0.0000
+  A_mt_default timer_done 4.0000+-0.0000
+  A_mt_default req_done 0.0000+-0.0000
+  A_mt_default sub_done 20.0000+-0.0000
+  A_mt_default handler_progress 0.0000+-0.0000
+  A_mt_default starved_ticks 0.0000+-0.0000
+  A_mt_default deadlock 0.0000+-0.0000
+  B_two_groups timer_done 4.0000+-0.0000
+  B_two_groups req_done 0.0000+-0.0000
+  B_two_groups sub_done 20.0000+-0.0000
+  B_two_groups handler_progress 0.0000+-0.0000
+  B_two_groups starved_ticks 0.0000+-0.0000
+  B_two_groups deadlock 0.0000+-0.0000
+  C_shared_me timer_done 4.0000+-0.0000
+  C_shared_me req_done 0.0000+-0.0000
+  C_shared_me sub_done 20.0000+-0.0000
+  C_shared_me handler_progress 0.0000+-0.0000
+  C_shared_me starved_ticks 0.0000+-0.0000
+  C_shared_me deadlock 0.0000+-0.0000
+  paired A_mt_default-A_single timer_done: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_single timer_done: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_mt_default timer_done: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B timer_done: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A_mt_default timer_done: 0.0000+-0.0000: tie: identical on every seed
+  paired A_mt_default-A_single req_done: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_single req_done: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_mt_default req_done: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B req_done: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A_mt_default req_done: 0.0000+-0.0000: tie: identical on every seed
+  paired A_mt_default-A_single sub_done: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_single sub_done: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_mt_default sub_done: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B sub_done: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A_mt_default sub_done: 0.0000+-0.0000: tie: identical on every seed
+  paired A_mt_default-A_single handler_progress: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_single handler_progress: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_mt_default handler_progress: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B handler_progress: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A_mt_default handler_progress: 0.0000+-0.0000: tie: identical on every seed
+  paired A_mt_default-A_single starved_ticks: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_single starved_ticks: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_mt_default starved_ticks: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B starved_ticks: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A_mt_default starved_ticks: 0.0000+-0.0000: tie: identical on every seed
+  paired A_mt_default-A_single deadlock: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_single deadlock: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_mt_default deadlock: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B deadlock: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A_mt_default deadlock: 0.0000+-0.0000: tie: identical on every seed
+declared expectation overlap_sync: long handler must overlap a subscription: B consistent better sub service / lower starved ticks than A - keep; C loses (deadlock / zero inner-handler progress) - keep
+regime overlap_sync  (mean+-sd over seeds; deterministic schedule)
+  seed 0 (all 5 seeds identical):
+    A_single: timer_done=0.0000 req_done=0.0000 sub_done=0.0000 handler_progress=0.0000 starved_ticks=39.0000 deadlock=1.0000
+    A_mt_default: timer_done=0.0000 req_done=0.0000 sub_done=0.0000 handler_progress=0.0000 starved_ticks=39.0000 deadlock=1.0000
+    B_two_groups: timer_done=4.0000 req_done=4.0000 sub_done=20.0000 handler_progress=32.0000 starved_ticks=0.0000 deadlock=0.0000
+    C_shared_me: timer_done=0.0000 req_done=0.0000 sub_done=0.0000 handler_progress=0.0000 starved_ticks=39.0000 deadlock=1.0000
+  A_single timer_done 0.0000+-0.0000
+  A_single req_done 0.0000+-0.0000
+  A_single sub_done 0.0000+-0.0000
+  A_single handler_progress 0.0000+-0.0000
+  A_single starved_ticks 39.0000+-0.0000
+  A_single deadlock 1.0000+-0.0000
+  A_mt_default timer_done 0.0000+-0.0000
+  A_mt_default req_done 0.0000+-0.0000
+  A_mt_default sub_done 0.0000+-0.0000
+  A_mt_default handler_progress 0.0000+-0.0000
+  A_mt_default starved_ticks 39.0000+-0.0000
+  A_mt_default deadlock 1.0000+-0.0000
+  B_two_groups timer_done 4.0000+-0.0000
+  B_two_groups req_done 4.0000+-0.0000
+  B_two_groups sub_done 20.0000+-0.0000
+  B_two_groups handler_progress 32.0000+-0.0000
+  B_two_groups starved_ticks 0.0000+-0.0000
+  B_two_groups deadlock 0.0000+-0.0000
+  C_shared_me timer_done 0.0000+-0.0000
+  C_shared_me req_done 0.0000+-0.0000
+  C_shared_me sub_done 0.0000+-0.0000
+  C_shared_me handler_progress 0.0000+-0.0000
+  C_shared_me starved_ticks 39.0000+-0.0000
+  C_shared_me deadlock 1.0000+-0.0000
+  paired A_mt_default-A_single timer_done: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_single timer_done: 4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A_mt_default timer_done: 4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B timer_done: -4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A_mt_default timer_done: 0.0000+-0.0000: tie: identical on every seed
+  paired A_mt_default-A_single req_done: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_single req_done: 4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A_mt_default req_done: 4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B req_done: -4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A_mt_default req_done: 0.0000+-0.0000: tie: identical on every seed
+  paired A_mt_default-A_single sub_done: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_single sub_done: 20.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A_mt_default sub_done: 20.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B sub_done: -20.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A_mt_default sub_done: 0.0000+-0.0000: tie: identical on every seed
+  paired A_mt_default-A_single handler_progress: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_single handler_progress: 32.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A_mt_default handler_progress: 32.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B handler_progress: -32.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A_mt_default handler_progress: 0.0000+-0.0000: tie: identical on every seed
+  paired A_mt_default-A_single starved_ticks: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_single starved_ticks: -39.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A_mt_default starved_ticks: -39.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B starved_ticks: 39.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A_mt_default starved_ticks: 0.0000+-0.0000: tie: identical on every seed
+  paired A_mt_default-A_single deadlock: 0.0000+-0.0000: tie: identical on every seed
+  paired B-A_single deadlock: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B-A_mt_default deadlock: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B deadlock: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A_mt_default deadlock: 0.0000+-0.0000: tie: identical on every seed
+named alternative B_reentrant (Multi-Threaded + one Reentrant group) - not adopted
+  alt no_sync_no_overlap:
+    timer_done=4.0000 req_done=0.0000 sub_done=20.0000 handler_progress=0.0000 starved_ticks=0.0000 deadlock=0.0000
+    paired alt-B_two_groups timer_done: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B_two_groups req_done: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B_two_groups sub_done: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B_two_groups handler_progress: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B_two_groups starved_ticks: 0.0000+-0.0000: tie: identical on every seed
+  alt overlap_sync:
+    timer_done=4.0000 req_done=4.0000 sub_done=20.0000 handler_progress=32.0000 starved_ticks=0.0000 deadlock=0.0000
+    paired alt-B_two_groups timer_done: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B_two_groups req_done: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B_two_groups sub_done: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B_two_groups handler_progress: 0.0000+-0.0000: tie: identical on every seed
+    paired alt-B_two_groups starved_ticks: 0.0000+-0.0000: tie: identical on every seed
+no integration step: integer ticks, no plant, no step-size criterion
+No winner declared
