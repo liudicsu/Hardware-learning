@@ -104,4 +104,9 @@ if python3 "$M1/ohms-law/ydelta_network_reduction_toy.py" > "$TMP/ydelta_network
 else
   echo "DIFF  ydelta_network_reduction_toy.txt"; fail=1
 fi
+if python3 "$M1/python-terminal/monotonic_vs_wallclock_timeout_toy.py" > "$TMP/monotonic_vs_wallclock_timeout_toy.txt" && diff -u "$M1/expected/monotonic_vs_wallclock_timeout_toy.txt" "$TMP/monotonic_vs_wallclock_timeout_toy.txt"; then
+  echo "same  monotonic_vs_wallclock_timeout_toy.txt"
+else
+  echo "DIFF  monotonic_vs_wallclock_timeout_toy.txt"; fail=1
+fi
 exit $fail

@@ -57,3 +57,5 @@ The legacy python-terminal examples are real program runs. / 原 python-terminal
 ## ohms-law/ — Y-Δ / Δ-Y network reduction / 两端子网络的 Y-Δ / Δ-Y 化简
 
 `ohms-law/ydelta_network_reduction_toy.py`: standard-library synthetic DC reduction of two-terminal resistor networks, comparing series-parallel only, official Y-Δ then series-parallel, and swapped-direction formulae; no hardware; expected output in `expected/ydelta_network_reduction_toy.txt`, included in `check.sh`. Real breadboard / DMM 本页未运行. / 标准库合成的两端子电阻网络直流化简，比较只做串并联、官方 Y-Δ 再串并联、以及方向接反的公式；不是硬件测量，输出由 `check.sh` 核对。
+
+`python-terminal/monotonic_vs_wallclock_timeout_toy.py`: standard-library synthetic timeout model on wrapped clocks, comparing a `time.time()` stand-in, a `time.monotonic()` stand-in, and a wrong use of a monotonic absolute as an epoch stamp; jumps are injected inside the toy; no live NTP or `clock_settime`; expected output in `expected/monotonic_vs_wallclock_timeout_toy.txt`, included in `check.sh`. Live NTP / clock_settime 本页未运行. / 标准库合成的超时模型，在包装时钟上比较 `time.time()` 替身、`time.monotonic()` 替身，以及把单调时钟绝对值误当成纪元戳的用法；跳动在玩具内部注入；不是现场 NTP 或 `clock_settime`，输出由 `check.sh` 核对。

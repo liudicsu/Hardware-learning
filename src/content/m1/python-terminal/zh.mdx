@@ -989,6 +989,406 @@ Real scope / ADC: 本页未运行; Wikipedia definitions 以原文为准
 4. 固定种子，把 `FC_RATIO` 设为 0.45。运行前先预测 B 是否仍能把 120–180 Hz 的干扰压到 0.05 阈值以下。
 5. 在动手用真实示波器或 ADC 之前（本页未运行），说明为什么 `near_edge` 中 B 算**安全**，并**不**意味着 B 把音调测准了。
 
+## 单调时钟与墙钟超时
+
+本页已有的测量日志用 `datetime.now(timezone.utc).isoformat(timespec="seconds")` 写入 UTC 墙钟时间戳。对日志行来说，这是正确的时钟：它记录的是民事历上的何时。对短暂的控制环超时来说，这是错误的时钟。官方 Python 3 库文档 `time`（以文档为准）把这两件事分开。`time.time()` 返回 “the time in seconds since the epoch as a floating-point number.” “While this function normally returns non-decreasing values, it can return a lower value than a previous call if the system clock has been set back between the two calls.” `time.monotonic()` 返回 “the value (in fractional seconds) of a monotonic clock, i.e. a clock that cannot go backwards. The clock is not affected by system clock updates. The reference point of the returned value is undefined, so that only the difference between the results of two calls is valid.” 本节讲授的就是这条官方的单调时钟对可调墙钟契约。它**不是**又一讲「程序可以读时间」，**不是**把上面的采样与混叠再讲一遍，也**不会**改写 `log.py` 里的 UTC 时间戳。
+
+`time.get_clock_info(name)` 记录的是同一条分界。它的 `adjustable` 属性是 “True if the clock can be set to jump forward or backward in time, False otherwise. Does not refer to gradual NTP rate adjustments.” 它的 `monotonic` 属性是 “True if the clock cannot go backward, False otherwise.” 本课不编造 NTP 调速数值，也不打印时钟分辨率。“The handling of leap seconds is platform dependent”；关于闰秒，本页只用这句官方表述。
+
+`monotonic()` 条目里的平台时钟只作为官方可用性说明，不是玩具输出：在 Windows 上是 `QueryPerformanceCounter` / `QueryPerformanceFrequency`；否则是 `clock_gettime(CLOCK_MONOTONIC)`（以及文档中的 macOS / HP-UX 替代）。`time.clock_settime` 目前只接受 `CLOCK_REALTIME`。本页不调用它，也不拨动机器时钟。现场 NTP / `clock_settime`：本页未运行。
+
+<Resource id="python-time" />
+
+现有的 `python-tutorial` 资源是官方教程，地址为 `https://docs.python.org/3/tutorial/`。它并不已经覆盖库文档的 `time` 页。本课阅读地图把该页加进来。
+
+**实际打开的来源（已读正文）**。
+
+- **Python 3 库文档 — time**（`https://docs.python.org/3/library/time.html`）：上面引用的官方契约。以文档为准。这不是 arXiv 记录，不编造 Comments 或 journal-ref 字段。
+
+### 打开的契约
+
+一个共享、预先声明的超时，是在起始时间戳之后 1.0000 s 的截止时刻。A 组用 `time.time()` 替身形成截止时刻，并在这只墙钟到达时到期。B 组用 `time.monotonic()` 替身形成同一截止时刻，并在这只单调时钟到达时到期。C 组错误地使用 `time.monotonic()`：它拿单调时钟的绝对值去比一个纪元墙钟戳，仿佛那个未定义的参考点就是纪元。两次单调时钟调用之差才是有效的，所以这一组预先声明为**输掉**，并予以保留。
+
+### 公平设置
+
+`monotonic_vs_wallclock_timeout_toy.py` 是**合成**的，只用标准库。**模型假设**是一对包装时钟；固定超时 `TIMEOUT_S = 1.0000` s；步长 `DT_S = 0.1250` s，落在精确的二元网格上；声明的原点 `WALL_ORIGIN_S = 1700000000.0000` s（假的纪元起点，不是现场的 `time.time()`）和 `MONO_ORIGIN_S = 1000.0000` s（未定义的单调参考点）；当混乱的时间戳永不到期时，上限为 `MAX_WAIT_S = 5.0000` s。若声明了跳动，只作用在墙钟替身上，发生在 `JUMP_AT_S = 0.2500` s：回拨 `BACKWARD_S = -2.0000` s，或前拨 `FORWARD_S = 2.0000` s。玩具不调用 `time.time`、`time.monotonic` 或 `clock_settime`，也不需要 root。
+
+| 组别 | 计算内容 |
+|---|---|
+| A_wall | 用可调墙钟替身形成截止时刻；该时钟到达起始值加 1.0000 s 时到期 |
+| B_mono | 用单调时钟替身形成同一截止时刻；它不能回拨，也不受墙钟跳动影响 |
+| C_stamp | 把单调时钟的绝对值与纪元戳 `WALL_ORIGIN_S + TIMEOUT_S` 比较 |
+
+**共用随机数**是 5 个种子。每种情形都是确定性的（固定的超时、步长、跳动和原点；5 个种子重复同一个触发时刻）。度量是该组超时触发时的真实时刻 `fire_s`，若始终不触发则记为上限，按种子报 mean+-sd。误差度量的真值是 B 组，它守住官方单调截止时刻。小与明显的分界因子打印为 `0.2000`（较小一组均值的 20 %）。**没有积分步长**（精确的 dt 网格和闭合形式的触发时刻）。对照**看不见**现场 NTP 步进，也看不见任何拨动机器时钟的调用。现场 NTP / `clock_settime`：本页未运行。不声称本玩具拨动过真实时钟。
+
+**情形在首次运行前写好:** 墙钟无跳动时，A 对 B 应为**打平**或官方**接近打平**（`|m| <= sd`），并且都应接受该截止时刻；声明的墙钟回拨时，墙钟超时应变晚或错过，单调时钟超时应仍然成立；声明的墙钟前拨时，墙钟超时应提前到期，单调时钟超时应仍然成立；声明的戳混淆情形上，C 应**输掉**。
+
+### 运行标准库玩具
+
+```bash
+cd ~/Hardware-learning/examples/month-1/python-terminal
+python3 monotonic_vs_wallclock_timeout_toy.py
+```
+
+<CodeSource path="examples/month-1/python-terminal/monotonic_vs_wallclock_timeout_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic timeout / control-loop deadline on a wrapped clock.
+
+Stdlib only. No call to the machine clock, and no call to clock_settime.
+Jumps are injected by a fake / wrapped clock inside this toy. Arms:
+
+  A_wall   deadline from a time.time() stand-in (adjustable wall clock).
+  B_mono   the same deadline from a time.monotonic() stand-in (cannot go
+           backwards; not affected by the wall-clock jumps).
+  C_stamp  a wrong use of the monotonic stand-in: its absolute value is
+           compared with an epoch wall stamp, as if the monotonic reference
+           point were the epoch. The reference point is undefined, so only
+           the difference between two calls is valid. Pre-declared lose, kept.
+
+Common random numbers: seeds 0-4. Every regime is deterministic (fixed
+timeout, step, jump, and origins; the five seeds repeat the same fire time).
+No integration step: the loop is an exact multiple of dt, and fire times
+also have a closed form printed as hand_calc.
+
+Regimes (declared before the first run):
+  no_jump           no wall jump              -> A vs B tie or official near-tie
+                                                (both accept the deadline)
+  backward_jump     wall set back             -> wall-clock timeout is late /
+                                                missed; monotonic holds
+  forward_jump      wall jumped forward       -> wall-clock timeout expires
+                                                early; monotonic holds
+  stamp_confusion   no wall jump; C compares
+                    an absolute monotonic
+                    reading with an epoch
+                    stamp                     -> C loses
+
+Python time docs 以文档为准. Live NTP / clock_settime: 本页未运行.
+"""
+from __future__ import annotations
+
+import math
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+CLEAR_FRAC = 0.2000  # small-vs-clear factor; printed before the first official run
+TIMEOUT_S = 1.0000
+DT_S = 0.1250
+JUMP_AT_S = 0.2500
+BACKWARD_S = -2.0000
+FORWARD_S = 2.0000
+FORWARD_ALT_S = 0.5000  # disclosed alternative, same jump instant, not adopted
+WALL_ORIGIN_S = 1700000000.0000  # declared fake epoch start, not a live time.time()
+MONO_ORIGIN_S = 1000.0000  # undefined monotonic reference point
+MAX_WAIT_S = 5.0000  # cap when a confused stamp never expires
+ARMS = ("A_wall", "B_mono", "C_stamp")
+REGIMES = ("no_jump", "backward_jump", "forward_jump", "stamp_confusion")
+
+
+class FakeClocks:
+    """Paired wall and monotonic stand-ins. Only the wall offset can jump."""
+
+    def __init__(self, wall0: float, mono0: float) -> None:
+        self.ticks = 0
+        self.wall0 = wall0
+        self.mono0 = mono0
+        self.wall_offset = 0.0
+
+    @property
+    def true_t(self) -> float:
+        return self.ticks * DT_S
+
+    def advance(self) -> None:
+        self.ticks += 1
+
+    def jump_wall(self, delta: float) -> None:
+        self.wall_offset += delta
+
+    def time(self) -> float:
+        return self.wall0 + self.true_t + self.wall_offset
+
+    def monotonic(self) -> float:
+        return self.mono0 + self.true_t
+
+
+def fire_time(arm: str, jump_delta: float = 0.0, jump_at: float = JUMP_AT_S) -> float:
+    clocks = FakeClocks(WALL_ORIGIN_S, MONO_ORIGIN_S)
+    if arm == "A_wall":
+        deadline = clocks.time() + TIMEOUT_S
+
+        def expired() -> bool:
+            return clocks.time() >= deadline
+    elif arm == "B_mono":
+        deadline = clocks.monotonic() + TIMEOUT_S
+
+        def expired() -> bool:
+            return clocks.monotonic() >= deadline
+    elif arm == "C_stamp":
+        # Wrong: treat the absolute monotonic reading as an epoch wall stamp.
+        deadline = WALL_ORIGIN_S + TIMEOUT_S
+
+        def expired() -> bool:
+            return clocks.monotonic() >= deadline
+    else:
+        raise ValueError(arm)
+
+    if expired():
+        return clocks.true_t
+    jumped = False
+    max_ticks = int(round(MAX_WAIT_S / DT_S))
+    jump_ticks = int(round(jump_at / DT_S))
+    while clocks.ticks < max_ticks:
+        clocks.advance()
+        if (not jumped) and jump_delta != 0.0 and clocks.ticks >= jump_ticks:
+            clocks.jump_wall(jump_delta)
+            jumped = True
+        if expired():
+            return clocks.true_t
+    return MAX_WAIT_S
+
+
+def closed_form_wall(jump_delta: float, jump_at: float = JUMP_AT_S) -> float:
+    """Hand_calc fire time for the wall-clock arm, same rule as the stepped loop."""
+    if jump_delta == 0.0:
+        return TIMEOUT_S
+    if jump_at >= TIMEOUT_S:
+        return TIMEOUT_S
+    if jump_at + jump_delta >= TIMEOUT_S:
+        return jump_at
+    fire = TIMEOUT_S - jump_delta
+    if fire > MAX_WAIT_S:
+        return MAX_WAIT_S
+    return fire
+
+
+def mean_sd(xs: list[float]) -> tuple[float, float]:
+    mu = sum(xs) / len(xs)
+    if len(xs) == 1:
+        return mu, 0.0
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x: float) -> str:
+    if x != 0.0 and abs(x) < 5e-5:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs: list[float], m: float) -> str:
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def verdict(xa: list[float], xb: list[float]) -> str:
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{num(m)}+-{num(s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < CLEAR_FRAC * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{num(m)}+-{num(s)}: {label}; {sign_note(diffs, m)}"
+
+
+def seed_values(fire: dict[str, float]) -> dict[str, list[float]]:
+    return {arm: [fire[arm]] * len(SEEDS) for arm in ARMS}
+
+
+def print_regime(name: str, tag: str, fire: dict[str, float]) -> None:
+    res = seed_values(fire)
+    print(f"{name} ({tag})")
+    for arm in ARMS:
+        m, s = mean_sd(res[arm])
+        print(f"  {arm} {num(m)}+-{num(s)} s")
+    err_a = [a - b for a, b in zip(res["A_wall"], res["B_mono"])]
+    err_c = [c - b for c, b in zip(res["C_stamp"], res["B_mono"])]
+    zeros = [0.0] * len(SEEDS)
+    print(f"  residual A-B {num(mean_sd(err_a)[0])}+-{num(mean_sd(err_a)[1])} s")
+    print(f"  residual C-B {num(mean_sd(err_c)[0])}+-{num(mean_sd(err_c)[1])} s")
+    print(f"  paired A-B fire_s: {verdict(res['A_wall'], res['B_mono'])}")
+    print(f"  paired C-B fire_s: {verdict(res['C_stamp'], res['B_mono'])}")
+    print(f"  paired residual A-B vs 0: {verdict(err_a, zeros)}")
+    print(f"  paired residual C-B vs 0: {verdict(err_c, zeros)}")
+
+
+def main() -> None:
+    fire_no = {arm: fire_time(arm, 0.0) for arm in ARMS}
+    fire_back = {arm: fire_time(arm, BACKWARD_S) for arm in ARMS}
+    fire_fwd = {arm: fire_time(arm, FORWARD_S) for arm in ARMS}
+    fire_stamp = {arm: fire_time(arm, 0.0) for arm in ARMS}
+    fire_alt = {arm: fire_time(arm, FORWARD_ALT_S) for arm in ARMS}
+
+    hc_no_a = closed_form_wall(0.0)
+    hc_back_a = closed_form_wall(BACKWARD_S)
+    hc_fwd_a = closed_form_wall(FORWARD_S)
+    hc_alt_a = closed_form_wall(FORWARD_ALT_S)
+    hc_b = TIMEOUT_S
+    hc_c = MAX_WAIT_S
+
+    print("Synthetic monotonic vs wall-clock timeout toy; wrapped clocks only; not a live NTP or clock_settime run")
+    print(
+        f"timeout={TIMEOUT_S:.4f}s dt={DT_S:.4f}s jump_at={JUMP_AT_S:.4f}s "
+        f"backward={BACKWARD_S:.4f}s forward={FORWARD_S:.4f}s max_wait={MAX_WAIT_S:.4f}s"
+    )
+    print(
+        f"wall_origin={WALL_ORIGIN_S:.4f}s mono_origin={MONO_ORIGIN_S:.4f}s "
+        f"seeds={len(SEEDS)} clear_frac={CLEAR_FRAC:.4f} "
+        f"hand_calc work_plan 30+25+50+40+35=180"
+    )
+    print("no integration step: exact dt grid and closed-form fire times")
+    print(
+        f"hand_calc no_jump A={hc_no_a:.10f}s B={hc_b:.10f}s C={hc_c:.10f}s "
+        f"step_A={fire_no['A_wall']:.10f}s residual_step-closed_A={fire_no['A_wall'] - hc_no_a:.3e}s"
+    )
+    print(
+        f"hand_calc backward A={hc_back_a:.10f}s B={hc_b:.10f}s C={hc_c:.10f}s "
+        f"step_A={fire_back['A_wall']:.10f}s residual_step-closed_A={fire_back['A_wall'] - hc_back_a:.3e}s"
+    )
+    print(
+        f"hand_calc forward A={hc_fwd_a:.10f}s B={hc_b:.10f}s C={hc_c:.10f}s "
+        f"step_A={fire_fwd['A_wall']:.10f}s residual_step-closed_A={fire_fwd['A_wall'] - hc_fwd_a:.3e}s"
+    )
+    print(
+        f"hand_calc stamp_confusion A={hc_no_a:.10f}s B={hc_b:.10f}s C={hc_c:.10f}s "
+        f"step_C={fire_stamp['C_stamp']:.10f}s residual_step-closed_C={fire_stamp['C_stamp'] - hc_c:.3e}s"
+    )
+    print(
+        f"hand_calc B holds at {hc_b:.10f}s under every declared wall jump; "
+        f"C never reaches the epoch stamp mono_end={MONO_ORIGIN_S + MAX_WAIT_S:.10f}s "
+        f"< deadline={WALL_ORIGIN_S + TIMEOUT_S:.10f}s"
+    )
+
+    print_regime("no_jump", "no wall jump, both official clocks accept the deadline", fire_no)
+    print_regime(
+        "backward_jump",
+        f"wall set back by {BACKWARD_S:.4f}s at {JUMP_AT_S:.4f}s",
+        fire_back,
+    )
+    print_regime(
+        "forward_jump",
+        f"wall jumped forward by {FORWARD_S:.4f}s at {JUMP_AT_S:.4f}s",
+        fire_fwd,
+    )
+    print_regime(
+        "stamp_confusion",
+        "no wall jump; C compares absolute monotonic with an epoch stamp",
+        fire_stamp,
+    )
+
+    print(
+        f"alternative forward_jump {FORWARD_ALT_S:.4f}s (same jump_at, not adopted) "
+        f"fire_A={fire_alt['A_wall']:.10f}s fire_B={fire_alt['B_mono']:.10f}s "
+        f"fire_C={fire_alt['C_stamp']:.10f}s closed_A={hc_alt_a:.10f}s "
+        f"residual_step-closed_A={fire_alt['A_wall'] - hc_alt_a:.3e}s"
+    )
+    print("  paired A-B fire_s: " + verdict([fire_alt["A_wall"]] * len(SEEDS), [fire_alt["B_mono"]] * len(SEEDS)))
+    print(
+        "No winner declared: with no jump the wall clock and the monotonic clock "
+        "tie on the deadline; a backward jump makes the wall timeout late, a "
+        "forward jump expires it early, and treating a monotonic absolute as an "
+        "epoch stamp loses"
+    )
+    print("Live NTP / clock_settime: 本页未运行; Python time library docs 以文档为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic monotonic vs wall-clock timeout toy; wrapped clocks only; not a live NTP or clock_settime run
+timeout=1.0000s dt=0.1250s jump_at=0.2500s backward=-2.0000s forward=2.0000s max_wait=5.0000s
+wall_origin=1700000000.0000s mono_origin=1000.0000s seeds=5 clear_frac=0.2000 hand_calc work_plan 30+25+50+40+35=180
+no integration step: exact dt grid and closed-form fire times
+hand_calc no_jump A=1.0000000000s B=1.0000000000s C=5.0000000000s step_A=1.0000000000s residual_step-closed_A=0.000e+00s
+hand_calc backward A=3.0000000000s B=1.0000000000s C=5.0000000000s step_A=3.0000000000s residual_step-closed_A=0.000e+00s
+hand_calc forward A=0.2500000000s B=1.0000000000s C=5.0000000000s step_A=0.2500000000s residual_step-closed_A=0.000e+00s
+hand_calc stamp_confusion A=1.0000000000s B=1.0000000000s C=5.0000000000s step_C=5.0000000000s residual_step-closed_C=0.000e+00s
+hand_calc B holds at 1.0000000000s under every declared wall jump; C never reaches the epoch stamp mono_end=1005.0000000000s < deadline=1700000001.0000000000s
+no_jump (no wall jump, both official clocks accept the deadline)
+  A_wall 1.0000+-0.0000 s
+  B_mono 1.0000+-0.0000 s
+  C_stamp 5.0000+-0.0000 s
+  residual A-B 0.0000+-0.0000 s
+  residual C-B 4.0000+-0.0000 s
+  paired A-B fire_s: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B fire_s: 4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired residual A-B vs 0: 0.0000+-0.0000: tie: identical on every seed
+  paired residual C-B vs 0: 4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+backward_jump (wall set back by -2.0000s at 0.2500s)
+  A_wall 3.0000+-0.0000 s
+  B_mono 1.0000+-0.0000 s
+  C_stamp 5.0000+-0.0000 s
+  residual A-B 2.0000+-0.0000 s
+  residual C-B 4.0000+-0.0000 s
+  paired A-B fire_s: 2.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B fire_s: 4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired residual A-B vs 0: 2.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired residual C-B vs 0: 4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+forward_jump (wall jumped forward by 2.0000s at 0.2500s)
+  A_wall 0.2500+-0.0000 s
+  B_mono 1.0000+-0.0000 s
+  C_stamp 5.0000+-0.0000 s
+  residual A-B -0.7500+-0.0000 s
+  residual C-B 4.0000+-0.0000 s
+  paired A-B fire_s: -0.7500+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B fire_s: 4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired residual A-B vs 0: -0.7500+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired residual C-B vs 0: 4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+stamp_confusion (no wall jump; C compares absolute monotonic with an epoch stamp)
+  A_wall 1.0000+-0.0000 s
+  B_mono 1.0000+-0.0000 s
+  C_stamp 5.0000+-0.0000 s
+  residual A-B 0.0000+-0.0000 s
+  residual C-B 4.0000+-0.0000 s
+  paired A-B fire_s: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B fire_s: 4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired residual A-B vs 0: 0.0000+-0.0000: tie: identical on every seed
+  paired residual C-B vs 0: 4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative forward_jump 0.5000s (same jump_at, not adopted) fire_A=0.5000000000s fire_B=1.0000000000s fire_C=5.0000000000s closed_A=0.5000000000s residual_step-closed_A=0.000e+00s
+  paired A-B fire_s: -0.5000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: with no jump the wall clock and the monotonic clock tie on the deadline; a backward jump makes the wall timeout late, a forward jump expires it early, and treating a monotonic absolute as an epoch stamp loses
+Live NTP / clock_settime: 本页未运行; Python time library docs 以文档为准
+```
+
+</SimOutput>
+
+### 读四种情形
+
+本页标签按以下顺序使用。**打平：每个种子都完全相同**只用于配对的逐种子差值在每个种子上都严格为零；`|配对均值|` 和它的标准差都小于 1e-9 时标为**数值上为零（浮点残差），等同打平**（这种行不打印同号计数）；`|配对均值| <= sd` 时为**接近打平、差距很小，在种子噪声之内**（`|m| <= sd`）；否则是**稳定**差距（`|配对均值| > sd`），`|m|` 小于两组中较小均值的 20 % 时叫**小**，否则叫**明显**；20 % 规则只用来在这两个词之间选择。每条稳定的行都带 5 个种子上的同号计数，符号相反的种子都会报告；只有同号计数不能让差距变成稳定。差距都由未四舍五入的数值计算。
+
+- **no_jump** 情形，A 和 B 都打印 `1.0000+-0.0000 s`，并且都接受 1.0000 s 的截止时刻。配对 A-B 的 `fire_s` 以及 A-B 对 0 的残差都是 `0.0000+-0.0000: tie: identical on every seed`。这是**打平**，不是「明显」差距，也不是数值上为零的浮点残差（打印的是 `residual_step-closed_A=0.000e+00s`）。闭合形式手算是 `A=1.0000000000s` 和 `B=1.0000000000s`。C 组把单调时钟的绝对值去比纪元戳，在这里已经是 `5.0000+-0.0000 s`；该混淆的预先声明输掉，在 `stamp_confusion` 上计分。
+- **backward_jump** 情形，墙钟在 `0.2500 s` 回拨 `-2.0000 s`，A 在 `3.0000+-0.0000 s` 触发，B 仍在 `1.0000+-0.0000 s` 触发。配对 A-B 的 `fire_s` 是 `2.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds`。墙钟超时晚了 / 错过了 2.0000 s（手算 `TIMEOUT_S - BACKWARD_S = 3.0000000000s`，`residual_step-closed_A=0.000e+00s`）。单调时钟超时**仍然成立**。该格予以保留。
+- **forward_jump** 情形，墙钟在 `0.2500 s` 前拨 `2.0000 s`，A 在 `0.2500+-0.0000 s` 触发，B 仍在 `1.0000+-0.0000 s` 触发。配对 A-B 的 `fire_s` 是 `-0.7500+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds`。墙钟超时提前到期：跳动瞬间，墙钟已经到了起始值加 2.2500 s，超过了 1.0000 s 的截止时刻（手算 `A=0.2500000000s`）。单调时钟超时**仍然成立**。该格予以保留。
+- **stamp_confusion** 情形，没有墙钟跳动。A 和 B 再次在 `1.0000+-0.0000 s` **打平**（每个种子都完全相同）。C 把单调时钟的绝对值与纪元戳 `1700000001.0000000000 s` 比较。单调原点是 `1000.0000 s`，所以到 5.0000 s 上限时读数只有 `1005.0000000000 s`，截止时刻永远达不到。C 在上限触发，为 `5.0000+-0.0000 s`。配对 C-B 的 `fire_s` 是 `4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds`。C **输掉**；该格予以保留。
+
+**已点名、同一跳动时刻、未采用的替代**。 更小的前拨 `0.5000 s` 仍会让墙钟超时提前到期：`fire_A=0.5000000000s`，配对 A-B 的 `fire_s` 为 `-0.5000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds`。它没有被用来重调已声明的 `FORWARD_S`。
+
+不宣布任何一组是普遍赢家：无跳动时墙钟与单调时钟在截止时刻上打平；回拨会让墙钟超时变晚，前拨会让它提前到期，把单调时钟的绝对值当成纪元戳则会输掉。现场 NTP / `clock_settime`：本页未运行。
+
+### 练习
+
+1. 根据官方措辞，为什么只有两次 `time.monotonic()` 调用之差才有效，以及为什么 `time.time()` 可以返回比上次更小的值？
+2. 在已声明的回拨上，手算 `TIMEOUT_S - BACKWARD_S`，并确认它与打印的 `3.0000000000 s` 一致。
+3. 为什么在 `0.2500 s` 前拨 `+2.0000 s` 会在 `0.2500 s` 触发，而打印的、未采用的替代 `+0.5000 s` 会在 `0.5000 s` 触发？
+4. 在 `mono_origin=1000.0000 s` 和纪元截止时刻 `1700000001.0000000000 s` 下，说明 C 不可能在 `5.0000 s` 上限之前到期。
+5. 在任何现场 NTP 或 `clock_settime` 试验之前（本页未运行），说明为什么 `log.py` 里的 UTC 时间戳是测量日志的正确时钟，却是这一短超时的错误时钟。
+
+**180 分钟安排:** 30 分钟读官方 Python time 库文档中 `time.monotonic()`、`time.time()` 和 `get_clock_info` 的条目；25 分钟写出超时契约和 `adjustable` / `monotonic` 属性；50 分钟运行玩具并读四种情形；40 分钟手算闭合触发时刻并核对打印的手算；35 分钟写明墙钟超时何时用错、UTC 日志戳何时用对（`30+25+50+40+35=180`）。
+
 <Summary>
 
 **本课要点**
@@ -999,6 +1399,7 @@ Real scope / ADC: 本页未运行; Wikipedia definitions 以原文为准
 - `log.py` 记录 R1 标称 4700 Ω、实测 4688 Ω，检查 5 % 误差，并把 4400 Ω 报为超差。
 - traceback 从下往上读：最后一行是错误类型和信息，中间的帧说明出错位置。
 - 采样：35–45 Hz 的音调以 50 Hz 采样，频率偏 29.8500±0.3791 Hz（对 200 Hz 明显，5 个种子同号）；没有前置滤波器时 120–180 Hz 的音调折叠成假峰（C−B 0.9750±0.0559，明显）；同一个前置滤波器让靠近转折频率的 70–90 Hz 音调损失 84.6084±1.3317 % 的幅值——`fs > 2B` 是必要条件，但不够；合成模型，不是 ADC 实测。
+- 短控制超时在墙钟无跳动时，用包装的 `time.time()` 替身与 `time.monotonic()` 替身**打平**（都在 `1.0000+-0.0000 s` 触发）；墙钟回拨 `2.0000 s` 会让墙钟超时变晚（配对 A-B `2.0000+-0.0000 s`，明显，5 个种子同号），前拨 `2.0000 s` 会让它提前到期（配对 A-B `-0.7500+-0.0000 s`，明显），把单调时钟的绝对值当成纪元墙钟戳则**输掉**（C 打到 `5.0000 s` 上限；配对 C-B `4.0000+-0.0000 s`，明显）——跳动只在玩具内部注入，不是现场 NTP 或 `clock_settime` 运行。
 
 **下一课会用到**
 
