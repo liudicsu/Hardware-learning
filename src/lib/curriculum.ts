@@ -1333,10 +1333,10 @@ const month8Lessons: Lesson[] = [
     slug: "robot-devops",
     title: { zh: "机器人工程化：容器、CI、日志与实验追踪", en: "Robot DevOps: containers, CI, logs and experiment tracking" },
     summary: {
-      zh: "Dev Container 固定 ROS 2 环境；action-ros-ci 做 colcon 构建测试；rosbag2 在 Jazzy 默认 mcap；Foxglove/Rerun 回放；wandb 追踪训练。CPU：bag_stats.py 统计合成时间线；bag_qos_accept_toy.py 做验收（缺 topic / 缺口 / 消息预算）；并练习 offered→requested / 持久性晚加入推导与 QoS 覆盖键核对。",
-      en: "Pin ROS 2 with a Dev Container; build/test with action-ros-ci; rosbag2 defaults to mcap on Jazzy; replay in Foxglove/Rerun; track training with wandb. CPU: bag_stats.py on a synthetic timeline; bag_qos_accept_toy.py for acceptance (missing topic / gaps / message budget); practice offered→requested / durability late-joiner derivation and QoS override key checks.",
+      zh: "Dev Container 固定 ROS 2 环境；action-ros-ci 做 colcon 构建测试；rosbag2 在 Jazzy 默认 mcap；Foxglove/Rerun 回放；wandb 追踪训练。CPU：bag_stats.py 统计合成时间线；bag_qos_accept_toy.py 做验收（缺 topic / 缺口 / 消息预算）；并练习 offered→requested / 持久性晚加入推导与 QoS 覆盖键核对；rosbag2_sim_time_clock_toy.py 核对照官方仿真时间时钟契约（`--use-sim-time` / `--clock` / `/clock`）。",
+      en: "Pin ROS 2 with a Dev Container; build/test with action-ros-ci; rosbag2 defaults to mcap on Jazzy; replay in Foxglove/Rerun; track training with wandb. CPU: bag_stats.py on a synthetic timeline; bag_qos_accept_toy.py for acceptance (missing topic / gaps / message budget); practice offered→requested / durability late-joiner derivation and QoS override key checks; rosbag2_sim_time_clock_toy.py walks the official simulation-time clock contract (`--use-sim-time` / `--clock` / `/clock`).",
     },
-    minutes: 360,
+    minutes: 540,
     objectives: [
       { zh: "能说出 Dev Container 需要 .devcontainer/devcontainer.json 与 Dockerfile。", en: "State that a Dev Container needs .devcontainer/devcontainer.json and a Dockerfile." },
       { zh: "能说明 action-ros-ci 会跑 colcon build 与 colcon test（可跳过测试）。", en: "State that action-ros-ci runs colcon build and colcon test (tests optional to skip)." },
@@ -1344,6 +1344,7 @@ const month8Lessons: Lesson[] = [
       { zh: "能说明 bag 验收≠文件夹存在：缺必需 topic（n==0）、缺口超限或低于消息预算即拒收。", en: "State that bag acceptance ≠ folder exists: reject on missing required topic (n==0), gap over limit, or below message budget." },
       { zh: "能说明 Request vs Offered、默认 adapt_request_to_offers（混合发布方回退 best_effort / volatile，仍建连）vs 手动 override（过严才无连接），并用 About QoS 持久性兼容表解释晚加入 / latch；YAML 键以 Jazzy README 为准，完整匹配表在 About QoS。", en: "Explain Request vs Offered, default adapt_request_to_offers (mixed publishers fall back to best_effort / volatile, still connected) vs manual overrides (only a too-strict one fails to connect), and late-join/latch via the About QoS durability table; YAML keys from the Jazzy README, full matching table from About QoS." },
       { zh: "能区分本课 CI 跑在学员自仓，与本站仓库无关。", en: "Distinguish student-repo CI from this site's repository." },
+      { zh: "能说明官方仿真时间是在 `/clock` 上发布时钟值，`--use-sim-time` 在首条 `/clock` 到达前不写入，先写时间 0 再写 N 会使包 essentially unplayable，以及 play `--clock` 的官方 0 / 40 契约。", en: "State that official simulation time publishes a clock value on `/clock`, that `--use-sim-time` writes nothing until the first `/clock`, that writing time 0 then N makes the bag essentially unplayable, and the official play `--clock` 0 / 40 contract." },
     ],
     prereqs: ["git-github", "ros2-graph", "ros2-hardware-interface"],
     resources: ["ros2-docker-vscode", "action-ros-ci", "rosbag2", "ros2-qos", "foxglove", "rerun", "wandb"],
@@ -1354,6 +1355,7 @@ const month8Lessons: Lesson[] = [
       { id: "devcontainer", text: { zh: "在自己的练习仓按官方指南加 .devcontainer（本站 CI 不跑它）", en: "Add .devcontainer to your practice repo per the official guide (not run in this site's CI)" } },
       { id: "ci", text: { zh: "草拟一份 action-ros-ci 工作流（包名换成你的）", en: "Draft an action-ros-ci workflow (your package name)" } },
       { id: "wandb", text: { zh: "读 SmolVLA/GR00T 文档里 wandb 相关开关，写一句用途", en: "Read the wandb flags in SmolVLA/GR00T docs; note one use" } },
+      { id: "sim-time-clock", text: { zh: "运行 rosbag2_sim_time_clock_toy.py，核对官方臂等待首条 `/clock`、0-then-N 失败臂被披露并保留，以及 play `--clock` 默认 0 / 裸选项 40", en: "Run rosbag2_sim_time_clock_toy.py; confirm the official arm waits for the first `/clock`, the 0-then-N lose is disclosed and kept, and play `--clock` default 0 / bare 40" } },
     ],
   },
   {

@@ -494,8 +494,468 @@ One clean fixture **ACCEPT**s; four others **REJECT** (missing topic with `n=0`,
 - **Assuming one mismatched publisher zeros the whole topic.** RxO is pairwise; a reliable+best_effort mix with override=`reliable` still records the reliable publisher.
 - **Treating wandb as optional forever.** When you fine-tune (lesson 8.2), a run without hyperparams logged is hard to defend in the capstone README.
 
+## Official rosbag2 simulation-time clock contract
+
+The earlier sections stay as they are: Dev Container and action-ros-ci, the Jazzy rosbag2 default `storage_id` of `"mcap"`, `bag_stats.py` on a synthetic mcap timeline, and `bag_qos_accept_toy.py` for acceptance (missing topic / gaps / message budget) plus the already-taught Request vs Offered / YAML-key wording. This section is only the official **simulation-time** clock contract (`--use-sim-time` / `--clock` / `/clock`). It is not a second mcap, bag-stats, or bag-QoS lecture.
+
+Bodies cited here were re-read at rosbag2 commit `12b5e8ba4eb5665501a16f0d9e050552a1149f56` (Jazzy tip, 以原文为准): the package [README](https://raw.githubusercontent.com/ros2/rosbag2/12b5e8ba4eb5665501a16f0d9e050552a1149f56/README.md), [`record.py`](https://raw.githubusercontent.com/ros2/rosbag2/12b5e8ba4eb5665501a16f0d9e050552a1149f56/ros2bag/ros2bag/verb/record.py), and [`play.py`](https://raw.githubusercontent.com/ros2/rosbag2/12b5e8ba4eb5665501a16f0d9e050552a1149f56/ros2bag/ros2bag/verb/play.py). Live `ros2 bag`, a real simulator, Foxglove / Rerun, or a hardware clock: 本页未运行.
+
+### What official simulation time is
+
+README, "Simulation time", 以原文为准: In ROS 2, "simulation time" refers to publishing a clock value on the `/clock` topic, instead of using the system clock to tell time. Passing `--use-sim-time` to `ros2 bag record` turns this on for the recording node. Messages written to the bag use the latest received `/clock` value for the recorded timestamp.
+
+`record.py` help (`store_true`, `default=False`), 以原文为准: "Use simulation time for message timestamps by subscribing to the /clock topic. Until first /clock message is received, no messages will be written to bag." The README restates the same wait: "Until the first `/clock` message is received, the recorder will not write any messages." Before that message, "the time is 0, which leads to a significant time jump once simulation time begins, making the bag essentially unplayable if messages are written first with time 0 and then time N from `/clock`."
+
+`--use-sim-time` and `--no-discovery` are incompatible. `validate_parsed_arguments` returns this error, 以原文为准: "--use-sim-time and --no-discovery both set, but are incompatible settings. The /clock topic needs to be discovered to record with sim time." The rejection is unconditional when both flags are set; this page does not invent an exception if `/clock` is already present at startup.
+
+### Play `--clock`
+
+`play.py` puts `--clock` in a mutually exclusive group with `--clock-topics` and `--clock-topics-all`. Official argparse, 以原文为准: `type=positive_float`, `metavar='Hz'`, `nargs='?'`, `const=40`, `default=0`. Help, quoted as concatenated in the source, including the missing space after "publishing.": "Publish to /clock at a specific frequency in Hz, to act as a ROS Time Source. Value must be positive. Defaults to not publishing.If specified, /clock topic in the bag file is excluded to publish."
+
+This page uses only those official frequencies: default `0` does not publish; bare `--clock` uses official `const=40`. No other hertz is invented. When `clock_publish_frequency > 0`, play wiring appends `/clock` to the exclude list. README, "Publishing simulation time", 以原文为准: "When fixed-frequency `/clock` publication is enabled with `--clock` or the `play.clock_publish_frequency` node parameter, `/clock` is published only while a playback session is active. If the Player node remains alive after playback finishes or is stopped, clock publication stops. Starting another playback session restarts it. Pausing playback does not end the session; fixed-frequency updates continue with the paused time."
+
+### Fair setup
+
+`rosbag2_sim_time_clock_toy.py` is **synthetic** and stdlib only. **Model assumptions:** five seeds `(0, 1, 2, 3, 4)` share one arrival schedule per seed (common random numbers): a 12-message data grid at `DATA_PERIOD_MS = 50` plus 1-3 extra early messages drawn before `CLOCK_FIRST_MS = 150`, and a `/clock` stream that starts late at that wall time with sim-time `SIM_T0_MS = 1000`, then steps by `CLOCK_PERIOD_MS = 50` (`N_CLOCK = 10`). Every seed therefore has at least one data message before the first `/clock`. The small-vs-clear factor is printed as `0.2000` (20 % of the smaller-arm mean). House label order is exact identity (identical on every seed); numerically zero; near-tie (`|m| <= sd`); then small vs clear using 20 % of the smaller-arm mean plus a sign count. Work plan `30+25+50+40+35=180`. Live ros2 bag / real simulator / Foxglove / Rerun / hardware clock: 本页未运行.
+
+| Arm | What it computes |
+| --- | --- |
+| A_official | official `--use-sim-time` record: write nothing until the first `/clock`, then stamp each written message with the latest `/clock`. `zero_then_n_jump` is false on this arm. |
+| C_write_0_then_N | write early messages with timestamp 0 until `/clock` arrives, then stamp later messages with time N from `/clock`. Pre-declared as remaining playable / not introducing the official 0-then-N jump. Pre-declared **lose**, kept. One fail mode, declared before the first run. |
+
+The `--use-sim-time` + `--no-discovery` rejection is printed with the official reason; it is not a second lose-regime of a quantitative comparison. Play `--clock` uses official `default=0` and `const=40` only: 手算 `1000/40=25` ms period, 手算 `250/25=10` publishes in a `SESSION_ACTIVE_MS = 250` session; default 0 does not publish; bag `/clock` is excluded only when the frequency is > 0; pause does not end the session (updates continue with the paused time); after stop, further publication is 0 even if the player "node" stays alive; starting another session restarts it.
+
+**Regimes, written before the first run:** official record vs the pre-declared 0-then-N lose on the shared late-`/clock` schedule; the named alternative `clock_first_ms=250` (same seed family, CRN: same data arrivals, later `/clock`) is printed and not adopted.
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-8/robot-devops
+python3 rosbag2_sim_time_clock_toy.py
+```
+
+<CodeSource path="examples/month-8/robot-devops/rosbag2_sim_time_clock_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Official rosbag2 simulation-time clock contract, stdlib only.
+
+Synthetic arrival schedules, not a live ros2 bag, not a real simulator,
+and not a second mcap / bag-stats / bag-QoS lecture.  Live ros2 bag /
+real simulator / Foxglove / Rerun / hardware clock: 本页未运行.
+rosbag2 statements 以原文为准.
+
+In ROS 2, "simulation time" refers to publishing a clock value on the
+/clock topic, instead of using the system clock to tell time.
+
+Common random numbers: one shared synthetic arrival schedule per seed
+(data messages plus a /clock stream that starts late, so every seed has
+at least one data message before the first /clock).  Arms, shared
+arrivals (per seed):
+  A_official        : --use-sim-time record: do not write until the
+                      first /clock; thereafter stamp each written
+                      message with the latest /clock.  zero_then_n_jump
+                      is false on this arm.
+  C_write_0_then_N  : write early messages with timestamp 0 until
+                      /clock arrives, then stamp later messages with
+                      time N from /clock.  Pre-declared as remaining
+                      playable / not introducing the official 0-then-N
+                      jump.  Pre-declared lose, kept.  One fail mode,
+                      declared before the first run.
+The arms differ only in how record timestamps are formed.
+
+Play --clock facts in this file use official argparse const=40 and
+default=0 only.  They are not a second pre-declared lose claim.
+"""
+
+from __future__ import annotations
+
+import random
+
+# Declared before the first official run.
+SEEDS = (0, 1, 2, 3, 4)
+N_DATA = 12  # grid data messages, plus per-seed early extras
+DATA_PERIOD_MS = 50  # grid spacing, ms
+CLOCK_FIRST_MS = 150  # first /clock wall arrival; starts late
+CLOCK_FIRST_ALT_MS = 250  # named alternative late start, not adopted
+CLOCK_PERIOD_MS = 50  # /clock stream period after the first, ms
+N_CLOCK = 10  # /clock messages in the stream
+SIM_T0_MS = 1000  # first /clock sim-time value N, ms (N > 0)
+CLEAR_FRAC = 0.2000  # small-vs-clear factor; printed before the first official run
+NUM_ZERO = 1e-9
+CLOCK_HZ_DEFAULT = 0  # official argparse default
+CLOCK_HZ_BARE = 40  # official argparse const for bare --clock
+PLAY_PERIOD_MS = 25  # 手算 1000/40 = 25
+SESSION_ACTIVE_MS = 250  # 手算 250/25 = 10 publishes at 40 Hz
+IDLE_AFTER_STOP_MS = 200
+RUN_BEFORE_PAUSE_MS = 100
+PAUSE_MS = 100
+RESTART_SESSION_MS = 100
+
+ARMS = ("A_official", "C_write_0_then_N")
+
+
+def shared_schedule(seed: int, clock_first_ms: int) -> tuple[list[int], list[tuple[int, int]]]:
+    """One shared arrival schedule for this seed (CRN).
+
+    Data grid plus extra early messages drawn before CLOCK_FIRST_MS, so
+    every seed has at least one data message before the first /clock.
+    The /clock stream starts at clock_first_ms (late) with sim time
+    SIM_T0_MS, then steps by CLOCK_PERIOD_MS.
+    """
+    rng = random.Random(seed)
+    data = [k * DATA_PERIOD_MS for k in range(N_DATA)]
+    n_extra = 1 + rng.randrange(0, 3)  # 1, 2, or 3 extras, all early
+    extras = [rng.randrange(0, CLOCK_FIRST_MS) for _ in range(n_extra)]
+    data.extend(extras)
+    data.sort()
+    clocks = [
+        (clock_first_ms + i * CLOCK_PERIOD_MS, SIM_T0_MS + i * CLOCK_PERIOD_MS)
+        for i in range(N_CLOCK)
+    ]
+    return data, clocks
+
+
+def record_arm(data: list[int], clocks: list[tuple[int, int]], official: bool) -> dict[str, float]:
+    """Stamp data messages under the official or the 0-then-N record rule."""
+    events: list[tuple[int, str, int]] = []
+    for t in data:
+        events.append((t, "data", 0))
+    for t, sim in clocks:
+        events.append((t, "clock", sim))
+    # At equal wall time, apply /clock before data so a message arriving
+    # with the first /clock is stamped with that clock, not dropped.
+    events.sort(key=lambda e: (e[0], 0 if e[1] == "clock" else 1))
+
+    latest: int | None = None
+    written_stamps: list[int] = []
+    dropped = 0
+    for _wall, kind, sim in events:
+        if kind == "clock":
+            latest = sim
+            continue
+        if official:
+            if latest is None:
+                dropped += 1
+                continue
+            written_stamps.append(latest)
+        else:
+            if latest is None:
+                written_stamps.append(0)
+            else:
+                written_stamps.append(latest)
+
+    jump = 0
+    zero_then_n = 0
+    if written_stamps:
+        has_zero = any(s == 0 for s in written_stamps)
+        later_n = [s for s in written_stamps if s > 0]
+        if has_zero and later_n:
+            zero_then_n = 1
+            jump = later_n[0] - 0
+    return {
+        "written": float(len(written_stamps)),
+        "dropped": float(dropped),
+        "first_stamp_ms": float(written_stamps[0]) if written_stamps else 0.0,
+        "last_stamp_ms": float(written_stamps[-1]) if written_stamps else 0.0,
+        "jump_from_zero_ms": float(jump),
+        "zero_then_n_jump": float(zero_then_n),
+        "playable": 0.0 if zero_then_n else 1.0,
+    }
+
+
+def mean_sd(xs: list[float]) -> tuple[float, float]:
+    mu = sum(xs) / len(xs)
+    if len(xs) == 1:
+        return mu, 0.0
+    return mu, (sum((x - mu) ** 2 for x in xs) / (len(xs) - 1)) ** 0.5
+
+
+def num(x: float) -> str:
+    if x != 0.0 and abs(x) < 5e-5:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs: list[float], m: float) -> str:
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m: float, s: float) -> str:
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa: list[float], xb: list[float]) -> str:
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < CLEAR_FRAC * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def collect(clock_first_ms: int) -> dict[str, dict[str, list[float]]]:
+    keys = (
+        "written",
+        "dropped",
+        "first_stamp_ms",
+        "last_stamp_ms",
+        "jump_from_zero_ms",
+        "zero_then_n_jump",
+        "playable",
+    )
+    out = {arm: {k: [] for k in keys} for arm in ARMS}
+    for seed in SEEDS:
+        data, clocks = shared_schedule(seed, clock_first_ms)
+        for arm, official in (("A_official", True), ("C_write_0_then_N", False)):
+            vals = record_arm(data, clocks, official)
+            for k in keys:
+                out[arm][k].append(vals[k])
+    return out
+
+
+def print_arm(tag: str, res: dict[str, list[float]]) -> None:
+    print(
+        f"  {tag} written {fmt_pair(*mean_sd(res['written']))}  "
+        f"dropped {fmt_pair(*mean_sd(res['dropped']))}  "
+        f"first_stamp_ms {fmt_pair(*mean_sd(res['first_stamp_ms']))}  "
+        f"last_stamp_ms {fmt_pair(*mean_sd(res['last_stamp_ms']))}"
+    )
+    print(
+        f"    jump_from_zero_ms {fmt_pair(*mean_sd(res['jump_from_zero_ms']))}  "
+        f"zero_then_n_jump {fmt_pair(*mean_sd(res['zero_then_n_jump']))}  "
+        f"playable {fmt_pair(*mean_sd(res['playable']))}"
+    )
+
+
+def play_clock_publishes(frequency_hz: float, active_ms: int, period_ms: int) -> int:
+    """Fixed-frequency /clock count while a session is active (t < active_ms)."""
+    if frequency_hz <= 0:
+        return 0
+    n = 0
+    t = 0
+    while t < active_ms:
+        n += 1
+        t += period_ms
+    return n
+
+
+def play_pause_demo() -> tuple[int, int, int, bool, int]:
+    """Running then paused ticks; pause keeps publishing the paused time."""
+    period = PLAY_PERIOD_MS
+    play_head = 0
+    running_times: list[int] = []
+    pause_times: list[int] = []
+    t = 0
+    while t < RUN_BEFORE_PAUSE_MS:
+        running_times.append(play_head)
+        play_head += period
+        t += period
+    paused_time = play_head
+    t = 0
+    while t < PAUSE_MS:
+        pause_times.append(paused_time)
+        t += period
+    all_paused = bool(pause_times) and all(x == paused_time for x in pause_times)
+    further_after_stop = 0  # node may stay alive; session has ended
+    return len(running_times), len(pause_times), paused_time, all_paused, further_after_stop
+
+
+def main() -> None:
+    print("Synthetic rosbag2 simulation-time clock toy; shared arrivals; not a live ros2 bag")
+    print(
+        f"seeds={len(SEEDS)} n_data={N_DATA} data_period_ms={DATA_PERIOD_MS} "
+        f"clock_first_ms={CLOCK_FIRST_MS} clock_period_ms={CLOCK_PERIOD_MS} "
+        f"n_clock={N_CLOCK} sim_t0_ms={SIM_T0_MS} clear_frac={CLEAR_FRAC:.4f}"
+    )
+    print(
+        f"hand_calc 1000/{CLOCK_HZ_BARE}={PLAY_PERIOD_MS}  "
+        f"hand_calc {SESSION_ACTIVE_MS}/{PLAY_PERIOD_MS}={SESSION_ACTIVE_MS // PLAY_PERIOD_MS}  "
+        f"work_plan 30+25+50+40+35=180"
+    )
+    print(
+        "Arm C lose mode, declared before the first run: write early messages with timestamp 0 "
+        "until /clock arrives, then stamp later messages with time N from /clock; "
+        "pre-declared as remaining playable / not introducing the official 0-then-N jump"
+    )
+    print("Regimes were written before the first run")
+
+    res = collect(CLOCK_FIRST_MS)
+    print(
+        f"record official vs lose (clock_first_ms={CLOCK_FIRST_MS}; "
+        "shared arrivals, /clock starts late)"
+    )
+    print_arm("A_official", res["A_official"])
+    print_arm("C_write_0_then_N", res["C_write_0_then_N"])
+    print(
+        "  paired C-A zero_then_n_jump: "
+        f"{verdict(res['C_write_0_then_N']['zero_then_n_jump'], res['A_official']['zero_then_n_jump'])}"
+    )
+    print(
+        "  paired C-A jump_from_zero_ms: "
+        f"{verdict(res['C_write_0_then_N']['jump_from_zero_ms'], res['A_official']['jump_from_zero_ms'])}"
+    )
+    print(
+        "  paired C-A playable: "
+        f"{verdict(res['C_write_0_then_N']['playable'], res['A_official']['playable'])}"
+    )
+    print(
+        "  paired A-C dropped: "
+        f"{verdict(res['A_official']['dropped'], res['C_write_0_then_N']['dropped'])}"
+    )
+    print(
+        "  paired A-C written: "
+        f"{verdict(res['A_official']['written'], res['C_write_0_then_N']['written'])}"
+    )
+
+    res_alt = collect(CLOCK_FIRST_ALT_MS)
+    print(
+        f"alternative clock_first_ms={CLOCK_FIRST_ALT_MS} "
+        f"(same seed family, CRN: same data arrivals, later /clock, not adopted)"
+    )
+    print_arm("A_official", res_alt["A_official"])
+    print_arm("C_write_0_then_N", res_alt["C_write_0_then_N"])
+    print(
+        "  paired C-A zero_then_n_jump: "
+        f"{verdict(res_alt['C_write_0_then_N']['zero_then_n_jump'], res_alt['A_official']['zero_then_n_jump'])}"
+    )
+    print(
+        f"  paired A(alt)-A(clock_first_ms={CLOCK_FIRST_MS}) dropped: "
+        f"{verdict(res_alt['A_official']['dropped'], res['A_official']['dropped'])}"
+    )
+    print(
+        "  paired C-A jump_from_zero_ms: "
+        f"{verdict(res_alt['C_write_0_then_N']['jump_from_zero_ms'], res_alt['A_official']['jump_from_zero_ms'])}"
+    )
+
+    print(
+        "cli --use-sim-time --no-discovery: rejected  "
+        "The /clock topic needs to be discovered to record with sim time."
+    )
+    print(
+        "--use-sim-time and --no-discovery both set, but are incompatible settings. "
+        "The /clock topic needs to be discovered to record with sim time."
+    )
+
+    n_default = play_clock_publishes(CLOCK_HZ_DEFAULT, SESSION_ACTIVE_MS, PLAY_PERIOD_MS)
+    n_bare = play_clock_publishes(CLOCK_HZ_BARE, SESSION_ACTIVE_MS, PLAY_PERIOD_MS)
+    print(
+        f"play --clock default={CLOCK_HZ_DEFAULT}: publish_count={n_default} "
+        "bag_clock_excluded=no"
+    )
+    print(
+        f"play --clock bare const={CLOCK_HZ_BARE}: "
+        f"session_active_ms={SESSION_ACTIVE_MS} period_ms={PLAY_PERIOD_MS} "
+        f"hand_calc {SESSION_ACTIVE_MS}/{PLAY_PERIOD_MS}={SESSION_ACTIVE_MS // PLAY_PERIOD_MS} "
+        f"publish_count={n_bare} bag_clock_excluded=yes"
+    )
+    print(
+        f"play --clock {CLOCK_HZ_BARE} after session stop, node still alive "
+        f"idle_ms={IDLE_AFTER_STOP_MS}: further_publish_count=0"
+    )
+    run_n, pause_n, paused_time, all_paused, further = play_pause_demo()
+    print(
+        f"play --clock {CLOCK_HZ_BARE} pause does not end the session: "
+        f"run_ticks={run_n} pause_ticks={pause_n} pause_time_ms={paused_time} "
+        f"pause_publish_count={pause_n} pause_times_all_paused="
+        f"{'yes' if all_paused else 'no'} then stop further_publish_count={further}"
+    )
+    n_restart = play_clock_publishes(CLOCK_HZ_BARE, RESTART_SESSION_MS, PLAY_PERIOD_MS)
+    print(
+        f"play --clock {CLOCK_HZ_BARE} starting another session restarts publication: "
+        f"restart_session_ms={RESTART_SESSION_MS} restart_publish_count={n_restart}"
+    )
+
+    print(
+        "No winner declared: official --use-sim-time waits for the first /clock "
+        "and does not write a 0-then-N jump; writing at time 0 then N loses "
+        "because that jump is officially essentially unplayable"
+    )
+    print(
+        "Live ros2 bag / real simulator / Foxglove / Rerun / hardware clock: 本页未运行; "
+        "rosbag2 statements 以原文为准"
+    )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic rosbag2 simulation-time clock toy; shared arrivals; not a live ros2 bag
+seeds=5 n_data=12 data_period_ms=50 clock_first_ms=150 clock_period_ms=50 n_clock=10 sim_t0_ms=1000 clear_frac=0.2000
+hand_calc 1000/40=25  hand_calc 250/25=10  work_plan 30+25+50+40+35=180
+Arm C lose mode, declared before the first run: write early messages with timestamp 0 until /clock arrives, then stamp later messages with time N from /clock; pre-declared as remaining playable / not introducing the official 0-then-N jump
+Regimes were written before the first run
+record official vs lose (clock_first_ms=150; shared arrivals, /clock starts late)
+  A_official written 9.0000+-0.0000  dropped 4.2000+-0.4472  first_stamp_ms 1000.0000+-0.0000  last_stamp_ms 1400.0000+-0.0000
+    jump_from_zero_ms 0.0000+-0.0000  zero_then_n_jump 0.0000+-0.0000  playable 1.0000+-0.0000
+  C_write_0_then_N written 13.2000+-0.4472  dropped 0.0000+-0.0000  first_stamp_ms 0.0000+-0.0000  last_stamp_ms 1400.0000+-0.0000
+    jump_from_zero_ms 1000.0000+-0.0000  zero_then_n_jump 1.0000+-0.0000  playable 0.0000+-0.0000
+  paired C-A zero_then_n_jump: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A jump_from_zero_ms: 1000.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A playable: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-C dropped: 4.2000+-0.4472: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-C written: -4.2000+-0.4472: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative clock_first_ms=250 (same seed family, CRN: same data arrivals, later /clock, not adopted)
+  A_official written 7.0000+-0.0000  dropped 6.2000+-0.4472  first_stamp_ms 1000.0000+-0.0000  last_stamp_ms 1300.0000+-0.0000
+    jump_from_zero_ms 0.0000+-0.0000  zero_then_n_jump 0.0000+-0.0000  playable 1.0000+-0.0000
+  C_write_0_then_N written 13.2000+-0.4472  dropped 0.0000+-0.0000  first_stamp_ms 0.0000+-0.0000  last_stamp_ms 1300.0000+-0.0000
+    jump_from_zero_ms 1000.0000+-0.0000  zero_then_n_jump 1.0000+-0.0000  playable 0.0000+-0.0000
+  paired C-A zero_then_n_jump: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A(alt)-A(clock_first_ms=150) dropped: 2.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A jump_from_zero_ms: 1000.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+cli --use-sim-time --no-discovery: rejected  The /clock topic needs to be discovered to record with sim time.
+--use-sim-time and --no-discovery both set, but are incompatible settings. The /clock topic needs to be discovered to record with sim time.
+play --clock default=0: publish_count=0 bag_clock_excluded=no
+play --clock bare const=40: session_active_ms=250 period_ms=25 hand_calc 250/25=10 publish_count=10 bag_clock_excluded=yes
+play --clock 40 after session stop, node still alive idle_ms=200: further_publish_count=0
+play --clock 40 pause does not end the session: run_ticks=4 pause_ticks=4 pause_time_ms=100 pause_publish_count=4 pause_times_all_paused=yes then stop further_publish_count=0
+play --clock 40 starting another session restarts publication: restart_session_ms=100 restart_publish_count=4
+No winner declared: official --use-sim-time waits for the first /clock and does not write a 0-then-N jump; writing at time 0 then N loses because that jump is officially essentially unplayable
+Live ros2 bag / real simulator / Foxglove / Rerun / hardware clock: 本页未运行; rosbag2 statements 以原文为准
+```
+
+</SimOutput>
+
+### Read the regimes
+
+All figures are from `expected/rosbag2_sim_time_clock_toy.txt` (or labelled 手算). Diff directions match that file. The pre-declared lose is kept.
+
+- **Official vs lose** (`clock_first_ms=150`). Arm A writes `9.0000+-0.0000` messages and drops `4.2000+-0.4472` that arrived before the first `/clock`. First/last stamps are `1000.0000+-0.0000` / `1400.0000+-0.0000` ms, `jump_from_zero_ms` is `0.0000+-0.0000`, and `zero_then_n_jump` is `0.0000+-0.0000` (playable `1.0000+-0.0000`). Arm C writes every message (`13.2000+-0.4472`), drops `0.0000+-0.0000`, starts at stamp `0.0000+-0.0000`, and has `jump_from_zero_ms` `1000.0000+-0.0000` with `zero_then_n_jump` `1.0000+-0.0000` (playable `0.0000+-0.0000`). Paired C-A `zero_then_n_jump` is `1.0000+-0.0000`, a **clear gap, not a tie** (`|m| > sd`), same sign on all 5 seeds; paired C-A `jump_from_zero_ms` is `1000.0000+-0.0000`, **clear**, 5/5; paired C-A playable is `-1.0000+-0.0000`, **clear**, 5/5. Paired A-C dropped is `4.2000+-0.4472`, **clear**, 5/5; paired A-C written is `-4.2000+-0.4472`, **clear**, 5/5. The 0-then-N arm was pre-declared as remaining playable; it **loses** because the official README calls that jump "essentially unplayable." The lose is kept.
+- **Named alternative** `clock_first_ms=250` (same seed family, CRN, not adopted). Arm A still has `zero_then_n_jump` `0.0000+-0.0000` and drops more (`6.2000+-0.4472`); paired A(alt)-A(`clock_first_ms=150`) dropped is `2.0000+-0.0000`, **clear**, 5/5. Arm C still jumps by `1000.0000+-0.0000`.
+- **CLI conflict.** `--use-sim-time` and `--no-discovery` together are rejected: "The /clock topic needs to be discovered to record with sim time."
+- **Play `--clock`.** Default `0`: `publish_count=0`, `bag_clock_excluded=no`. Bare `--clock` (official `const=40`): 手算 `250/25=10`, `publish_count=10`, `bag_clock_excluded=yes`. After the session stops, further publication is `0` for `idle_ms=200` even if the player node stays alive. Pause does not end the session: `run_ticks=4`, `pause_ticks=4`, `pause_time_ms=100`, all pause timestamps equal the paused time; then stop, further `0`. Starting another session restarts publication: `restart_session_ms=100`, `restart_publish_count=4`.
+
+No arm is declared a universal winner: official `--use-sim-time` waits for the first `/clock` and does not write a 0-then-N jump; writing at time 0 then N loses because that jump is officially essentially unplayable. Live ros2 bag / real simulator / Foxglove / Rerun / hardware clock: 本页未运行.
+
+### Exercises
+
+1. From the opened README definition, say what "simulation time" publishes, and why the official recorder writes no messages until the first `/clock`.
+2. Why is writing at time 0 then N from `/clock` the pre-declared lose, and why is that jump officially "essentially unplayable"? Use the toy's `zero_then_n_jump` `1.0000+-0.0000` vs `0.0000+-0.0000` (clear, 5/5).
+3. Quote the official reason that `--use-sim-time` and `--no-discovery` cannot be set together. Is there an exception if `/clock` is already present at startup?
+4. From official argparse, what does default `--clock` do, and what frequency does bare `--clock` use? Check the 手算 `1000/40=25` and `250/25=10` against `publish_count=10`.
+5. Before any live `ros2 bag` (本页未运行), explain why pause still publishes `/clock` at the paused time, why publication stops after the session ends even if the player node stays alive, and why bag `/clock` is excluded when the frequency is > 0.
+
+**180-minute work plan:** 30 min read the official rosbag2 README simulation-time contract and the opened `record.py` / `play.py` argparse at commit `12b5e8ba`; 25 min write the wait-for-`/clock` vs 0-then-N contrast by hand; 50 min run the toy and read the official / lose results; 40 min work the `--use-sim-time` / `--no-discovery` rejection and play `--clock` 0 vs 40 / pause / exclude facts; 35 min exercises (`30+25+50+40+35=180`).
+
 <Summary>
 
-Pin ROS 2 with a Dev Container; build/test your packages with action-ros-ci (your repo). Jazzy rosbag2 defaults to mcap (`get_default_storage_id()` → `"mcap"`). `bag_stats.py` reports three gap events on a synthetic mcap timeline. `bag_qos_accept_toy.py` rejects missing topics, gap overruns and under-budget counts; F1 covers Request vs Offered, default `adapt_request_to_offers` vs overrides, durability late-joiners (About QoS table), and YAML keys from the Jazzy README. Foxglove/Rerun/wandb are the replay and experiment tools; none of those GPU/GUI / live-bag paths run on this page.
+Pin ROS 2 with a Dev Container; build/test your packages with action-ros-ci (your repo). Jazzy rosbag2 defaults to mcap (`get_default_storage_id()` → `"mcap"`). `bag_stats.py` reports three gap events on a synthetic mcap timeline. `bag_qos_accept_toy.py` rejects missing topics, gap overruns and under-budget counts; F1 covers Request vs Offered, default `adapt_request_to_offers` vs overrides, durability late-joiners (About QoS table), and YAML keys from the Jazzy README. Foxglove/Rerun/wandb are the replay and experiment tools; none of those GPU/GUI / live-bag paths run on this page. Official rosbag2 simulation time publishes a clock value on `/clock` instead of using the system clock; `rosbag2_sim_time_clock_toy.py` waits for the first `/clock` before writing (no 0-then-N jump) while writing at time 0 then N is the pre-declared lose (officially "essentially unplayable"), and play `--clock` defaults to not publishing, uses official 40 Hz when bare, publishes only while a session is active, continues at the paused time, and excludes bag `/clock` when the frequency is > 0 — a synthetic model, not a live `ros2 bag` or simulator.
 
 </Summary>
