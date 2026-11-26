@@ -51,3 +51,7 @@ The Python toy models used in these lessons are in [`tools/sim/models/`](../../t
 ## Batch-29 PR2 / 第29批 PR2
 
 `esp32/rmt_symbol_vs_bitbang_toy.py`: standard-library labeled stand-in of the opened ESP-IDF v5.3.2 RMT symbol / encoder contract versus a bit-banged delay loop that stretches under a declared ISR load, plus hardware `loop_count` versus software re-issue and kept wrong-resolution, `bit0`/`bit1`-swap and swapped-level arms; official driver / flash 本页未运行; expected output in `expected/rmt_symbol_vs_bitbang_toy.txt`, included in `check.sh`. / 标准库、带标签的替身，对照已打开的 ESP-IDF v5.3.2 RMT 符号 / 编码器契约与声明 ISR 负荷下被拉长的 bit-bang 延时，并比较硬件 `loop_count` 与软件重发，以及保留的错误分辨率、`bit0`/`bit1` 对调和电平对调臂；官方驱动 / 烧录本页未运行，输出由 `check.sh` 核对。
+
+## Batch-30 PR2 / 第30批 PR2
+
+`timing-interrupts/timer1_input_capture_vs_poll_toy.py`: standard-library labeled stand-in of the opened ATmega328P 7810D §15.6 Input Capture Unit contract versus software edge polling at a declared loop period, plus official ICR overwrite and a kept wrong-ICES arm; official AVR flash / logic analyzer 本页未运行; expected output in `expected/timer1_input_capture_vs_poll_toy.txt`, included in `check.sh`. / 标准库、带标签的替身，对照已打开的 ATmega328P 7810D §15.6 输入捕获单元契约与声明循环周期下的软件边沿轮询，并比较官方 ICR 覆盖与保留的错误 ICES 臂；官方 AVR 烧录 / 逻辑分析仪本页未运行，输出由 `check.sh` 核对。

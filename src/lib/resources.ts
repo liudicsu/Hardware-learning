@@ -4276,6 +4276,29 @@ export const resources: Record<string, Resource> = {
     },
     "extra": true
   },
+  "atmega328p-input-capture": {
+    "id": "atmega328p-input-capture",
+    "url": "https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-7810-Automotive-Microcontrollers-ATmega328P_Datasheet.pdf",
+    "title": {
+      "zh": "ATmega328P 7810D: Timer1 输入捕获单元（§15.6）",
+      "en": "ATmega328P 7810D: Timer1 Input Capture Unit (§15.6)"
+    },
+    "author": "Atmel / Microchip",
+    "kind": "guide",
+    "cost": {
+      "zh": "免费",
+      "en": "Free"
+    },
+    "summary": {
+      "zh": "PDF 已打开并 curl200；§15.6 输入捕获单元，ICR1、ICF1、ICES1、ICNC1 与覆盖契约；与硬件看门狗条目同一 PDF，标题覆盖的是 §15.6。",
+      "en": "PDF opened and curl200; §15.6 Input Capture Unit, ICR1, ICF1, ICES1, ICNC1 and the overwrite contract; same PDF as the hardware-watchdog entry, titled for §15.6."
+    },
+    "license": {
+      "zh": "版权归原作者；仅提供外链",
+      "en": "Copyright original authors; external link only"
+    },
+    "extra": true
+  },
   "crc-polynomial-reference": {
     "id": "crc-polynomial-reference",
     "url": "https://en.wikipedia.org/wiki/Cyclic_redundancy_check",
