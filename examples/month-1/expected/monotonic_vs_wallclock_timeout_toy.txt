@@ -1,0 +1,53 @@
+Synthetic monotonic vs wall-clock timeout toy; wrapped clocks only; not a live NTP or clock_settime run
+timeout=1.0000s dt=0.1250s jump_at=0.2500s backward=-2.0000s forward=2.0000s max_wait=5.0000s
+wall_origin=1700000000.0000s mono_origin=1000.0000s seeds=5 clear_frac=0.2000 hand_calc work_plan 30+25+50+40+35=180
+no integration step: exact dt grid and closed-form fire times
+hand_calc no_jump A=1.0000000000s B=1.0000000000s C=5.0000000000s step_A=1.0000000000s residual_step-closed_A=0.000e+00s
+hand_calc backward A=3.0000000000s B=1.0000000000s C=5.0000000000s step_A=3.0000000000s residual_step-closed_A=0.000e+00s
+hand_calc forward A=0.2500000000s B=1.0000000000s C=5.0000000000s step_A=0.2500000000s residual_step-closed_A=0.000e+00s
+hand_calc stamp_confusion A=1.0000000000s B=1.0000000000s C=5.0000000000s step_C=5.0000000000s residual_step-closed_C=0.000e+00s
+hand_calc B holds at 1.0000000000s under every declared wall jump; C never reaches the epoch stamp mono_end=1005.0000000000s < deadline=1700000001.0000000000s
+no_jump (no wall jump, both official clocks accept the deadline)
+  A_wall 1.0000+-0.0000 s
+  B_mono 1.0000+-0.0000 s
+  C_stamp 5.0000+-0.0000 s
+  residual A-B 0.0000+-0.0000 s
+  residual C-B 4.0000+-0.0000 s
+  paired A-B fire_s: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B fire_s: 4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired residual A-B vs 0: 0.0000+-0.0000: tie: identical on every seed
+  paired residual C-B vs 0: 4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+backward_jump (wall set back by -2.0000s at 0.2500s)
+  A_wall 3.0000+-0.0000 s
+  B_mono 1.0000+-0.0000 s
+  C_stamp 5.0000+-0.0000 s
+  residual A-B 2.0000+-0.0000 s
+  residual C-B 4.0000+-0.0000 s
+  paired A-B fire_s: 2.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B fire_s: 4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired residual A-B vs 0: 2.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired residual C-B vs 0: 4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+forward_jump (wall jumped forward by 2.0000s at 0.2500s)
+  A_wall 0.2500+-0.0000 s
+  B_mono 1.0000+-0.0000 s
+  C_stamp 5.0000+-0.0000 s
+  residual A-B -0.7500+-0.0000 s
+  residual C-B 4.0000+-0.0000 s
+  paired A-B fire_s: -0.7500+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B fire_s: 4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired residual A-B vs 0: -0.7500+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired residual C-B vs 0: 4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+stamp_confusion (no wall jump; C compares absolute monotonic with an epoch stamp)
+  A_wall 1.0000+-0.0000 s
+  B_mono 1.0000+-0.0000 s
+  C_stamp 5.0000+-0.0000 s
+  residual A-B 0.0000+-0.0000 s
+  residual C-B 4.0000+-0.0000 s
+  paired A-B fire_s: 0.0000+-0.0000: tie: identical on every seed
+  paired C-B fire_s: 4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired residual A-B vs 0: 0.0000+-0.0000: tie: identical on every seed
+  paired residual C-B vs 0: 4.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative forward_jump 0.5000s (same jump_at, not adopted) fire_A=0.5000000000s fire_B=1.0000000000s fire_C=5.0000000000s closed_A=0.5000000000s residual_step-closed_A=0.000e+00s
+  paired A-B fire_s: -0.5000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: with no jump the wall clock and the monotonic clock tie on the deadline; a backward jump makes the wall timeout late, a forward jump expires it early, and treating a monotonic absolute as an epoch stamp loses
+Live NTP / clock_settime: 本页未运行; Python time library docs 以文档为准

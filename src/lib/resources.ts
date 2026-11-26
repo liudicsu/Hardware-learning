@@ -393,6 +393,21 @@ export const resources: Record<string, Resource> = {
     license: { zh: "PSF 文档许可，© Python Software Foundation", en: "PSF documentation licence, © Python Software Foundation" },
     extra: true,
   },
+  "python-time": {
+    id: "python-time",
+    url: "https://docs.python.org/3/library/time.html",
+    urlByLocale: { zh: "https://docs.python.org/zh-cn/3/library/time.html" },
+    title: { zh: "Python 官方 time 库文档（中文）", en: "The official Python time library docs" },
+    author: "Python Software Foundation",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "官方 time 库文档：time.monotonic()、time.time() 与 get_clock_info 的契约以它为准。",
+      en: "Official library docs for time: the source of truth for time.monotonic(), time.time() and get_clock_info.",
+    },
+    license: { zh: "PSF 文档许可，© Python Software Foundation", en: "PSF documentation licence, © Python Software Foundation" },
+    extra: true,
+  },
   // ───────────── Month 2 ─────────────
   mcwhorter: {
     id: "mcwhorter",

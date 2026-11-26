@@ -1,5 +1,15 @@
 # Month 1 plan / 第 1 个月计划
 
+Current / 当前：**M1 3270 min**, Batch-30 PR1. Earlier entries below retain their historical totals. M1=3270 is still the lightest month. Site typography after this PR alone is `46 260` (the full-batch target 46 440 is after PR2).
+
+## Batch-30 PR1 / 本月 H1 (+180)
+
+Base `49a7c23a80ec9d497129ba346047271613b88d92` (batch-29 PR2 #213 squash-merged; site **46080**). PR1 on M1 host: **M1 3090→3270 (+180)**. Site **46080→46260** (README typography `46 260`). Still 71 lessons. M2 stays 4290; M8=M11 stay jointly heaviest at 4530. M1=3270 remains lightest. These load facts are recorded here and in the sources note only, not as a student-facing process lecture.
+
+- **H1 / 1.5 python-terminal: 330→510 (+180).** Official monotonic versus adjustable wall-clock timeout contract (`monotonic_vs_wallclock_timeout_toy.py`; five seeds; every regime deterministic; jumps injected by a wrapped clock; no `clock_settime` and no machine-clock step). Official Python 3 library `time` body read (live pin recorded in `docs/notes/batch-30-pr1-sources.md`; 以文档为准): `time.monotonic()` cannot go backwards and is not affected by system clock updates, with an undefined reference point so that only the difference between two calls is valid; `time.time()` can return a lower value than a previous call if the system clock has been set back; `get_clock_info` `adjustable` / `monotonic` definitions (adjustable does not refer to gradual NTP rate adjustments); `clock_settime` currently accepts `CLOCK_REALTIME` only. New Resource / reading-map entry `python-time` was added because the existing `python-tutorial` URL is the tutorial, not the library `time` page. Declared toy parameters: `TIMEOUT_S=1.0000` s, `DT_S=0.1250` s, `JUMP_AT_S=0.2500` s, `BACKWARD_S=-2.0000` s, `FORWARD_S=2.0000` s, `WALL_ORIGIN_S=1700000000.0000` s, `MONO_ORIGIN_S=1000.0000` s, `MAX_WAIT_S=5.0000` s, `clear_frac=0.2000`. Official first run 2026-11-26 11:32:14 Asia/Shanghai; expected sha256 `b981b3f75fe99977a20b1758b70d5ddcf047ac4b9db6b551ca8746ab65e75d05`; later rerun byte-identical; official expected/ not retuned. no_jump: A vs B **tie** (`1.0000+-0.0000 s`, identical on every seed), both accept the deadline, as declared. backward_jump: paired A-B `fire_s` `2.0000+-0.0000 s`, **clear**, 5/5 (wall timeout late / missed; monotonic holds). forward_jump: paired A-B `fire_s` `-0.7500+-0.0000 s`, **clear**, 5/5 (wall timeout expires early; monotonic holds). stamp_confusion: paired C-B `fire_s` `4.0000+-0.0000 s`, **clear**, 5/5 (C loses at the 5.0000 s cap, kept). Every pre-declared regime held. Alternative `FORWARD_ALT_S=0.5000 s` printed, not adopted. Existing `log.py` UTC stamp, Nyquist toy / expected, `ohm.py` and `resistors.py` were not retuned or edited. Live NTP / clock_settime 本页未运行. / 官方单调时钟对可调墙钟超时契约，不宣布现场拨钟实验。
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
+
 Current / 当前：**M1 3090 min**, Batch-29 PR1. Earlier entries below retain their historical totals. M1=3090 is still the lightest month. Site typography after this PR alone is `45 900` (the full-batch target 46 080 is after PR2).
 
 ## Batch-29 PR1 / 本月 H1 (+180)
