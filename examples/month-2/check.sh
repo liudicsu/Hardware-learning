@@ -46,4 +46,6 @@ check steinhart_hart_ntc_sense_toy.txt "$PY" "$M2/sensors-fusion/steinhart_hart_
 
 check encoder_speed_frequency_period_toy.txt "$PY" "$M2/motors-drivers/encoder_speed_frequency_period_toy.py"
 
+check rmt_symbol_vs_bitbang_toy.txt "$PY" "$M2/esp32/rmt_symbol_vs_bitbang_toy.py"
+
 exit $fail

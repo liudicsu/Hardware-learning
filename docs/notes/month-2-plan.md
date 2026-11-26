@@ -1,5 +1,15 @@
 # Month 2 plan / 第 2 个月计划
 
+Current / 当前：**M2 4290 min**, Batch-29 PR2. Earlier entries below retain their historical totals. M2=4290 is still 180 below M9/M10=4470 and 240 below jointly-heaviest M8=M11=4530. Site typography after this PR is `46 080`.
+
+## Batch-29 PR2 / 本月 H2 (+180)
+
+Base `6c79742822f4554b13715cc6d077891d2aac0fca` (batch-29 PR1 #212 squash-merged; site **45900**). PR2 on M2 host: **M2 4110→4290 (+180)**. Site **45900→46080** (README typography `46 080`). Still 71 lessons. M1 stays 3090 (still lightest). M8=M11 stay jointly heaviest at 4530. These load facts are recorded here and in the sources note only, not as a student-facing process lecture.
+
+- **H2 / 2.3 esp32: 540→720 (+180).** Official ESP-IDF v5.3.2 ESP32-S3 RMT symbol / encoder contract versus a software bit-bang stretch (`rmt_symbol_vs_bitbang_toy.py`; five seeds; common random numbers on the ISR-loaded cells). Official RMT body read (sha256 `5c37adca533d49aef945039bfb46ca6195475f7596ed507a7fabd6f6b71470ab`; Last-Modified Fri, 06 Dec 2024 01:16:25 GMT = 09:16:25 Asia/Shanghai; 以文档为准). New Resource / reading-map entry `esp-idf-s3-rmt` was added because it was not already in the map. Declared toy parameters: official-example `resolution_hz=1000000`, wrong `2000000`; short-pulse 8+4 ticks × 8; periodic 20+30 ticks with `loop_count=4`; bytes-encoder payload `0xA5`; `clear_frac=0.2000`. Official first run 2026-11-26 09:44:10 Asia/Shanghai; expected sha256 `4b931fc03c0ffd64d2c27c03e52c9defa8508fdae6d80c7b9a76a732c6c876e4`; later rerun byte-identical; official expected/ not retuned. idle: A vs B **tie** (`96.0000+-0.0000 us`, identical on every seed), as declared. isr_loaded_short: paired A-B total_us `72.0000+-14.4049`, **clear**, 5/5 (B clearly better; kept); B stays on the declared ticks (tie). hw_loop_periodic: B stays at `200.0000 us` (tie); paired A-B `197.0000+-28.4165`, **clear**, 5/5 (kept). wrong_resolution, bytes_bit_swap (`wrong_level_us 64.0000+-0.0000`, decode `0x5A`, duration may tie) and swapped_levels all lose and are kept. Alternative `lambda_per_us=0.0500` printed, not adopted. Official driver / flash 本页未运行. Not a second LEDC lecture. / 官方 RMT 符号与编码器契约对照被拉长的 bit-bang，不宣布真机烧录。
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
+
 Current / 当前：**M2 4110 min**, Batch-24 PR2. Earlier entries below retain their historical totals.
 
 ## Batch-24 PR2 — Encoder frequency vs period on motors-drivers (+180)
