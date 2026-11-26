@@ -1,0 +1,32 @@
+Synthetic rosbag2 simulation-time clock toy; shared arrivals; not a live ros2 bag
+seeds=5 n_data=12 data_period_ms=50 clock_first_ms=150 clock_period_ms=50 n_clock=10 sim_t0_ms=1000 clear_frac=0.2000
+hand_calc 1000/40=25  hand_calc 250/25=10  work_plan 30+25+50+40+35=180
+Arm C lose mode, declared before the first run: write early messages with timestamp 0 until /clock arrives, then stamp later messages with time N from /clock; pre-declared as remaining playable / not introducing the official 0-then-N jump
+Regimes were written before the first run
+record official vs lose (clock_first_ms=150; shared arrivals, /clock starts late)
+  A_official written 9.0000+-0.0000  dropped 4.2000+-0.4472  first_stamp_ms 1000.0000+-0.0000  last_stamp_ms 1400.0000+-0.0000
+    jump_from_zero_ms 0.0000+-0.0000  zero_then_n_jump 0.0000+-0.0000  playable 1.0000+-0.0000
+  C_write_0_then_N written 13.2000+-0.4472  dropped 0.0000+-0.0000  first_stamp_ms 0.0000+-0.0000  last_stamp_ms 1400.0000+-0.0000
+    jump_from_zero_ms 1000.0000+-0.0000  zero_then_n_jump 1.0000+-0.0000  playable 0.0000+-0.0000
+  paired C-A zero_then_n_jump: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A jump_from_zero_ms: 1000.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A playable: -1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-C dropped: 4.2000+-0.4472: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-C written: -4.2000+-0.4472: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative clock_first_ms=250 (same seed family, CRN: same data arrivals, later /clock, not adopted)
+  A_official written 7.0000+-0.0000  dropped 6.2000+-0.4472  first_stamp_ms 1000.0000+-0.0000  last_stamp_ms 1300.0000+-0.0000
+    jump_from_zero_ms 0.0000+-0.0000  zero_then_n_jump 0.0000+-0.0000  playable 1.0000+-0.0000
+  C_write_0_then_N written 13.2000+-0.4472  dropped 0.0000+-0.0000  first_stamp_ms 0.0000+-0.0000  last_stamp_ms 1300.0000+-0.0000
+    jump_from_zero_ms 1000.0000+-0.0000  zero_then_n_jump 1.0000+-0.0000  playable 0.0000+-0.0000
+  paired C-A zero_then_n_jump: 1.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A(alt)-A(clock_first_ms=150) dropped: 2.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A jump_from_zero_ms: 1000.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+cli --use-sim-time --no-discovery: rejected  The /clock topic needs to be discovered to record with sim time.
+--use-sim-time and --no-discovery both set, but are incompatible settings. The /clock topic needs to be discovered to record with sim time.
+play --clock default=0: publish_count=0 bag_clock_excluded=no
+play --clock bare const=40: session_active_ms=250 period_ms=25 hand_calc 250/25=10 publish_count=10 bag_clock_excluded=yes
+play --clock 40 after session stop, node still alive idle_ms=200: further_publish_count=0
+play --clock 40 pause does not end the session: run_ticks=4 pause_ticks=4 pause_time_ms=100 pause_publish_count=4 pause_times_all_paused=yes then stop further_publish_count=0
+play --clock 40 starting another session restarts publication: restart_session_ms=100 restart_publish_count=4
+No winner declared: official --use-sim-time waits for the first /clock and does not write a 0-then-N jump; writing at time 0 then N loses because that jump is officially essentially unplayable
+Live ros2 bag / real simulator / Foxglove / Rerun / hardware clock: 本页未运行; rosbag2 statements 以原文为准

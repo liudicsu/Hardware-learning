@@ -1,5 +1,15 @@
 # Month 8 plan
 
+Current / 当前：**M8 4710 min**, Batch-33 PR1. Earlier entries below retain their historical totals. After this leftover only, M8 is uniquely heaviest at 4710 (180 above M11=4530). Site typography after this PR is `46 800`. M1=3450 stays lightest.
+
+## Batch-33 PR1 / 本月 H1 (+180)
+
+Base `1257ad6dc71118c2c6b7a7ad7af9a302a05300ff` (batch-31 PR1 #216 squash-merged; site **46620**). PR1 on M8 host: **M8 4530→4710 (+180)**. Host `robot-devops` 360→540. Site **46620→46800** (README typography `46 800`). Still 71 lessons. M11 stays 4530; M1=3450 remains lightest. The 4710 tip is for this leftover only, not a general 4560/4650/4710 relaxation. These load facts are recorded here and in the sources note only, not as a student-facing process lecture.
+
+- **H1 / 8.6 robot-devops: 360→540 (+180).** Official rosbag2 simulation-time clock contract (`rosbag2_sim_time_clock_toy.py`; five seeds; CRN late-`/clock` arrivals; stdlib only). Official bodies re-fetched at writing (live pins recorded in `docs/notes/batch-33-pr1-sources.md`; 以原文为准) at commit `12b5e8ba4eb5665501a16f0d9e050552a1149f56` (Jazzy tip, `ahead_by` 0): README simulation-time definition, `--use-sim-time` wait-for-`/clock` and the 0-then-N “essentially unplayable” jump, the `--use-sim-time` / `--no-discovery` incompatibility, and play `--clock` argparse `const=40` / `default=0` plus session / pause / exclude wiring. Declared toy parameters: `N_DATA=12`, `DATA_PERIOD_MS=50`, `CLOCK_FIRST_MS=150`, `CLOCK_FIRST_ALT_MS=250`, `CLOCK_PERIOD_MS=50`, `N_CLOCK=10`, `SIM_T0_MS=1000`, `clear_frac=0.2000`, `CLOCK_HZ_BARE=40`, `SESSION_ACTIVE_MS=250`, 手算 `1000/40=25` and `250/25=10`. Official first run 2026-11-26 20:04:37 Asia/Shanghai; expected sha256 `3a7d4e1bdc2e9688bb6cc0dfd537646e1fba0357918ea5320156ebb2cbf9ddd5`; later rerun byte-identical; official expected/ not retuned. Official arm: written `9.0000+-0.0000`, dropped `4.2000+-0.4472`, `zero_then_n_jump` `0.0000+-0.0000`. C loses: paired C-A `zero_then_n_jump` `1.0000+-0.0000`, **clear**, 5/5; `jump_from_zero_ms` `1000.0000+-0.0000`, **clear**, 5/5; kept and disclosed. Alternative `clock_first_ms=250` printed, not adopted. Existing `bag_stats.py`, `bag_qos_accept_toy.py` and their expected/ / fixtures / already-taught mcap / bag-stats / bag-QoS wording were not retuned or edited. Live ros2 bag / real simulator / Foxglove / Rerun / hardware clock 本页未运行. / 官方 rosbag2 仿真时间时钟契约，对照等待首条 `/clock` 与先写 0 再写 N 的失败臂，不宣布现场录包或真实仿真器实验。
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
+
 Current / 当前：**M8 4530 min**, Batch-28 PR1. Earlier entries below retain their historical totals.
 
 ## Batch-28 PR1 / 本月 H1 (+180)

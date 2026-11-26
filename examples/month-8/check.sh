@@ -53,4 +53,6 @@ check pi05_heterogeneous_cotrain_toy.txt "$PY" "$M8/dataset-engineering/pi05_het
 
 check nora_fastplus_small_vla_toy.txt "$PY" "$M8/async-deployment/nora_fastplus_small_vla_toy.py"
 
+check rosbag2_sim_time_clock_toy.txt "$PY" "$M8/robot-devops/rosbag2_sim_time_clock_toy.py"
+
 exit $fail
