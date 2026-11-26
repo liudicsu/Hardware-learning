@@ -3726,6 +3726,23 @@ export const resources: Record<string, Resource> = {
     license: { zh: "文档，© Espressif；仅提供外链", en: "Docs, © Espressif; external link only" },
     extra: true,
   },
+  "esp-idf-s3-rmt": {
+    id: "esp-idf-s3-rmt",
+    url: "https://docs.espressif.com/projects/esp-idf/en/v5.3.2/esp32s3/api-reference/peripherals/rmt.html",
+    title: {
+      zh: "ESP-IDF 编程指南：RMT（ESP32-S3，v5.3.2）",
+      en: "ESP-IDF Programming Guide: RMT (ESP32-S3, v5.3.2)",
+    },
+    author: "Espressif",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "RMT 最初按红外收发器设计，也可扩展为通用收发器。最小数据单元是 RMT 符号 rmt_symbol_word_t：每符号两对「15 位 tick 时长 + 1 位电平」。不能像 SPI / I2C 那样发送原始字节流；转换由软件编码器完成，rmt_new_bytes_encoder() 用 bit0 / bit1（同为 rmt_symbol_word_t）和 msb_first。resolution_hz 设定内部 tick；官方示例为 1 MHz（1 tick = 1 µs），这是示例而不是芯片通用默认值。loop_count 由硬件控制；-1 表示无限循环直到 rmt_disable() 且不产生 trans-done；正数为有限次数；非零 loop_count 有文档记载的 memory-block 限制。HTML 正文已读；以文档为准。本页未运行官方驱动或烧录。",
+      en: "RMT was designed as an infrared transceiver and can be extended to a versatile general-purpose transceiver. The minimal data unit is the RMT symbol rmt_symbol_word_t: two pairs of a 15-bit duration in RMT ticks and a 1-bit level. It cannot transmit raw byte streams like SPI or I2C; conversion is done in software by an RMT encoder, and rmt_new_bytes_encoder() takes bit0 / bit1 as rmt_symbol_word_t plus msb_first. resolution_hz sets the internal tick; the official example uses 1 MHz (1 tick = 1 µs), an example, not a chip-universal default. loop_count is hardware-controlled; -1 loops until rmt_disable() and does not generate trans-done; a positive number is a finite count; non-zero loop_count has a documented memory-block size limitation. HTML body read; 以文档为准. Official driver / flash 本页未运行.",
+    },
+    license: { zh: "文档，© Espressif；仅提供外链", en: "Docs, © Espressif; external link only" },
+    extra: true,
+  },
   "zephyr-threads": {
     id: "zephyr-threads",
     url: "https://docs.zephyrproject.org/latest/kernel/services/threads/index.html",

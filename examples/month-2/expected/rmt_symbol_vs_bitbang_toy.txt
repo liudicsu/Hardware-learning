@@ -1,0 +1,48 @@
+Synthetic RMT symbol / encoder stand-in versus bit-bang stretch; official driver / flash 本页未运行
+resolution_hz=1000000 (official example 1 MHz tick, 1 tick = 1 us; not a chip-universal default) tick_us=1.0000 wrong_resolution_hz=2000000 wrong_tick_us=0.5000
+short_symbol duration0=8 level0=1 duration1=4 level1=0 N_SHORT=8 hand_calc short_one=12.0000 us short_total=96.0000 us short_wrong_total=48.0000 us
+period_symbol duration0=20 level0=1 duration1=30 level1=0 loop_count=4 (positive finite; -1 would loop until rmt_disable and skip trans-done, not used here) reissue_gap_us=8.0000
+hand_calc period=50.0000 us loop_hw=200.0000 us loop_sw_idle=224.0000 us
+bytes_encoder payload=0xA5 msb_first=True bit_pattern=10100101 bit0 duration0=4 level0=1 duration1=12 level1=0 bit1 duration0=12 level0=1 duration1=4 level1=0
+hand_calc byte_total=128.0000 us decoded_official=0xA5 decoded_bit_swap=0x5A
+seeds=5 clear_frac=0.2000 lambda_per_us=0.1500 isr_cost_us=5.0000 lambda_alt=0.0500 hand_calc work_plan 30+25+50+40+35=180
+no integration step: tick-to-us conversion and additive ISR counts, closed form
+ISR load draws are common random numbers, keyed on the declared hardware durations; B ignores them, A applies them
+idle (single-shot short-pulse list, no ISR load)
+  A_bitbang total_us 96.0000+-0.0000 wrong_level_us 0.0000+-0.0000
+  B_hardware total_us 96.0000+-0.0000 wrong_level_us 0.0000+-0.0000
+  paired A-B total_us: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B wrong_level_us: 0.0000+-0.0000: tie: identical on every seed
+isr_loaded_short (same short-pulse list, lambda_per_us=0.1500 isr_cost_us=5.0000)
+  A_bitbang total_us 168.0000+-14.4049 wrong_level_us 41.6000+-5.7271
+  B_hardware total_us 96.0000+-0.0000 wrong_level_us 0.0000+-0.0000
+  paired A-B total_us: 72.0000+-14.4049: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B wrong_level_us: 41.6000+-5.7271: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B total_us vs declared: 0.0000+-0.0000: tie: identical on every seed
+hw_loop_periodic (loop_count=4 vs software re-issue, same ISR load; reissue_gap_us=8.0000)
+  A_bitbang total_us 397.0000+-28.4165 wrong_level_us 92.0000+-8.3666
+  B_hardware total_us 200.0000+-0.0000 wrong_level_us 0.0000+-0.0000
+  paired A-B total_us: 197.0000+-28.4165: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B wrong_level_us: 92.0000+-8.3666: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B total_us vs declared: 0.0000+-0.0000: tie: identical on every seed
+wrong_resolution (C times the same ticks at wrong_resolution_hz, no ISR load)
+  C_wrong_hz total_us 48.0000+-0.0000 wrong_level_us 16.0000+-0.0000
+  B_hardware total_us 96.0000+-0.0000 wrong_level_us 0.0000+-0.0000
+  paired C-B total_us: -48.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-B wrong_level_us: 16.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+bytes_bit_swap (D swaps bit0/bit1 on payload 0xA5; decoded_official=0xA5 decoded_bit_swap=0x5A)
+  D_bit_swap total_us 128.0000+-0.0000 wrong_level_us 64.0000+-0.0000
+  B_hardware total_us 128.0000+-0.0000 wrong_level_us 0.0000+-0.0000
+  paired D-B total_us: 0.0000+-0.0000: tie: identical on every seed
+  paired D-B wrong_level_us: 64.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+swapped_levels (E swaps level0/level1 on the idle short-pulse list)
+  E_swap_lvl total_us 96.0000+-0.0000 wrong_level_us 96.0000+-0.0000
+  B_hardware total_us 96.0000+-0.0000 wrong_level_us 0.0000+-0.0000
+  paired E-B total_us: 0.0000+-0.0000: tie: identical on every seed
+  paired E-B wrong_level_us: 96.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+alternative lambda_per_us=0.0500 on isr_loaded_short (same seeds, not adopted)
+  A_bitbang@alt total_us 120.0000+-4.1833 wrong_level_us 37.0000+-14.1951
+  B_hardware total_us 96.0000+-0.0000 wrong_level_us 0.0000+-0.0000
+  paired A-B total_us@alt: 24.0000+-4.1833: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+No winner declared: with no extra load the bit-bang loop can match the hardware-timed list; a declared ISR load stretches the software delays while the hardware-timed list stays on the declared ticks; a hardware loop_count restart stays on loop_count times the period while a software re-issue stretches; wrong tick resolution, a bytes-encoder bit0/bit1 swap, and swapped level0/level1 lose and are kept
+Official RMT driver / flash: 本页未运行; ESP-IDF RMT statements 以文档为准
