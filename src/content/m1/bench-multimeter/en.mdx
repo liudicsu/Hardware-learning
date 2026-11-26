@@ -947,6 +947,357 @@ The page **does not declare a universal winner**: average-responding is a near-t
 4. On `pwm_high_crest`, predict whether raising CF_CAP from 3.0 to 4.0 can make the clipped path identical to A, then check the printed alternative.
 5. Before any real DMM (本页未运行), explain why the sine **near-tie** does **not** license an average-responding meter on a PWM motor drive.
 
+## Type A standard uncertainty of the mean
+
+The earlier section converted a rectangular spec limit to a Type-B standard uncertainty with the already-taught `L/√3` conversion. That evaluation does not come from a series of repeat observations. This section adds the official Type A contract: when an input quantity is estimated from *n* independent observations obtained under the same conditions, the input estimate is usually the **sample mean**, and the standard uncertainty to be associated with that estimate is the estimated **standard deviation of the mean**.
+
+<Resource id="nist-uncertainty-typea" />
+
+NIST *Evaluating uncertainty components: Type A* (以原文为准): "A Type A evaluation of standard uncertainty may be based on any valid statistical method for treating data. Examples are calculating the standard deviation of the mean of a series of independent observations; using the method of least squares to fit a curve to data in order to estimate the parameters of the curve and their standard deviations; and carrying out an analysis of variance (ANOVA) in order to identify and quantify random effects in certain kinds of measurements." Least squares and ANOVA are named examples on that page; they are not this unit's cut.
+
+### The official sample mean and *u* of the mean
+
+"As an example of a Type A evaluation, consider an input quantity `X_i` whose value is estimated from *n* independent observations `X_{i,k}` of `X_i` obtained under the same conditions of measurement. In this case the input estimate `x_i` is usually the **sample mean**" — official eq (4), from the opened GIF `eqa4.gif`:
+
+<Formula label="Official eq (4), from the opened GIF eqa4.gif">{"x_i = X̄_i = (1/n) Σ_{k=1}^{n} X_{i,k}"}</Formula>
+
+"and the standard uncertainty `u(x_i)` to be associated with `x_i` is the estimated **standard deviation of the mean**" — official eq (5), from the opened GIF `eqa5.gif`:
+
+<Formula label="Official eq (5), from the opened GIF eqa5.gif">{"u(x_i) = s(X̄_i) = (1/(n(n-1)) Σ_{k=1}^{n} (X_{i,k} − X̄_i)^2)^{1/2}"}</Formula>
+
+The official display is eq (5). This page does not invent a second official displayed equation `s/√n`. A 手算 check that eq (5) equals `s/√n` with `s = (1/(n-1) Σ (X_{i,k} − X̄_i)^2)^{1/2}` is printed by the toy.
+
+Supporting definitions (NIST basic page, 以原文为准): Type A evaluation is a "method of evaluation of uncertainty by the statistical analysis of series of observations"; Type B evaluation is a "method of evaluation of uncertainty by means other than the statistical analysis of series of observations." From the already-cited Type-B page (contrast only): a Type-B evaluation "is usually based on scientific judgment using all of the relevant information available, which may include: … manufacturer's specifications, …". The already-taught conversion `u = L/√3` stays the right Type-B move for a declared rectangular half-width, and the wrong evaluation method for a series of repeat observations.
+
+A coverage factor `k`, a 95 % expanded uncertainty, Welch–Satterthwaite degrees of freedom, and real DMM repeatability or certificate numbers are not taken from eq (5) and are not used here. Official Type A examples were not measured on a real DMM on this page. Real DMM / calibration laboratory / repeated physical observations: 本页未运行.
+
+### Fair setup
+
+`type_a_mean_uncertainty_toy.py` is **synthetic** and stdlib only. **Model assumptions:** independent Gaussian observations with a declared true value `MU = 5.0000` V and noise `SIGMA = 0.0200` V (synthetic; not a real DMM log). The Type-B arm uses a declared rectangular half-width `L = 0.0500` V and the already-taught conversion `u = L/√3 = 0.0288675135` V; that term is **not** computed from this series. The official Type A series length is `n = 16`; a larger `n = 64` uses the same seed family (the first 16 observations are shared, CRN). `n` is at least 2 so eq (5) is defined. Five seeds `(0, 1, 2, 3, 4)`. The small-vs-clear factor is printed as `0.2000` (20 % of the smaller-arm mean). There is **no integration step**. Real DMM / calibration laboratory / repeated physical observations: 本页未运行.
+
+| Arm | What it computes |
+| --- | --- |
+| A_type_a | official Type A `u(x)` from opened eq (5) on the shared draws |
+| B_type_b | already-taught `L/√3` from the declared half-width; not from this series |
+| C_s_as_u_mean | the observations' sample standard deviation `s` (denominator `n-1` only), treated as if it were `u` of the mean. Pre-declared **lose**, kept. One fail mode, declared before the first run. |
+
+**Common random numbers:** one shared observation series per seed; the larger-*n* run uses a prefix of the same draws. The metric is the standard uncertainty `u`, reported as mean+-sd over seeds.
+
+**Regimes, written before the first run:** official identity / 手算 check — Arm A vs a 手算 of `s/√n` on the same draws is a **tie** (identical on every seed, or numerically zero within printed rounding); larger *n* (same seed family, CRN) — Arm A shrinks consistently with the official `1/(n(n-1))` formula, and Arm B stays put; C loses — C is larger than A by `√n`, 手算, same sign on all seeds.
+
+### Run the stdlib toy
+
+```bash
+cd ~/Hardware-learning/examples/month-1/bench-multimeter
+python3 type_a_mean_uncertainty_toy.py
+```
+
+<CodeSource path="examples/month-1/bench-multimeter/type_a_mean_uncertainty_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Type A standard uncertainty of the mean vs a Type-B spec limit.
+
+Synthetic repeat observations, stdlib only.  Not a real DMM log, not a
+calibration certificate, and not a rewrite of the Type-B I=V/R budget,
+Kelvin four-wire sensing, or true-RMS estimators.  Real DMM /
+calibration laboratory / repeated physical observations: 本页未运行.
+NIST Type A statements 以原文为准.
+
+The official Type A display (opened eq (5)) is the estimated standard
+deviation of the mean.  An algebraic check that eq (5) equals s/sqrt(n)
+is labelled 手算; it is not a second official displayed equation.
+
+Common random numbers: one shared observation series per seed (a prefix
+of the same draws is used at each n).  Arms, shared draws (per seed):
+  A_type_a       : official Type A u(x) from eq (5),
+                   sqrt(sum((X_k - mean)^2) / (n*(n-1)))
+  B_type_b       : already-taught Type-B conversion u = L/sqrt(3) from a
+                   declared rectangular half-width L; not computed from
+                   this series, so it does not shrink when n grows
+  C_s_as_u_mean  : treat the observation sample standard deviation s
+                   (denominator n-1 only) as if it were u of the mean.
+                   Pre-declared lose, kept.  One fail mode, declared
+                   before the first run.
+The arms differ only in how u is formed.  No integration step.
+
+Regimes were written before the first run:
+  official identity / 手算 check
+      : Arm A vs a 手算 of s/sqrt(n) on the same draws must tie
+        (identical, or numerically zero within printed rounding)
+  larger n (same seed family, CRN)
+      : Arm A shrinks consistently with the official 1/(n*(n-1))
+        formula; Arm B stays put
+  C loses
+      : C is larger than A by sqrt(n), 手算, same sign on all seeds
+"""
+
+from __future__ import annotations
+
+import math
+import random
+
+# Declared before the first official run.
+MU = 5.0000  # synthetic true value of X, volt (not a real DMM reading)
+SIGMA = 0.0200  # observation noise sd, volt
+N = 16  # Type A series length (n >= 2 so eq (5) is defined)
+N_LARGE = 64  # larger n, same seed family, CRN
+N_ALT = 256  # named alternative n, same seed family, not adopted
+L = 0.0500  # Type-B rectangular half-width, volt; not from this series
+SEEDS = (0, 1, 2, 3, 4)
+CLEAR_FRAC = 0.2000  # small-vs-clear factor; printed before the first official run
+NUM_ZERO = 1e-9
+ARMS = ("A_type_a", "B_type_b", "C_s_as_u_mean")
+N_MAX = N_ALT
+
+
+def u_type_b(half_width: float) -> float:
+    """Already-taught rectangular conversion u = L/sqrt(3). Not from the series."""
+    return half_width / math.sqrt(3.0)
+
+
+U_B = u_type_b(L)
+
+
+def draw_series(seed: int, n: int) -> list[float]:
+    """First n draws of the shared series for this seed (CRN prefixes)."""
+    rng = random.Random(seed)
+    return [rng.gauss(MU, SIGMA) for _ in range(n)]
+
+
+def sample_mean(xs: list[float]) -> float:
+    return sum(xs) / len(xs)
+
+
+def sum_sq_dev(xs: list[float], mean: float) -> float:
+    return sum((x - mean) ** 2 for x in xs)
+
+
+def type_a_eq5(xs: list[float]) -> float:
+    """Official Type A u(x): opened eq (5), denominator n(n-1)."""
+    n = len(xs)
+    mean = sample_mean(xs)
+    return math.sqrt(sum_sq_dev(xs, mean) / (n * (n - 1)))
+
+
+def sample_s(xs: list[float]) -> float:
+    """Sample standard deviation of the observations (denominator n-1)."""
+    n = len(xs)
+    mean = sample_mean(xs)
+    return math.sqrt(sum_sq_dev(xs, mean) / (n - 1))
+
+
+def hand_s_over_sqrt_n(xs: list[float]) -> float:
+    """手算 algebraic check, not a second official display: s/sqrt(n)."""
+    return sample_s(xs) / math.sqrt(len(xs))
+
+
+def arm_values(xs: list[float]) -> dict[str, float]:
+    return {
+        "A_type_a": type_a_eq5(xs),
+        "B_type_b": U_B,
+        "C_s_as_u_mean": sample_s(xs),
+        "hand_s_over_sqrt_n": hand_s_over_sqrt_n(xs),
+        "mean": sample_mean(xs),
+    }
+
+
+def mean_sd(xs: list[float]) -> tuple[float, float]:
+    mu = sum(xs) / len(xs)
+    if len(xs) == 1:
+        return mu, 0.0
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x: float) -> str:
+    if x != 0.0 and abs(x) < 5e-5:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs: list[float], m: float) -> str:
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def fmt_pair(m: float, s: float) -> str:
+    return f"{num(m)}+-{num(s)}"
+
+
+def verdict(xa: list[float], xb: list[float]) -> str:
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{fmt_pair(m, s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < CLEAR_FRAC * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{fmt_pair(m, s)}: {label}; {sign_note(diffs, m)}"
+
+
+def collect(n: int) -> dict[str, list[float]]:
+    keys = ("A_type_a", "B_type_b", "C_s_as_u_mean", "hand_s_over_sqrt_n", "mean")
+    out = {k: [] for k in keys}
+    for seed in SEEDS:
+        vals = arm_values(draw_series(seed, n))
+        for k in keys:
+            out[k].append(vals[k])
+    return out
+
+
+def print_regime(name: str, tag: str, n: int, res: dict[str, list[float]]) -> None:
+    print(f"{name} ({tag})")
+    print(
+        f"  A_type_a {fmt_pair(*mean_sd(res['A_type_a']))} V  "
+        f"B_type_b {fmt_pair(*mean_sd(res['B_type_b']))} V  "
+        f"C_s_as_u_mean {fmt_pair(*mean_sd(res['C_s_as_u_mean']))} V"
+    )
+    print(f"  mean {fmt_pair(*mean_sd(res['mean']))} V  hand_s_over_sqrt_n {fmt_pair(*mean_sd(res['hand_s_over_sqrt_n']))} V")
+    print(f"  paired A-hand_s_over_sqrt_n u: {verdict(res['A_type_a'], res['hand_s_over_sqrt_n'])}")
+    print(f"  paired A-B u: {verdict(res['A_type_a'], res['B_type_b'])}")
+    print(f"  paired C-A u: {verdict(res['C_s_as_u_mean'], res['A_type_a'])}")
+    ratios = [c / a for c, a in zip(res["C_s_as_u_mean"], res["A_type_a"])]
+    root_n = [math.sqrt(n)] * len(SEEDS)
+    print(f"  hand_calc C/A vs sqrt({n})={math.sqrt(n):.10f}: {verdict(ratios, root_n)}")
+
+
+def main() -> None:
+    print("Synthetic Type A mean uncertainty toy; shared observations; not a real DMM")
+    print(
+        f"seeds={len(SEEDS)} n={N} n_large={N_LARGE} mu={MU:.4f} V sigma={SIGMA:.4f} V "
+        f"L={L:.4f} V uB=L/sqrt(3)={U_B:.10f} V clear_frac={CLEAR_FRAC:.4f}"
+    )
+    print("Type-B u is the already-taught L/sqrt(3) conversion; it is not computed from this series")
+    print(
+        "Arm C lose mode, declared before the first run: treat the observation sample sd s as if it were s(mean)"
+    )
+    print(
+        "hand_calc eq(5)=s/sqrt(n) (algebraic, 手算, not a second official display); "
+        f"sqrt({N})={math.sqrt(N):.10f}; sqrt({N_LARGE})={math.sqrt(N_LARGE):.10f}; "
+        f"sqrt({N_ALT})={math.sqrt(N_ALT):.10f}"
+    )
+    print(f"hand_calc L/sqrt(3)={U_B:.10f} V (L={L:.4f} V); work_plan 30+25+50+40+35=180")
+    print("Regimes were written before the first run")
+
+    res_n = collect(N)
+    res_large = collect(N_LARGE)
+    res_alt = collect(N_ALT)
+
+    print_regime(
+        f"n={N}",
+        "official Type A series; shared draws",
+        N,
+        res_n,
+    )
+    print_regime(
+        f"n={N_LARGE}",
+        f"same seed family, CRN: first {N} observations shared with n={N}",
+        N_LARGE,
+        res_large,
+    )
+    print(f"  paired A(n={N_LARGE})-A(n={N}) u: {verdict(res_large['A_type_a'], res_n['A_type_a'])}")
+    print(f"  paired B(n={N_LARGE})-B(n={N}) u: {verdict(res_large['B_type_b'], res_n['B_type_b'])}")
+
+    print(
+        f"alternative n={N_ALT} (same seed family, CRN: first {N_LARGE} observations shared, not adopted)"
+    )
+    print(
+        f"  A_type_a {fmt_pair(*mean_sd(res_alt['A_type_a']))} V  "
+        f"B_type_b {fmt_pair(*mean_sd(res_alt['B_type_b']))} V  "
+        f"C_s_as_u_mean {fmt_pair(*mean_sd(res_alt['C_s_as_u_mean']))} V"
+    )
+    print(f"  paired A-hand_s_over_sqrt_n u: {verdict(res_alt['A_type_a'], res_alt['hand_s_over_sqrt_n'])}")
+    print(f"  paired A(n={N_ALT})-A(n={N_LARGE}) u: {verdict(res_alt['A_type_a'], res_large['A_type_a'])}")
+    print(f"  paired B(n={N_ALT})-B(n={N_LARGE}) u: {verdict(res_alt['B_type_b'], res_large['B_type_b'])}")
+    print(f"  paired C-A u: {verdict(res_alt['C_s_as_u_mean'], res_alt['A_type_a'])}")
+    ratios = [c / a for c, a in zip(res_alt["C_s_as_u_mean"], res_alt["A_type_a"])]
+    root_n = [math.sqrt(N_ALT)] * len(SEEDS)
+    print(f"  hand_calc C/A vs sqrt({N_ALT})={math.sqrt(N_ALT):.10f}: {verdict(ratios, root_n)}")
+
+    print(
+        "No winner declared: Type A u of the mean follows official eq (5) and shrinks when n grows; "
+        "the Type-B L/sqrt(3) term stays put; using s as if it were s(mean) loses"
+    )
+    print(
+        "Real DMM / calibration laboratory / repeated physical observations: 本页未运行; "
+        "NIST Type A statements 以原文为准"
+    )
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic Type A mean uncertainty toy; shared observations; not a real DMM
+seeds=5 n=16 n_large=64 mu=5.0000 V sigma=0.0200 V L=0.0500 V uB=L/sqrt(3)=0.0288675135 V clear_frac=0.2000
+Type-B u is the already-taught L/sqrt(3) conversion; it is not computed from this series
+Arm C lose mode, declared before the first run: treat the observation sample sd s as if it were s(mean)
+hand_calc eq(5)=s/sqrt(n) (algebraic, 手算, not a second official display); sqrt(16)=4.0000000000; sqrt(64)=8.0000000000; sqrt(256)=16.0000000000
+hand_calc L/sqrt(3)=0.0288675135 V (L=0.0500 V); work_plan 30+25+50+40+35=180
+Regimes were written before the first run
+n=16 (official Type A series; shared draws)
+  A_type_a 0.0046+-0.0007 V  B_type_b 0.0289+-0.0000 V  C_s_as_u_mean 0.0183+-0.0030 V
+  mean 4.9989+-0.0057 V  hand_s_over_sqrt_n 0.0046+-0.0007 V
+  paired A-hand_s_over_sqrt_n u: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B u: -0.0243+-0.0007: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A u: 0.0137+-0.0022: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  hand_calc C/A vs sqrt(16)=4.0000000000: 0.0000+-0.0000: tie: identical on every seed
+n=64 (same seed family, CRN: first 16 observations shared with n=16)
+  A_type_a 0.0025+-0.0003 V  B_type_b 0.0289+-0.0000 V  C_s_as_u_mean 0.0202+-0.0025 V
+  mean 4.9977+-0.0041 V  hand_s_over_sqrt_n 0.0025+-0.0003 V
+  paired A-hand_s_over_sqrt_n u: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B u: -0.0263+-0.0003: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A u: 0.0177+-0.0022: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  hand_calc C/A vs sqrt(64)=8.0000000000: 0.0000+-0.0000: tie: identical on every seed
+  paired A(n=64)-A(n=16) u: -0.0020+-0.0006: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B(n=64)-B(n=16) u: 0.0000+-0.0000: tie: identical on every seed
+alternative n=256 (same seed family, CRN: first 64 observations shared, not adopted)
+  A_type_a 0.0012+-4.206e-05 V  B_type_b 0.0289+-0.0000 V  C_s_as_u_mean 0.0200+-0.0007 V
+  paired A-hand_s_over_sqrt_n u: 0.0000+-0.0000: tie: identical on every seed
+  paired A(n=256)-A(n=64) u: -0.0013+-0.0003: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B(n=256)-B(n=64) u: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A u: 0.0187+-0.0006: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  hand_calc C/A vs sqrt(256)=16.0000000000: 0.0000+-0.0000: tie: identical on every seed
+No winner declared: Type A u of the mean follows official eq (5) and shrinks when n grows; the Type-B L/sqrt(3) term stays put; using s as if it were s(mean) loses
+Real DMM / calibration laboratory / repeated physical observations: 本页未运行; NIST Type A statements 以原文为准
+```
+
+</SimOutput>
+
+### Read the regimes
+
+How the labels are used on this page, in this order: **tie: identical on every seed** only when the paired per-seed difference is exactly zero on every seed; **numerically zero (floating-point residue), effectively a tie** when |paired mean| and its sd are both below 1e-9 (no sign count is printed on such a line); **near-tie / small gap, within seed noise** when |paired mean| is at most the sd (`|m| <= sd`); otherwise a **consistent** gap (|paired mean| > sd), called **small** if |m| is under 20 % of the smaller arm mean and **clear** otherwise; the 20 % rule only chooses between those two words. Every consistent line carries a same-sign count over the 5 seeds, and any seed with the opposite sign is reported. Gaps are computed from unrounded values.
+
+- **n=16.** A's Type A `u` is `0.0046+-0.0007` V. The 手算 `s/√n` is `0.0046+-0.0007` V. Paired A-hand_s_over_sqrt_n is `0.0000+-0.0000: tie: identical on every seed`. That is a **tie**, not a numerically-zero floating-point residue. The official identity holds. Arm B stays at `0.0289+-0.0000` V (手算 `L/√3 = 0.0288675135` V). Paired A-B is `-0.0243+-0.0007`: a **clear gap, not a tie** (same sign on all 5 seeds). C reads `0.0183+-0.0030` V. Paired C-A is `0.0137+-0.0022`: a **clear gap, not a tie** (same sign on all 5 seeds). The 手算 `C/A` versus `√16 = 4.0000000000` is `0.0000+-0.0000: tie: identical on every seed`. C **loses** by `√n` as declared; the cell is kept.
+- **n=64.** Same seed family, CRN (first 16 observations shared). A's Type A `u` shrinks to `0.0025+-0.0003` V. Paired A(n=64)-A(n=16) is `-0.0020+-0.0006`: a **clear gap, not a tie** (same sign on all 5 seeds) — Arm A shrinks consistently with the official `1/(n(n-1))` formula. Arm B is still `0.0289+-0.0000` V. Paired B(n=64)-B(n=16) is `0.0000+-0.0000: tie: identical on every seed` — Arm B stays put. The 手算 identity A vs `s/√n` is again a **tie** (`0.0000+-0.0000`, identical on every seed). C is larger than A by `√64 = 8.0000000000` (the 手算 `C/A` is a **tie** against that root); paired C-A `0.0177+-0.0022`, **clear**, same sign on all 5 seeds. C **loses**; the cell is kept.
+
+**Choices made after seeing results.** None. `n = 16`, `n = 64`, `L = 0.0500` V, `MU = 5.0000` V and `SIGMA = 0.0200` V were written before the first run. A named alternative `n = 256` on the same seed family was printed and not adopted: A shrinks further to `0.0012+-4.206e-05` V (paired A(n=256)-A(n=64) `-0.0013+-0.0003`, **clear**, same sign on all 5 seeds) while B stays put (`0.0000+-0.0000: tie: identical on every seed`).
+
+No arm is declared a universal winner: Type A `u` of the mean follows official eq (5) and shrinks when *n* grows; the Type-B `L/√3` term stays put; using `s` as if it were `s` of the mean loses. Real DMM / calibration laboratory / repeated physical observations: 本页未运行.
+
+### Exercises
+
+1. From opened eq (4) and eq (5), write the sample mean and the official Type A `u` of the mean, and confirm from the printed 手算 that eq (5) equals `s/√n` on the shared draws (`0.0000+-0.0000: tie: identical on every seed`).
+2. Show from `draw_series` that the n=64 series is a CRN prefix of the same seed's draws, sharing the first 16 observations with n=16.
+3. Why does Arm B stay at `0.0289+-0.0000` V when *n* grows from 16 to 64, and why is that the already-taught Type-B move rather than a Type A evaluation of this series?
+4. On the same n=16 draws, predict the ratio C/A from the 手算 `√n = 4.0000000000`, then check the printed `C/A` line.
+5. Before any real DMM (本页未运行), explain why treating the observations' sample standard deviation `s` as if it were `u` of the mean is the pre-declared lose, and why a Type-B `L/√3` term does not shrink when you take more repeats of this series.
+
+**180-minute work plan:** 30 min read the official NIST Type A page and the opened eq (4) / eq (5) GIFs; 25 min write the sample-mean and `u`-of-the-mean contract and contrast it with the already-taught `L/√3` conversion; 50 min run the toy and read the three regimes; 40 min redo the 手算 `s/√n` and `C/A = √n` checks against the printed hand-calc block; 35 min write down when a Type A evaluation of a series is the right move and when a Type-B spec-limit term is (`30+25+50+40+35=180`).
+
 <Summary>
 
 The synthetic DMM V/R budget divides rectangular spec limits by √3, then contrasts sensitivity-weighted RSS standard uncertainty with worst-case limits.
@@ -960,6 +1311,8 @@ The synthetic DMM V/R budget divides rectangular spec limits by √3, then contr
 - Kelvin four-wire: on a 5–20 mΩ shunt two-wire reads 764.0166±61.6550 % high while Kelvin stays within 0.0892±0.0161 % (paired 763.9274±61.6410, a clear gap, same sign on all 5 seeds); on 5–20 kΩ parts the lead term is a near-tie in absolute error, and with zero leads two-wire and Kelvin **tie** (identical on every seed) — a synthetic model, not a bench run.
 
 - True RMS versus average-responding: on shared waveforms a sampled sine is a **near-tie** (B−A -6.112e-06±1.805e-05, 2 of 5 opposite sign), not a numerical zero; a square is over-read by 0.1107 V (11.0721 %, small but consistent, 5/5) and a high-crest PWM is a **clear** miss (-0.1793±0.0024, 5/5) — a synthetic model, not a real DMM.
+
+- Official Type A: on shared synthetic repeats the standard uncertainty of the mean follows opened eq (5) and is a **tie** with the 手算 `s/√n` (`0.0000+-0.0000`, identical on every seed); it shrinks from `0.0046+-0.0007` V at n=16 to `0.0025+-0.0003` V at n=64 (paired `-0.0020+-0.0006`, clear, same sign on all 5 seeds) while a Type-B `L/√3` term stays at `0.0289+-0.0000` V, and treating the observation sample sd s as if it were u of the mean **loses** by `√n` (C/A is a tie with `4.0000000000` at n=16) — a synthetic model, not a real DMM or calibration laboratory.
 
 **Used next**
 

@@ -109,4 +109,9 @@ if python3 "$M1/python-terminal/monotonic_vs_wallclock_timeout_toy.py" > "$TMP/m
 else
   echo "DIFF  monotonic_vs_wallclock_timeout_toy.txt"; fail=1
 fi
+if python3 "$M1/bench-multimeter/type_a_mean_uncertainty_toy.py" > "$TMP/type_a_mean_uncertainty_toy.txt" && diff -u "$M1/expected/type_a_mean_uncertainty_toy.txt" "$TMP/type_a_mean_uncertainty_toy.txt"; then
+  echo "same  type_a_mean_uncertainty_toy.txt"
+else
+  echo "DIFF  type_a_mean_uncertainty_toy.txt"; fail=1
+fi
 exit $fail
