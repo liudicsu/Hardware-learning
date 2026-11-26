@@ -99,4 +99,9 @@ if python3 "$M1/soldering/crimp_vs_solder_strain_relief_toy.py" > "$TMP/crimp_vs
 else
   echo "DIFF  crimp_vs_solder_strain_relief_toy.txt"; fail=1
 fi
+if python3 "$M1/ohms-law/ydelta_network_reduction_toy.py" > "$TMP/ydelta_network_reduction_toy.txt" && diff -u "$M1/expected/ydelta_network_reduction_toy.txt" "$TMP/ydelta_network_reduction_toy.txt"; then
+  echo "same  ydelta_network_reduction_toy.txt"
+else
+  echo "DIFF  ydelta_network_reduction_toy.txt"; fail=1
+fi
 exit $fail

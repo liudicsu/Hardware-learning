@@ -5016,6 +5016,26 @@ export const resources: Record<string, Resource> = {
     },
     extra: true,
   },
+  "wiki-ydelta": {
+    id: "wiki-ydelta",
+    url: "https://en.wikipedia.org/wiki/Y-%CE%94_transform",
+    title: {
+      zh: "Wikipedia：Y-Δ 变换",
+      en: "Wikipedia: Y-Δ transform",
+    },
+    author: "Wikipedia contributors",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: {
+      zh: "三端电阻网络的 Y（星形 / T）与 Δ（三角形 / Π）等效；给出 Δ→Y 与 Y→Δ 公式。HTML/raw 正文已核验。以原文为准。",
+      en: "Equivalence of three-terminal Y (wye / T) and Δ (delta / Π) resistor networks, with the Δ→Y and Y→Δ formulae. HTML/raw body verified. 以原文为准.",
+    },
+    license: {
+      zh: "CC BY-SA；以原站为准",
+      en: "CC BY-SA; see original terms",
+    },
+    extra: true,
+  },
 
   "sdf-physics-spec": {
     id: "sdf-physics-spec",
