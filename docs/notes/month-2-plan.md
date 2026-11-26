@@ -1,5 +1,15 @@
 # Month 2 plan / 第 2 个月计划
 
+Current / 当前：**M2 4470 min**, Batch-30 PR2. Earlier entries below retain their historical totals. After this PR the site typography is `46 440`. M2 now ties M9 / M10 at 4470. M8=M11 remain jointly heaviest at 4530 (60 above).
+
+## Batch-30 PR2 / 本月 H2 (+180)
+
+Base `d261e9f0097f53a9a837923d01a79436541d52d2` (batch-30 PR1 #214 squash-merged; site **46260**). PR2 on M2 host: **M2 4290→4470 (+180)**. Site **46260→46440** (README typography `46 440`). Still 71 lessons. M1 stays 3270 (still lightest). After this PR, M2 ties M9 / M10 at 4470, and M8=M11 remain jointly heaviest at 4530 (60 above). These load facts are recorded here and in the sources note only, not as a student-facing process lecture.
+
+- **H2 / 2.2 timing-interrupts: 330→510 (+180).** Official ATmega328P 7810D §15.6 Input Capture Unit contract versus software edge polling (`timer1_input_capture_vs_poll_toy.py`; five seeds; common random numbers; deterministic schedules). Official 7810D body re-fetched live (sha256 `fb84858d0b12c695a12b13f0c74b962d81210247d440c7a24c0ed23dfabfdfaf`; 8585103 bytes; Last-Modified Thu, 05 Jan 2017 06:19:08 GMT = 2017-01-05 14:19:08 Asia/Shanghai; marked 7810D–AVR–01/15; 以文档为准). New Resource / reading-map entry `atmega328p-input-capture` was added because the existing `atmega328p-wdt-datasheet` map line (same PDF URL) does not already cover §15.6. Declared toy parameters: `f_clk=16000000` Hz, `N=8`, ICNC off, official ICES=1, Arm C lose mode = wrong ICES only, `poll_ticks=20`, `clear_frac=0.2000`. Official first run 2026-11-26 12:33:53 Asia/Shanghai; expected sha256 `7ffe44c9876397025b00c04295eac9feef503049dd5de31ab212d52b5853a283`; later rerun byte-identical; official expected/ not retuned. sparse_edges: A vs B **tie** (`800.0000+-0.0000` tick period and `200.0000+-0.0000` first stamp, identical on every seed), as declared. short_pulses: paired A-B n_capt `-16.0000+-0.0000`, **clear**, 5/5 (B clearly better; kept). icr_overwrite: official late-read ICR `108.0000` ticks; keep-first `100.0000` disclosed and kept; the 8-tick B-keep_first gap is **small but consistent** (under 20 % of the smaller-arm mean). wrong_ices: paired C-B first_ticks `40.0000+-0.0000`, **clear**, 5/5 (C loses; kept). Alternative `poll_ticks=1` on short pulses printed, not adopted (A vs B n_capt tie). Official AVR flash / logic analyzer 本页未运行. Not a second §15.3 lecture and not Timer1 PWM / CTC. / 官方输入捕获契约对照软件边沿轮询，不宣布真机烧录。
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
+
 Current / 当前：**M2 4290 min**, Batch-29 PR2. Earlier entries below retain their historical totals. M2=4290 is still 180 below M9/M10=4470 and 240 below jointly-heaviest M8=M11=4530. Site typography after this PR is `46 080`.
 
 ## Batch-29 PR2 / 本月 H2 (+180)

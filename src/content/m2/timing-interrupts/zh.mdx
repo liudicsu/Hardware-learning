@@ -677,6 +677,521 @@ Synthetic timing; no certification or e-stop claim; AVR fuse/reset lab: 本页�
 3. 区分 WDE 复位、仅 WDIE 和定时 ISR 喂狗；按已打开手册说明重配前保存 / 清 MCUSR，不造寄存器值。
 4. 设计多任务进展门槛及受控重启方案，并解释玩具为何不能认证这些机制或替代急停。
 
+## Timer1 输入捕获与软件边沿轮询
+
+本页已经讲过 `delay()` 为什么会让机器人盲开、`millis()` 模式以及 Timer0 / 预分频 64 / 1.024 ms 溢出算术、为什么 `now - last` 能跨过 32 位回绕、如何在关中断下复制共享的 `unsigned long`、触点弹跳、反应计时器草图，以及独立硬件看门狗。那些切口保持原样。本节要讲的是另一份官方契约：ATmega328P 16 位定时器 / 计数器 1 在 7810D §15.6 中的**输入捕获单元**（以及该节点名的 §15.11 位：ICNC1、ICES1、ICIE1、ICF1、ICR1H/L）。这**不是**再讲一遍共享的 16 位值必须关中断再复制，**不是**改写中断一节里「轮询与精确时间戳」那段或反应计时器的 `millis()` 表述，也**不是** Timer1 的 PWM、相位修正 PWM、CTC 或输出比较课。
+
+官方 7810D §15.6（以文档为准）写到，该单元 “can capture external events and give them a time-stamp indicating time of occurrence”，输入可以来自 **ICP1** 引脚，也可以改走模拟比较器输出。“The time-stamps can then be used to calculate frequency, duty-cycle, and other features of the signal applied.” 合格边沿到来时，“the 16-bit value of the counter (TCNT1) is written to the input capture register (ICR1). The input capture flag (ICF1) is set at the same system clock as the TCNT1 value is copied into ICR1 register.” 若置位 ICIE1，该标志会产生输入捕获中断；中断执行时 ICF1 会自动清零，也可以由软件向该 I/O 位写逻辑 1 来清除。
+
+官方读 ICR1 的顺序是 “first reading the low byte (ICR1L) and then the high byte (ICR1H)”，经由高字节临时寄存器 TEMP。写 ICR1——仅在把 ICR1 用作 TOP 的波形产生模式下——则是先高后低。该节指向 §15.3 的 16 位访问说明。这里只把这次序当作数据手册约束来引用；本页不把已有的 `unsigned long` 原子复制表述改写成第二节 §15.3 课，也不烧录数据手册里的 C 示例（例如 `TIM16_ReadTCNT1`）（本页未运行）。
+
+“The time between two events is critical. If the processor has not read the captured value in the ICR1 register before the next event occurs, the ICR1 will be overwritten with a new value. In this case the result of the capture will be incorrect.” “When using the input capture interrupt, the ICR1 register should be read as early in the interrupt handler routine as possible.”
+
+噪声消除器（ICNC1）对输入连续监视四个采样，四个必须相等。使能后，它 “introduces additional four system clock cycles of delay from a change applied to the input, to the update of the ICR1 register. The noise canceler uses the system clock and is therefore not affected by the prescaler.” 改触发源本身也可能引发一次捕获，因此改完后必须清 ICF1。测占空比 “requires that the trigger edge is changed after each capture”；改边沿之后，ICF1 “must be cleared by software”。“For measuring frequency only, the clearing of the ICF1 flag is not required (if an interrupt handler is used).” 本玩具测量的是上升沿时间戳及其间隔（频率类用法），并不在每次捕获后切换 ICES。
+
+§15.6 说这些时间戳可以用来计算频率或占空比，但**并没有**印出闭合的频率公式。本页出现的国际单位制周期或频率，都是按课程声明的定时器节拍和 ΔICR 做的手算，不是官方 §15.6 公式。同一份数据手册（表 15-6）给出的官方预分频系数是 N is 1, 8, 64, 256 or 1024。本节在第一次运行前声明 N = 8、 f_clk = 16 MHz；16 MHz 就是本页 Timer0 已经用过的时钟（`64 / 16 MHz = 4 µs`），不是新编的板级通用缺省值。ICNC 声明为**关闭**，因此官方的四周期延迟不加进去。手算：一拍是 8 / 16 MHz = 0.5000 us；四个系统时钟是 4 / 16 MHz = 0.2500 us。官方 AVR 烧录 / 逻辑分析仪：本页未运行。
+
+<Resource id="atmega328p-input-capture" />
+
+已有的 `atmega328p-wdt-datasheet` 资源是同一份官方 7810D PDF，标题标的是硬件看门狗。那条阅读地图并不能覆盖 §15.6。这里新增一条点名输入捕获单元的条目。
+
+**实际打开并阅读的来源**。
+
+- **ATmega328P 7810D**（`https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-7810-Automotive-Microcontrollers-ATmega328P_Datasheet.pdf`）：§15.6 输入捕获单元，并引用 §15.3 的 16 位访问约束和上面点名的 §15.11 位。标记为 7810D–AVR–01/15。以文档为准。这是数据手册 PDF，不是 arXiv 记录；不编造 Comments 或 journal-ref 字段。
+
+### 已打开的契约
+
+同一份预先声明的引脚时间表送到三个臂。臂 A 是按声明循环周期做的软件上升沿轮询：时间戳是第一次看到低到高采样的那次轮询时刻，因此只在两次轮询之间保持高电平的短脉冲可能被错过。臂 B 是官方契约替身：在合格上升沿（ICES1 = 1）上，把定时器计数值在同一拍写入深度为 1 的 ICR（ICNC 关闭）。臂 C 是预先声明的**失败**，而且**只有一种**失败模式，在第一次运行前就选定：ICES 对调（下降沿）。该模式保留；本页不在运行时留下开放的或列表，也不把撕裂或反序的 16 位读取当作臂 C。
+
+### 公平设定
+
+`timer1_input_capture_vs_poll_toy.py` 是**合成的**，只用标准库。**模型假定**是课程声明的定时器时钟 f_clk = 16 MHz 与预分频 N = 8（官方表 15-6，clkI/O/8）；ICNC 关闭；官方 ICES = 1（上升沿）；臂 C 的 ICES = 0（下降沿）；软件轮询周期 20 拍（手算 20 × 0.5000 us = 10.0000 us）。稀疏上升沿在 200、1000 和 1800 拍，每拍高电平持续 40 拍，因此官方上升周期是 800 拍（手算 400.0000 us，2500.0000 Hz）。短脉冲：从第 1 拍起 16 个上升沿，周期 8 拍、脉宽 3 拍，都短于 20 拍的轮询。覆盖：上升沿在 100 和 108 拍，ICR 只在 120 拍读取。本玩具是已打开契约的带标签替身，不是数据手册 C 示例的移植，也不需要 root 或真实 AVR。
+
+| 臂 | 计算内容 |
+|---|---|
+| A_poll | 按声明的 20 拍循环周期做软件上升沿轮询；时间戳是轮询时刻 |
+| B_icr | 官方深度为 1 的 ICR：上升沿把 TCNT 拷入；第二次未读边沿会覆盖 ICR |
+| C_ices | 同一条官方捕获路径，但把 ICES 对调成下降沿（预先声明的失败） |
+
+**公共随机数**是五个种子。每种情形都是确定性的（固定边沿时间表；五个种子重复同一组数字）。度量是捕获次数、首次捕获时间戳，以及至少有两次捕获时的平均周期，按种子报 mean+-sd。国际单位制的微秒和赫兹数字都标为手算。小与明显的分界因子打印为 `0.2000`（较小臂均值的 20 %）。**没有积分步长**（精确的整数定时器拍和闭合时间戳）。比较**看不到**真实的 ICP1 引脚，也看不到任何已烧录的 AVR 示例。官方 AVR 烧录 / 逻辑分析仪：本页未运行。不声称本玩具在真实开发板上运行过。
+
+**四种情形，写在第一次运行之前**如下。周期远长于声明轮询间隔的稀疏边沿——A 对 B 应为精确**打平**或官方**近平**（`|m| <= sd`）；短于轮询的短脉冲 / 边沿——B 应**明显好于** A（软件采样漏检或偏晚）；读取 ICR 之前又来第二次事件——官方覆盖，迟读或只保留首次的行为予以披露并保留；臂 C 在声明的错误 ICES 情形上应**失败**。
+
+### 运行标准库玩具
+
+```bash
+cd ~/Hardware-learning/examples/month-2/timing-interrupts
+python3 timer1_input_capture_vs_poll_toy.py
+```
+
+<CodeSource path="examples/month-2/timing-interrupts/timer1_input_capture_vs_poll_toy.py" />
+
+```python
+#!/usr/bin/env python3
+"""Synthetic Timer1 input-capture vs software edge-poll stand-in.
+
+Stdlib only. A labeled stand-in of the opened ATmega328P 7810D section 15.6
+Input Capture Unit contract, not a port of the datasheet C examples and not
+a flash or logic-analyzer run.
+
+Arms:
+  A_poll   software rising-edge polling at a declared loop period. The
+           timestamp is the poll instant when a low-to-high sample is
+           first seen, so a short pulse that stays high only between
+           polls can be missed.
+  B_icr    official-contract stand-in: on a qualifying rising edge
+           (ICES=1), copy TCNT into a one-deep ICR at that same timer
+           tick. ICNC is declared off, so the official four system-clock
+           noise-canceler delay is not added. A second qualifying edge
+           before ICR is read overwrites ICR.
+  C_ices   pre-declared lose mode: ICES swapped (falling edge). One
+           mode only, declared before the first run. Kept.
+
+Common random numbers: seeds 0-4. Every regime is deterministic
+(fixed edge schedules; the five seeds repeat the same figures).
+
+Regimes (declared before the first run):
+  sparse_edges    rising period much longer than the poll interval
+                  -> A vs B exact or official near-tie
+  short_pulses    pulse width and period shorter than the poll
+                  -> B clearly better than A (missed software samples)
+  icr_overwrite   second rising edge before ICR is read
+                  -> official overwrite; late-read and keep-first
+                     behaviour disclosed and kept
+  wrong_ices      C uses falling-edge select on the sparse schedule
+                  -> C loses on the first-capture stamp
+
+ATmega328P 7810D section 15.6 以文档为准. Official AVR flash / logic
+analyzer: 本页未运行.
+"""
+from __future__ import annotations
+
+import math
+
+SEEDS = (0, 1, 2, 3, 4)
+NUM_ZERO = 1e-9
+CLEAR_FRAC = 0.2000  # small-vs-clear factor; printed before the first official run
+F_CLK_HZ = 16_000_000  # lesson-declared, matching this page's Timer0 64 / 16 MHz = 4 us arithmetic
+N_PRESCALER = 8  # official Table 15-6 clkI/O/8; N in {1, 8, 64, 256, 1024}
+TICK_S = N_PRESCALER / F_CLK_HZ  # 0.5000 us, labelled 手算
+ICNC_ON = False
+ICNC_DELAY_CLK = 4  # official delay when ICNC is on; not applied
+ICES_RISING = 1  # official ICES1=1, rising (positive) edge
+ICES_FALLING = 0  # C's pre-declared lose mode: ICES swapped
+POLL_PERIOD_TICKS = 20
+POLL_PERIOD_ALT_TICKS = 1  # named alternative, not adopted
+SPARSE_RISES = (200, 1000, 1800)
+SPARSE_WIDTH_TICKS = 40
+SHORT_FIRST_RISE = 1
+SHORT_PERIOD_TICKS = 8
+SHORT_WIDTH_TICKS = 3
+SHORT_N_PULSES = 16
+OVERWRITE_RISES = (100, 108)
+OVERWRITE_WIDTH_TICKS = 4
+LATE_READ_TICKS = 120
+ARMS = ("A_poll", "B_icr", "C_ices")
+REGIMES = ("sparse_edges", "short_pulses", "icr_overwrite", "wrong_ices")
+
+
+def tick_to_us(ticks: float) -> float:
+    return ticks * TICK_S * 1e6
+
+
+def pin_high(t: int, rises: tuple[int, ...], width: int) -> bool:
+    return any(r <= t < r + width for r in rises)
+
+
+def falling_edges(rises: tuple[int, ...], width: int) -> tuple[int, ...]:
+    return tuple(r + width for r in rises)
+
+
+def qualifying_edges(ices: int, rises: tuple[int, ...], width: int) -> tuple[int, ...]:
+    return rises if ices == ICES_RISING else falling_edges(rises, width)
+
+
+def poll_captures(rises: tuple[int, ...], width: int, poll: int, t_end: int) -> list[int]:
+    """Software rising-edge poll: timestamp is the poll instant."""
+    found: list[int] = []
+    prev = 0
+    t = 0
+    while t <= t_end:
+        level = 1 if pin_high(t, rises, width) else 0
+        if prev == 0 and level == 1:
+            found.append(t)
+        prev = level
+        t += poll
+    return found
+
+
+def icr_captures(ices: int, rises: tuple[int, ...], width: int, read_immediately: bool) -> list[int]:
+    """Official one-deep ICR. If read_immediately, each capture is saved before the next edge."""
+    edges = qualifying_edges(ices, rises, width)
+    if read_immediately:
+        return list(edges)
+    if not edges:
+        return []
+    # Unread: each new qualifying edge overwrites ICR; only the last remains.
+    return [edges[-1]]
+
+
+def first_kept(ices: int, rises: tuple[int, ...], width: int) -> int | None:
+    """Disclosed keep-first behaviour: ignore the official overwrite."""
+    edges = qualifying_edges(ices, rises, width)
+    return edges[0] if edges else None
+
+
+def mean_period(captures: list[int]) -> float | None:
+    if len(captures) < 2:
+        return None
+    gaps = [b - a for a, b in zip(captures, captures[1:])]
+    return sum(gaps) / len(gaps)
+
+
+def mean_sd(xs: list[float]) -> tuple[float, float]:
+    mu = sum(xs) / len(xs)
+    if len(xs) == 1:
+        return mu, 0.0
+    return mu, math.sqrt(sum((x - mu) ** 2 for x in xs) / (len(xs) - 1))
+
+
+def num(x: float) -> str:
+    if x != 0.0 and abs(x) < 5e-5:
+        return f"{x:.3e}"
+    return f"{x:.4f}"
+
+
+def sign_note(diffs: list[float], m: float) -> str:
+    n, opp, zero = len(diffs), sum(1 for d in diffs if d * m < 0), sum(1 for d in diffs if d == 0)
+    if opp == 0 and zero == 0:
+        return f"same sign on all {n} seeds"
+    if opp == 0:
+        return f"no seed has the opposite sign, {zero} of {n} equal"
+    note = f"{opp} of {n} seeds {'has' if opp == 1 else 'have'} the opposite sign"
+    return note + (f", {zero} of {n} equal" if zero else "")
+
+
+def verdict(xa: list[float], xb: list[float]) -> str:
+    diffs = [a - b for a, b in zip(xa, xb)]
+    if all(d == 0.0 for d in diffs):
+        return "0.0000+-0.0000: tie: identical on every seed"
+    m, s = mean_sd(diffs)
+    if abs(m) < NUM_ZERO and s < NUM_ZERO:
+        return f"{num(m)}+-{num(s)}: numerically zero (floating-point residue), effectively a tie"
+    if abs(m) <= s:
+        label = "near-tie / small gap, within seed noise (|m| <= sd)"
+    elif abs(m) < CLEAR_FRAC * min(abs(mean_sd(xa)[0]), abs(mean_sd(xb)[0])):
+        label = "small but consistent gap, not a tie (|m| > sd)"
+    else:
+        label = "clear gap, not a tie (|m| > sd)"
+    return f"{num(m)}+-{num(s)}: {label}; {sign_note(diffs, m)}"
+
+
+def seed_repeat(value: float) -> list[float]:
+    return [value] * len(SEEDS)
+
+
+def print_pair(label: str, xa: list[float], xb: list[float], unit: str) -> None:
+    print(f"  paired {label}: {verdict(xa, xb)} {unit}".rstrip())
+
+
+def run_sparse(poll: int) -> dict[str, list[int]]:
+    t_end = SPARSE_RISES[-1] + SPARSE_WIDTH_TICKS + poll
+    return {
+        "A_poll": poll_captures(SPARSE_RISES, SPARSE_WIDTH_TICKS, poll, t_end),
+        "B_icr": icr_captures(ICES_RISING, SPARSE_RISES, SPARSE_WIDTH_TICKS, True),
+        "C_ices": icr_captures(ICES_FALLING, SPARSE_RISES, SPARSE_WIDTH_TICKS, True),
+    }
+
+
+def run_short(poll: int) -> dict[str, list[int]]:
+    rises = tuple(SHORT_FIRST_RISE + i * SHORT_PERIOD_TICKS for i in range(SHORT_N_PULSES))
+    t_end = rises[-1] + SHORT_WIDTH_TICKS + poll
+    return {
+        "A_poll": poll_captures(rises, SHORT_WIDTH_TICKS, poll, t_end),
+        "B_icr": icr_captures(ICES_RISING, rises, SHORT_WIDTH_TICKS, True),
+        "C_ices": icr_captures(ICES_FALLING, rises, SHORT_WIDTH_TICKS, True),
+    }
+
+
+def run_overwrite() -> dict[str, object]:
+    t_end = LATE_READ_TICKS
+    a = poll_captures(OVERWRITE_RISES, OVERWRITE_WIDTH_TICKS, POLL_PERIOD_TICKS, t_end)
+    official_last = icr_captures(ICES_RISING, OVERWRITE_RISES, OVERWRITE_WIDTH_TICKS, False)
+    kept = first_kept(ICES_RISING, OVERWRITE_RISES, OVERWRITE_WIDTH_TICKS)
+    c = icr_captures(ICES_FALLING, OVERWRITE_RISES, OVERWRITE_WIDTH_TICKS, False)
+    return {
+        "A_poll": a,
+        "B_icr_late": official_last,
+        "keep_first": kept,
+        "C_ices_late": c,
+        "rising_edges": OVERWRITE_RISES,
+    }
+
+
+def print_arm_stats(name: str, captures: list[int], metric: str) -> tuple[list[float], list[float]]:
+    n = seed_repeat(float(len(captures)))
+    first = seed_repeat(float(captures[0]) if captures else math.nan)
+    period = mean_period(captures)
+    print(f"  {name} n_capt {num(n[0])}+-{num(0.0)}")
+    if captures:
+        print(f"  {name} first_ticks {num(first[0])}+-{num(0.0)} first_us {num(tick_to_us(first[0]))}+-{num(0.0)} (hand_calc)")
+    else:
+        print(f"  {name} first_ticks none first_us none")
+    if period is not None:
+        per = seed_repeat(period)
+        print(
+            f"  {name} period_ticks {num(per[0])}+-{num(0.0)} period_us {num(tick_to_us(period))}+-{num(0.0)} (hand_calc)"
+        )
+    else:
+        per = []
+        print(f"  {name} period_ticks none period_us none")
+    return n, (first if captures else []), per
+
+
+def main() -> None:
+    sparse = run_sparse(POLL_PERIOD_TICKS)
+    short = run_short(POLL_PERIOD_TICKS)
+    short_alt = run_short(POLL_PERIOD_ALT_TICKS)
+    overw = run_overwrite()
+
+    hc_tick_us = TICK_S * 1e6
+    hc_icnc_us = ICNC_DELAY_CLK / F_CLK_HZ * 1e6
+    hc_poll_us = tick_to_us(POLL_PERIOD_TICKS)
+    hc_sparse_period_ticks = float(SPARSE_RISES[1] - SPARSE_RISES[0])
+    hc_sparse_first_a = float(SPARSE_RISES[0])
+    hc_sparse_first_c = float(SPARSE_RISES[0] + SPARSE_WIDTH_TICKS)
+    hc_short_n_b = float(SHORT_N_PULSES)
+    hc_short_n_a = 0.0
+    hc_overwrite_b = float(OVERWRITE_RISES[1])
+    hc_keep_first = float(OVERWRITE_RISES[0])
+    hc_overwrite_a = float(OVERWRITE_RISES[0])  # poll lands on the first rising
+    hc_freq_sparse = 1.0 / (hc_sparse_period_ticks * TICK_S)
+
+    print(
+        "Synthetic Timer1 input-capture vs software edge-poll toy; "
+        "stdlib stand-in only; not a flash or logic-analyzer run"
+    )
+    print(
+        f"f_clk={F_CLK_HZ}Hz N={N_PRESCALER} tick_us={hc_tick_us:.4f} "
+        f"(hand_calc N/f_clk) ICNC={int(ICNC_ON)} icnc_delay_clk={ICNC_DELAY_CLK} "
+        f"icnc_delay_us={hc_icnc_us:.4f} (hand_calc, not applied)"
+    )
+    print(
+        f"ICES_B={ICES_RISING} ICES_C={ICES_FALLING} (pre-declared C lose mode: wrong ICES only) "
+        f"poll_ticks={POLL_PERIOD_TICKS} poll_us={hc_poll_us:.4f} (hand_calc) "
+        f"seeds={len(SEEDS)} clear_frac={CLEAR_FRAC:.4f} "
+        f"hand_calc work_plan 30+25+50+40+35=180"
+    )
+    print(
+        "no integration step: exact integer timer ticks; SI period and frequency are hand_calc "
+        "from declared tick and delta ICR, not a closed-form printed in section 15.6"
+    )
+    print(
+        f"hand_calc sparse period_ticks={hc_sparse_period_ticks:.10f} "
+        f"period_us={tick_to_us(hc_sparse_period_ticks):.10f} "
+        f"freq_hz={hc_freq_sparse:.10f} first_A=B={hc_sparse_first_a:.10f} "
+        f"first_C={hc_sparse_first_c:.10f}"
+    )
+    print(
+        f"hand_calc short n_A={hc_short_n_a:.10f} n_B={hc_short_n_b:.10f} "
+        f"period_ticks={float(SHORT_PERIOD_TICKS):.10f} "
+        f"period_us={tick_to_us(SHORT_PERIOD_TICKS):.10f} "
+        f"first_rise={SHORT_FIRST_RISE} width={SHORT_WIDTH_TICKS} "
+        f"poll_ticks={POLL_PERIOD_TICKS}"
+    )
+    print(
+        f"hand_calc overwrite late_read_ticks={LATE_READ_TICKS} "
+        f"official_ICR_B={hc_overwrite_b:.10f} keep_first={hc_keep_first:.10f} "
+        f"A_first={hc_overwrite_a:.10f} edges={OVERWRITE_RISES[0]},{OVERWRITE_RISES[1]}"
+    )
+
+    # --- sparse_edges ---
+    print("sparse_edges (rising period much longer than the declared poll interval)")
+    n_map: dict[str, list[float]] = {}
+    first_map: dict[str, list[float]] = {}
+    per_map: dict[str, list[float]] = {}
+    for arm in ARMS:
+        n, first, per = print_arm_stats(arm, sparse[arm], "sparse")
+        n_map[arm] = n
+        if first:
+            first_map[arm] = first
+        if per:
+            per_map[arm] = per
+    print_pair("A-B period_ticks", per_map["A_poll"], per_map["B_icr"], "")
+    print_pair("A-B first_ticks", first_map["A_poll"], first_map["B_icr"], "")
+    print(
+        f"  residual_step-closed_A_first={sparse['A_poll'][0] - hc_sparse_first_a:.3e}ticks "
+        f"residual_step-closed_B_first={sparse['B_icr'][0] - hc_sparse_first_a:.3e}ticks"
+    )
+
+    # --- short_pulses ---
+    print("short_pulses (pulse width and period shorter than the declared poll; missed software samples)")
+    n_map = {}
+    first_map = {}
+    per_map = {}
+    for arm in ARMS:
+        n, first, per = print_arm_stats(arm, short[arm], "short")
+        n_map[arm] = n
+        if first:
+            first_map[arm] = first
+        if per:
+            per_map[arm] = per
+    print_pair("A-B n_capt", n_map["A_poll"], n_map["B_icr"], "")
+    print(
+        f"  residual_step-closed_A_n={len(short['A_poll']) - hc_short_n_a:.3e} "
+        f"residual_step-closed_B_n={len(short['B_icr']) - hc_short_n_b:.3e}"
+    )
+
+    # --- icr_overwrite ---
+    print(
+        "icr_overwrite (second rising edge before ICR is read; official overwrite; "
+        "late-read and keep-first disclosed and kept)"
+    )
+    a_over = overw["A_poll"]
+    b_late = overw["B_icr_late"]
+    keep = overw["keep_first"]
+    c_late = overw["C_ices_late"]
+    print(f"  A_poll n_capt {num(float(len(a_over)))}+-{num(0.0)} first_ticks {num(float(a_over[0]))}+-{num(0.0)}")
+    print(f"  B_icr late_read ICR_ticks {num(float(b_late[0]))}+-{num(0.0)} (official overwrite, last edge)")
+    print(f"  keep_first ICR_ticks {num(float(keep))}+-{num(0.0)} (disclosed, not the official capture)")
+    print(f"  C_ices late_read ICR_ticks {num(float(c_late[0]))}+-{num(0.0)}")
+    print_pair("B-keep_first ICR_ticks", seed_repeat(float(b_late[0])), seed_repeat(float(keep)), "")
+    print_pair("A-B first_vs_official_ICR_ticks", seed_repeat(float(a_over[0])), seed_repeat(float(b_late[0])), "")
+    print(
+        f"  residual_step-closed_B_ICR={b_late[0] - hc_overwrite_b:.3e}ticks "
+        f"residual_step-closed_keep={keep - hc_keep_first:.3e}ticks "
+        f"residual_step-closed_A_first={a_over[0] - hc_overwrite_a:.3e}ticks"
+    )
+
+    # --- wrong_ices ---
+    print("wrong_ices (C uses falling-edge select on the sparse schedule; pre-declared lose, kept)")
+    first_map = {}
+    per_map = {}
+    for arm in ARMS:
+        n, first, per = print_arm_stats(arm, sparse[arm], "wrong")
+        if first:
+            first_map[arm] = first
+        if per:
+            per_map[arm] = per
+    print_pair("C-B first_ticks", first_map["C_ices"], first_map["B_icr"], "")
+    print_pair("A-B first_ticks", first_map["A_poll"], first_map["B_icr"], "")
+    print(
+        "  C falling-to-falling period still matches the official rising period when pulse width is constant; "
+        "C loses on the first-capture stamp"
+    )
+    print(
+        f"  residual_step-closed_C_first={sparse['C_ices'][0] - hc_sparse_first_c:.3e}ticks"
+    )
+
+    a_alt = short_alt["A_poll"]
+    b_alt = short_alt["B_icr"]
+    print(
+        f"alternative short_pulses poll_ticks={POLL_PERIOD_ALT_TICKS} (not adopted) "
+        f"n_A={len(a_alt):.10f} n_B={len(b_alt):.10f} "
+        f"first_A={a_alt[0] if a_alt else 'none'} first_B={b_alt[0]}"
+    )
+    print("  paired A-B n_capt: " + verdict(seed_repeat(float(len(a_alt))), seed_repeat(float(len(b_alt)))))
+    print(
+        "No winner declared: on sparse edges A and B tie on period and first stamp; "
+        "on short pulses B captures the declared rising train and A misses every pulse; "
+        "a second unread event overwrites ICR with the later stamp; "
+        "wrong ICES loses on the first-capture stamp"
+    )
+    print("Official AVR flash / logic analyzer: 本页未运行; ATmega328P 7810D section 15.6 以文档为准")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+<SimOutput source="model">
+
+```text
+Synthetic Timer1 input-capture vs software edge-poll toy; stdlib stand-in only; not a flash or logic-analyzer run
+f_clk=16000000Hz N=8 tick_us=0.5000 (hand_calc N/f_clk) ICNC=0 icnc_delay_clk=4 icnc_delay_us=0.2500 (hand_calc, not applied)
+ICES_B=1 ICES_C=0 (pre-declared C lose mode: wrong ICES only) poll_ticks=20 poll_us=10.0000 (hand_calc) seeds=5 clear_frac=0.2000 hand_calc work_plan 30+25+50+40+35=180
+no integration step: exact integer timer ticks; SI period and frequency are hand_calc from declared tick and delta ICR, not a closed-form printed in section 15.6
+hand_calc sparse period_ticks=800.0000000000 period_us=400.0000000000 freq_hz=2500.0000000000 first_A=B=200.0000000000 first_C=240.0000000000
+hand_calc short n_A=0.0000000000 n_B=16.0000000000 period_ticks=8.0000000000 period_us=4.0000000000 first_rise=1 width=3 poll_ticks=20
+hand_calc overwrite late_read_ticks=120 official_ICR_B=108.0000000000 keep_first=100.0000000000 A_first=100.0000000000 edges=100,108
+sparse_edges (rising period much longer than the declared poll interval)
+  A_poll n_capt 3.0000+-0.0000
+  A_poll first_ticks 200.0000+-0.0000 first_us 100.0000+-0.0000 (hand_calc)
+  A_poll period_ticks 800.0000+-0.0000 period_us 400.0000+-0.0000 (hand_calc)
+  B_icr n_capt 3.0000+-0.0000
+  B_icr first_ticks 200.0000+-0.0000 first_us 100.0000+-0.0000 (hand_calc)
+  B_icr period_ticks 800.0000+-0.0000 period_us 400.0000+-0.0000 (hand_calc)
+  C_ices n_capt 3.0000+-0.0000
+  C_ices first_ticks 240.0000+-0.0000 first_us 120.0000+-0.0000 (hand_calc)
+  C_ices period_ticks 800.0000+-0.0000 period_us 400.0000+-0.0000 (hand_calc)
+  paired A-B period_ticks: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B first_ticks: 0.0000+-0.0000: tie: identical on every seed
+  residual_step-closed_A_first=0.000e+00ticks residual_step-closed_B_first=0.000e+00ticks
+short_pulses (pulse width and period shorter than the declared poll; missed software samples)
+  A_poll n_capt 0.0000+-0.0000
+  A_poll first_ticks none first_us none
+  A_poll period_ticks none period_us none
+  B_icr n_capt 16.0000+-0.0000
+  B_icr first_ticks 1.0000+-0.0000 first_us 0.5000+-0.0000 (hand_calc)
+  B_icr period_ticks 8.0000+-0.0000 period_us 4.0000+-0.0000 (hand_calc)
+  C_ices n_capt 16.0000+-0.0000
+  C_ices first_ticks 4.0000+-0.0000 first_us 2.0000+-0.0000 (hand_calc)
+  C_ices period_ticks 8.0000+-0.0000 period_us 4.0000+-0.0000 (hand_calc)
+  paired A-B n_capt: -16.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  residual_step-closed_A_n=0.000e+00 residual_step-closed_B_n=0.000e+00
+icr_overwrite (second rising edge before ICR is read; official overwrite; late-read and keep-first disclosed and kept)
+  A_poll n_capt 1.0000+-0.0000 first_ticks 100.0000+-0.0000
+  B_icr late_read ICR_ticks 108.0000+-0.0000 (official overwrite, last edge)
+  keep_first ICR_ticks 100.0000+-0.0000 (disclosed, not the official capture)
+  C_ices late_read ICR_ticks 112.0000+-0.0000
+  paired B-keep_first ICR_ticks: 8.0000+-0.0000: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B first_vs_official_ICR_ticks: -8.0000+-0.0000: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds
+  residual_step-closed_B_ICR=0.000e+00ticks residual_step-closed_keep=0.000e+00ticks residual_step-closed_A_first=0.000e+00ticks
+wrong_ices (C uses falling-edge select on the sparse schedule; pre-declared lose, kept)
+  A_poll n_capt 3.0000+-0.0000
+  A_poll first_ticks 200.0000+-0.0000 first_us 100.0000+-0.0000 (hand_calc)
+  A_poll period_ticks 800.0000+-0.0000 period_us 400.0000+-0.0000 (hand_calc)
+  B_icr n_capt 3.0000+-0.0000
+  B_icr first_ticks 200.0000+-0.0000 first_us 100.0000+-0.0000 (hand_calc)
+  B_icr period_ticks 800.0000+-0.0000 period_us 400.0000+-0.0000 (hand_calc)
+  C_ices n_capt 3.0000+-0.0000
+  C_ices first_ticks 240.0000+-0.0000 first_us 120.0000+-0.0000 (hand_calc)
+  C_ices period_ticks 800.0000+-0.0000 period_us 400.0000+-0.0000 (hand_calc)
+  paired C-B first_ticks: 40.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired A-B first_ticks: 0.0000+-0.0000: tie: identical on every seed
+  C falling-to-falling period still matches the official rising period when pulse width is constant; C loses on the first-capture stamp
+  residual_step-closed_C_first=0.000e+00ticks
+alternative short_pulses poll_ticks=1 (not adopted) n_A=16.0000000000 n_B=16.0000000000 first_A=1 first_B=1
+  paired A-B n_capt: 0.0000+-0.0000: tie: identical on every seed
+No winner declared: on sparse edges A and B tie on period and first stamp; on short pulses B captures the declared rising train and A misses every pulse; a second unread event overwrites ICR with the later stamp; wrong ICES loses on the first-capture stamp
+Official AVR flash / logic analyzer: 本页未运行; ATmega328P 7810D section 15.6 以文档为准
+```
+
+</SimOutput>
+
+### 读四种情形
+
+本页标签按以下顺序使用。**tie: identical on every seed** 只在成对的每种种子差分都恰好为零时使用；**numerically zero (floating-point residue), effectively a tie** 用于成对均值的绝对值和标准差都低于 1e-9 时（这类行不打印符号计数）；**near-tie / small gap, within seed noise** 用于 `|paired mean| <= sd`（`|m| <= sd`）；否则就是**一致**的差距（`|paired mean| > sd`），若 `|m|` 小于较小臂均值的 20 % 则称**小**，否则称**明显**；20 % 规则只用来在这两个词之间选择。每条一致的行都带 5 个种子上的同号计数，若有反号种子也会报出；单靠符号计数不能让差距变成一致。差距用未四舍五入的值计算。
+
+- **sparse_edges.** 上升周期是 800 拍，远长于 20 拍的轮询，而且每个上升沿都落在轮询时刻上。A 和 B 都打印 `n_capt 3.0000+-0.0000`、`first_ticks 200.0000+-0.0000`（手算 `100.0000 us`）和 `period_ticks 800.0000+-0.0000`（手算 `400.0000 us`，`2500.0000 Hz`）。成对 A-B 的 `period_ticks` 和 `first_ticks` 都是 `0.0000+-0.0000: tie: identical on every seed`。这是**打平**，不是「明显」差距，也不是数值上为零的浮点残差（打印的 `residual_step-closed_A_first=0.000e+00ticks`）。闭合手算是 `first_A=B=200.0000000000`。该格保留。
+- **short_pulses.** 16 个脉宽 3 拍、周期 8 拍的上升沿都严格落在 20 拍轮询之间，轮询始终采到低电平。A 打印 `n_capt 0.0000+-0.0000`，没有首次时间戳，也没有周期。B 打印 `n_capt 16.0000+-0.0000`、`first_ticks 1.0000+-0.0000`（手算 `0.5000 us`）和 `period_ticks 8.0000+-0.0000`（手算 `4.0000 us`）。成对 A-B 的 `n_capt` 是 `-16.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds`。B **明显更好**；软件轮询错过了每一发脉冲。该格保留（`residual_step-closed_A_n=0.000e+00`，`residual_step-closed_B_n=0.000e+00`）。
+- **icr_overwrite.** 上升沿发生在 100 和 108 拍；ICR 只在 120 拍读取。因此官方的 B 保存的是被**覆盖**后的时间戳 `108.0000+-0.0000` 拍（后一个边沿）。若只保留首次，会得到 `100.0000+-0.0000`；这种行为予以披露，而且**不是**官方捕获。软件轮询落在第一次上升沿上，之后看不到新的上升采样，于是报 `first_ticks 100.0000+-0.0000`。成对 B-keep_first 的 `ICR_ticks` 是 `8.0000+-0.0000: small but consistent gap, not a tie (|m| > sd); same sign on all 5 seeds`——8 拍小于较小臂均值 100 的 20 %，所以按本课规则称这个差距为**小**，而不是明显。官方覆盖本身是后一个时间戳 108 而不是 100，该格保留（`residual_step-closed_B_ICR=0.000e+00ticks`）。
+- **wrong_ices.** C 在同一份稀疏时间表上选用下降沿。B 的首次时间戳仍是 `200.0000+-0.0000` 拍；C 的首次时间戳是下降沿 `240.0000+-0.0000` 拍（手算 `120.0000 us`）。成对 C-B 的 `first_ticks` 是 `40.0000+-0.0000: clear gap, not a tie (|m| > sd); same sign on all 5 seeds`。在脉宽恒定时，C 的下降沿到下降沿周期仍与官方上升周期相同；C 在首次捕获时间戳上**失败**。该格保留（`residual_step-closed_C_first=0.000e+00ticks`）。
+
+**点名但未采纳的替代**。 若在短脉冲时间表上改用 1 拍轮询，本可以抓住每一个上升沿：`n_A=16.0000000000`，`n_B=16.0000000000`，成对 A-B 的 `n_capt` 为 `0.0000+-0.0000: tie: identical on every seed`。它没有被用来改写已声明的 20 拍轮询。
+
+不宣布某一臂在所有情形下都胜出：稀疏边沿上 A 与 B 在周期和首次时间戳上打平；短脉冲上 B 捕获声明的上升沿序列，A 错过每一发；第二次未读事件会用后一个时间戳覆盖 ICR；错误的 ICES 在首次捕获时间戳上失败。官方 AVR 烧录 / 逻辑分析仪：本页未运行。
+
+### 练习
+
+1. 按官方措辞，合格边沿到来时拷进 ICR1 的是什么，ICF1 又在相对这次拷贝的什么时刻置位？
+2. 在声明的稀疏时间表上，用手算上升周期的拍数和微秒数（N / f_clk 与 ΔICR），确认与打印的 `800.0000000000` 拍和 `400.0000000000 us` 一致。
+3. 为什么 20 拍轮询会错过从第 1 拍开始、周期 8 拍、脉宽 3 拍的每一发脉冲？未采纳的 1 拍轮询又打印了什么？
+4. 若在 100 和 108 拍的上升沿之间没有读取 ICR，官方迟读会得到什么值，它与只保留首次有何不同？
+5. 为什么在脉宽恒定时，错误的 ICES 仍可能打印与官方上升周期相同的周期，而哪一条打印的度量表明 C 失败了？
+
+**180 分钟安排:** 30 分钟阅读 7810D §15.6 中的输入捕获单元、ICR1、ICF1、ICES1 与 ICNC1；25 分钟写下官方捕获进 ICR 的契约、覆盖规则和噪声消除器的四周期延迟；50 分钟运行玩具并阅读四种情形；40 分钟亲手重做拍数与国际单位制手算并核对打印的残差；35 分钟写下软件轮询何时够用、何时该用硬件捕获（`30+25+50+40+35=180`）。
+
 <Summary>
 
 **本课要点**
@@ -688,6 +1203,7 @@ Synthetic timing; no certification or e-stop claim; AVR fuse/reset lab: 本页�
 - Uno 上经 `attachInterrupt()` 的中断延迟：从事件到你的函数第一行为 4 + 3 + 30 + 9 = 46 个周期 ≈ 2.9 µs。
 - ISR 规矩：保持短小，不调用 `delay()` 或 `Serial`，通过 `volatile` 共享数据，关中断复制多字节值。
 - 消抖：时间型消抖在输入稳定 10–50 ms 后才接受新状态；反应计时器则在线路静默 30 ms 后立即接受第一个边沿，并拒绝随后的弹跳。
+- Timer1 输入捕获（ATmega328P 7810D §15.6）在合格边沿把 TCNT1 拷进深度为 1 的 ICR1：稀疏边沿上软件轮询与官方捕获**打平**（周期 `800.0000+-0.0000` 拍、首次时间戳 `200.0000+-0.0000` 拍，每种种子都相同）；短脉冲上官方臂捕获全部 `16.0000+-0.0000` 个上升沿，轮询错过每一发（成对 A-B n_capt `-16.0000+-0.0000`，明显，5 个种子同号）；第二次未读事件用 `108.0000` 拍**覆盖** ICR（只保留首次的 `100.0000` 予以披露并保留；8 拍的差距是小而一致）；错误的 ICES 在首次捕获时间戳上**失败**（成对 C-B `40.0000+-0.0000` 拍，明显）——这是标准库替身；官方 AVR 烧录 / 逻辑分析仪本页未运行。
 
 **下一课会用到**
 
