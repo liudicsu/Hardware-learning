@@ -1,0 +1,32 @@
+Synthetic Type A mean uncertainty toy; shared observations; not a real DMM
+seeds=5 n=16 n_large=64 mu=5.0000 V sigma=0.0200 V L=0.0500 V uB=L/sqrt(3)=0.0288675135 V clear_frac=0.2000
+Type-B u is the already-taught L/sqrt(3) conversion; it is not computed from this series
+Arm C lose mode, declared before the first run: treat the observation sample sd s as if it were s(mean)
+hand_calc eq(5)=s/sqrt(n) (algebraic, 手算, not a second official display); sqrt(16)=4.0000000000; sqrt(64)=8.0000000000; sqrt(256)=16.0000000000
+hand_calc L/sqrt(3)=0.0288675135 V (L=0.0500 V); work_plan 30+25+50+40+35=180
+Regimes were written before the first run
+n=16 (official Type A series; shared draws)
+  A_type_a 0.0046+-0.0007 V  B_type_b 0.0289+-0.0000 V  C_s_as_u_mean 0.0183+-0.0030 V
+  mean 4.9989+-0.0057 V  hand_s_over_sqrt_n 0.0046+-0.0007 V
+  paired A-hand_s_over_sqrt_n u: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B u: -0.0243+-0.0007: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A u: 0.0137+-0.0022: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  hand_calc C/A vs sqrt(16)=4.0000000000: 0.0000+-0.0000: tie: identical on every seed
+n=64 (same seed family, CRN: first 16 observations shared with n=16)
+  A_type_a 0.0025+-0.0003 V  B_type_b 0.0289+-0.0000 V  C_s_as_u_mean 0.0202+-0.0025 V
+  mean 4.9977+-0.0041 V  hand_s_over_sqrt_n 0.0025+-0.0003 V
+  paired A-hand_s_over_sqrt_n u: 0.0000+-0.0000: tie: identical on every seed
+  paired A-B u: -0.0263+-0.0003: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired C-A u: 0.0177+-0.0022: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  hand_calc C/A vs sqrt(64)=8.0000000000: 0.0000+-0.0000: tie: identical on every seed
+  paired A(n=64)-A(n=16) u: -0.0020+-0.0006: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B(n=64)-B(n=16) u: 0.0000+-0.0000: tie: identical on every seed
+alternative n=256 (same seed family, CRN: first 64 observations shared, not adopted)
+  A_type_a 0.0012+-4.206e-05 V  B_type_b 0.0289+-0.0000 V  C_s_as_u_mean 0.0200+-0.0007 V
+  paired A-hand_s_over_sqrt_n u: 0.0000+-0.0000: tie: identical on every seed
+  paired A(n=256)-A(n=64) u: -0.0013+-0.0003: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  paired B(n=256)-B(n=64) u: 0.0000+-0.0000: tie: identical on every seed
+  paired C-A u: 0.0187+-0.0006: clear gap, not a tie (|m| > sd); same sign on all 5 seeds
+  hand_calc C/A vs sqrt(256)=16.0000000000: 0.0000+-0.0000: tie: identical on every seed
+No winner declared: Type A u of the mean follows official eq (5) and shrinks when n grows; the Type-B L/sqrt(3) term stays put; using s as if it were s(mean) loses
+Real DMM / calibration laboratory / repeated physical observations: 本页未运行; NIST Type A statements 以原文为准

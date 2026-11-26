@@ -3971,6 +3971,18 @@ export const resources: Record<string, Resource> = {
     extra: true,
   },
 
+  "nist-uncertainty-typea": {
+    id: "nist-uncertainty-typea",
+    url: "https://physics.nist.gov/cuu/Uncertainty/typea.html",
+    title: { zh: "NIST：A 类标准不确定度", en: "NIST: Type A standard uncertainty" },
+    author: "NIST",
+    kind: "guide",
+    cost: { zh: "免费", en: "Free" },
+    summary: { zh: "一串独立观测的样本均值，其标准不确定度是均值的标准差（官方公式 (4)/(5)）。本站 1.3 使用合成重复观测，不是真实万用表记录。", en: "The standard uncertainty of a sample mean from a series of independent observations is the standard deviation of the mean (official eqs (4)–(5)). Lesson 1.3 uses synthetic repeats, not a real DMM log." },
+    license: { zh: "版权归原作者；仅提供外链", en: "Copyright original authors; external link only" },
+    extra: true,
+  },
+
   "opencv-stereo-depth-source": {
     id: "opencv-stereo-depth-source",
     url: "https://raw.githubusercontent.com/opencv/opencv/4.x/doc/py_tutorials/py_calib3d/py_depthmap/py_depthmap.markdown",

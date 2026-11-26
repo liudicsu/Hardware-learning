@@ -131,10 +131,11 @@ class TimeoutContract(unittest.TestCase):
         hook = (ROOT / "examples/month-1/check.sh").read_text()
         self.assertIn("monotonic_vs_wallclock_timeout_toy.txt", hook)
         self.assertLess(hook.index("ydelta_network_reduction_toy"), hook.index("monotonic_vs_wallclock_timeout_toy"))
-        self.assertLess(hook.index("monotonic_vs_wallclock_timeout_toy"), hook.index("exit $fail"))
-        self.assertGreater(hook.index("exit $fail"), hook.rindex("monotonic_vs_wallclock_timeout_toy"))
-        # new hook is the last hook, immediately before exit
-        after_new = hook[hook.rindex("monotonic_vs_wallclock_timeout_toy"):]
+        self.assertLess(hook.index("monotonic_vs_wallclock_timeout_toy"), hook.index("type_a_mean_uncertainty_toy"))
+        self.assertLess(hook.index("type_a_mean_uncertainty_toy"), hook.index("exit $fail"))
+        self.assertGreater(hook.index("exit $fail"), hook.rindex("type_a_mean_uncertainty_toy"))
+        # type-a hook is the last hook, immediately before exit; monotonic stays after ydelta
+        after_new = hook[hook.rindex("type_a_mean_uncertainty_toy"):]
         self.assertIn("exit $fail", after_new)
         self.assertNotRegex(after_new.split("exit $fail")[0], r"python3 \"\$M1/")
 

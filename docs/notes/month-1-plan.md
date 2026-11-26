@@ -1,5 +1,15 @@
 # Month 1 plan / 第 1 个月计划
 
+Current / 当前：**M1 3450 min**, Batch-31 PR1. Earlier entries below retain their historical totals. M1=3450 is still the lightest month. Site typography after this PR is `46 620`.
+
+## Batch-31 PR1 / 本月 H1 (+180)
+
+Base `223e6cdf2b125048dc8c35b85cab7f4adcebf879` (batch-30 PR2 #215 squash-merged; site **46440**). PR1 on M1 host: **M1 3270→3450 (+180)**. Site **46440→46620** (README typography `46 620`). Still 71 lessons. M2 stays 4470; M8=M11 stay jointly heaviest at 4530. M1=3450 remains lightest. These load facts are recorded here and in the sources note only, not as a student-facing process lecture.
+
+- **H1 / 1.3 bench-multimeter: 540→720 (+180).** Official NIST Type A standard uncertainty of the mean (`type_a_mean_uncertainty_toy.py`; five seeds; CRN prefixes at n=16 / n=64; stdlib only). Official Type A body re-fetched at writing (live pins recorded in `docs/notes/batch-31-pr1-sources.md`; 以原文为准): sample mean eq (4) and standard uncertainty of the mean eq (5) from the opened GIFs; algebraic `s/√n` is 手算, not a second official display. New Resource / reading-map entry `nist-uncertainty-typea` was added because the existing `nist-uncertainty-typeb` URL is `typeb.html` and does not already cover Type A eqs (4)–(5). Declared toy parameters: `MU=5.0000` V, `SIGMA=0.0200` V, `N=16`, `N_LARGE=64`, `N_ALT=256`, `L=0.0500` V, `uB=L/sqrt(3)=0.0288675135` V, `clear_frac=0.2000`. Official first run 2026-11-26 14:52:20 Asia/Shanghai; expected sha256 `2905a8b2d685dcdb3249efae3f26c5ad4b0df8f1beb21eab0f2eb43692bee5d9`; later rerun byte-identical; official expected/ not retuned. official identity: A vs 手算 `s/√n` **tie** (`0.0000+-0.0000`, identical on every seed) at n=16 and n=64, as declared. larger n: paired A(n=64)-A(n=16) `-0.0020+-0.0006`, **clear**, 5/5 (A shrinks); paired B(n=64)-B(n=16) `0.0000+-0.0000`, **tie** (B stays put). C loses: 手算 `C/A` vs `√n` is a **tie** (`4.0000000000` at n=16, `8.0000000000` at n=64); paired C-A clear, 5/5, kept. Every pre-declared regime held. Alternative `n=256` printed, not adopted. Existing `dmm_uncertainty_toy`, `kelvin_four_wire_sense_toy`, `true_rms_vs_average_responding_toy` and their expected/ / wording were not retuned or edited. Real DMM / calibration laboratory 本页未运行. / 官方 Type A 均值标准不确定度，对照已教的 Type-B 规格限值换算与把 s 误当成 s(mean) 的失败臂，不宣布真实万用表实验。
+
+**Allocation / 安排:** 30+25+50+40+35=180 minutes.
+
 Current / 当前：**M1 3270 min**, Batch-30 PR1. Earlier entries below retain their historical totals. M1=3270 is still the lightest month. Site typography after this PR alone is `46 260` (the full-batch target 46 440 is after PR2).
 
 ## Batch-30 PR1 / 本月 H1 (+180)
